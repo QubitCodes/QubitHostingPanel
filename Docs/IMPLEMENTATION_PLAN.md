@@ -46,7 +46,7 @@ Gate: completed with clean install, migration, seed, schema verification, typech
 - [x] First Super Admin identity seeded through explicit CLI input rather than persistent environment configuration.
 - [x] Live MSG91 generated-OTP submission accepted by the configured production sender.
 - [x] Confirm handset delivery and complete the application OTP verification/session flow.
-- [ ] Admin management APIs and views.
+- [x] Admin management APIs and URL-driven views for lifecycle, roles, overrides, sessions, authentication events, and audit history.
 - [x] Server-authorized personal/admin context switching.
 
 Gate status:
@@ -57,7 +57,7 @@ Gate status:
 - [x] Logout revokes the session and subsequent context access is rejected.
 - [x] No password authentication flow exists.
 
-Gate: authentication and context-isolation checks pass; admin management APIs and views remain before Phase 1 feature completion.
+Gate: completed with live WhatsApp authentication, context isolation, session ownership/revocation, database-level Super Admin concealment, deny precedence, final-Super-Admin protection, admin lifecycle, role/override seeding, automated checks, and Supabase verification evidence.
 
 ## Phase 2 - Packages and entitlements
 

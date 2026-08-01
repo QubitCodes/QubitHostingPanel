@@ -109,5 +109,13 @@ Every user can review and manage their own login sessions from `/settings/sessio
 Session metadata is informational. Authorization never trusts device names, user agents, Client Hints, location, or a browser-generated device identifier. Exact GPS coordinates are not requested from the browser; latitude and longitude are stored only when a trusted deployment proxy supplies approximate GeoIP coordinates.
 
 Users may rename an owned device, revoke one owned session, revoke the current session, or revoke all other active sessions. Queries always scope by authenticated user ID before returning or mutating a session. Refresh-token hashes and device-identifier hashes never appear in API responses.
+
+## Administrator management
+
+The `/admin/admins` workspace and `/api/v1/admins` API require an active admin context plus effective action permissions. Administrators are passwordless identities created from a canonical mobile number and assigned one or more platform roles.
+
+Non-Super-Admin callers cannot query, view, update, delete, or assign the Super Admin identity/role. Concealment occurs in database predicates rather than after result retrieval. A caller cannot assign a role or explicit allow containing permissions they do not already hold. The final active Super Admin cannot be suspended, deactivated, deleted, or stripped of the Super Admin role.
+
+Status changes and deletion revoke active sessions. Role changes and permission overrides are audited with actor, target, reason/count metadata, IP, and user agent. Explicit permission denies continue to override role grants and explicit allows.
 - Record successful and failed authentication events without recording secrets.
 - Consider stricter risk rules for entering an admin context.

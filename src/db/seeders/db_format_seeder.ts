@@ -14,6 +14,12 @@ const ROLE_SEEDS = [
 ] as const;
 const RESOURCES = ['admins', 'roles', 'packages', 'offers', 'customers', 'organisations', 'subscriptions', 'usage', 'servers', 'audit_logs'] as const;
 const ACTIONS = ['view', 'create', 'update', 'delete'] as const;
+const ROLE_PERMISSION_RULES: Record<string, (code: string) => boolean> = {
+	administrator: () => true,
+	billing_manager: (code) => ['packages.', 'offers.', 'subscriptions.', 'usage.', 'audit_logs.view'].some((prefix) => code.startsWith(prefix)),
+	readonly_operator: (code) => code.endsWith('.view'),
+	support_operator: (code) => ['customers.view', 'customers.update', 'organisations.view', 'organisations.update', 'subscriptions.view', 'usage.view', 'admins.view'].includes(code)
+};
 
 /** Seeds idempotent platform roles and permissions without embedding an administrator identity. */
 export async function seedEssentialData(): Promise<void> {
@@ -28,6 +34,14 @@ export async function seedEssentialData(): Promise<void> {
 	if (!superAdminRole) throw new Error('Super Admin role seed failed.');
 	for (const permission of permissions) {
 		await db.insert(platformRolePermissions).values({ roleId: superAdminRole.id, permissionId: permission.id }).onConflictDoNothing();
+	}
+	const standardRoles = await db.select().from(platformRoles).where(and(eq(platformRoles.isSuperAdmin, false), isNull(platformRoles.deletedAt)));
+	for (const role of standardRoles) {
+		const allows = ROLE_PERMISSION_RULES[role.code];
+		if (!allows) continue;
+		for (const permission of permissions.filter(({ code }) => allows(code))) {
+			await db.insert(platformRolePermissions).values({ roleId: role.id, permissionId: permission.id }).onConflictDoNothing();
+		}
 	}
 	console.info(`Seeded ${ROLE_SEEDS.length} roles and ${permissions.length} permissions.`);
 }

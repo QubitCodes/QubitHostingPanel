@@ -44,6 +44,24 @@ export const OPENAPI_DOCUMENT = {
 		'/auth/sessions/others': {
 			delete: { summary: 'Revoke all other owned sessions', operationId: 'revokeOtherSessions', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Other active sessions revoked.' } } }
 		},
+		'/admins': {
+			get: { summary: 'List visible platform administrators', operationId: 'listAdmins', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Permission-scoped administrator list.' }, '403': { description: 'Admin permission required.' } } },
+			post: { summary: 'Create a passwordless administrator', operationId: 'createAdmin', security: [{ bearerAuth: [] }], requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/CreateAdmin' } } } }, responses: { '201': { description: 'Administrator created.' }, '403': { description: 'Role assignment is not permitted.' } } }
+		},
+		'/admins/{adminId}': {
+			get: { summary: 'View an administrator and security history', operationId: 'getAdmin', security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/AdminId' }], responses: { '200': { description: 'Administrator detail.' }, '404': { description: 'Administrator hidden or absent.' } } },
+			patch: { summary: 'Update administrator profile or status', operationId: 'updateAdmin', security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/AdminId' }], responses: { '200': { description: 'Administrator updated.' }, '422': { description: 'Final Super Admin protection.' } } },
+			delete: { summary: 'Soft-delete an administrator', operationId: 'deleteAdmin', security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/AdminId' }], responses: { '200': { description: 'Administrator deleted and sessions revoked.' }, '422': { description: 'Final Super Admin protection.' } } }
+		},
+		'/admins/{adminId}/roles': {
+			put: { summary: 'Replace administrator roles', operationId: 'replaceAdminRoles', security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/AdminId' }], responses: { '200': { description: 'Roles updated.' }, '403': { description: 'Role would escalate privileges.' } } }
+		},
+		'/admins/{adminId}/overrides': {
+			put: { summary: 'Replace explicit permission overrides', operationId: 'replaceAdminOverrides', security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/AdminId' }], responses: { '200': { description: 'Overrides updated.' }, '403': { description: 'Override would escalate privileges.' } } }
+		},
+		'/admins/options': {
+			get: { summary: 'List assignable roles and permissions', operationId: 'getAdminOptions', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Caller-scoped role and permission options.' }, '403': { description: 'Role visibility permission required.' } } }
+		},
 		'/health': {
 			get: {
 				summary: 'Check application process health',
@@ -63,6 +81,7 @@ export const OPENAPI_DOCUMENT = {
 	},
 	components: {
 		parameters: {
+			AdminId: { name: 'adminId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
 			SessionId: { name: 'sessionId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }
 		},
 		securitySchemes: {
@@ -80,6 +99,10 @@ export const OPENAPI_DOCUMENT = {
 			SessionLabel: {
 				type: 'object', additionalProperties: false, required: ['label'],
 				properties: { label: { type: 'string', minLength: 1, maxLength: 100, example: 'Work laptop' } }
+			},
+			CreateAdmin: {
+				type: 'object', additionalProperties: false, required: ['countryCallingCode', 'displayName', 'localMobileNumber', 'roleIds'],
+				properties: { countryCallingCode: { type: 'string', example: '+91' }, displayName: { type: 'string', maxLength: 160 }, localMobileNumber: { type: 'string', pattern: '^\\d{4,20}$' }, roleIds: { type: 'array', minItems: 1, maxItems: 10, items: { type: 'string', format: 'uuid' } } }
 			},
 			HealthResponse: {
 				type: 'object',

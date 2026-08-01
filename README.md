@@ -4,7 +4,7 @@ Standalone hosting commerce and management application for Qubit Codes.
 
 ## Status
 
-Phase 0 is complete. Phase 1 identity infrastructure now includes WhatsApp OTP challenges, access/refresh sessions, platform authorization models, controlled seeding, and secure context switching. Live MSG91 sender verification and admin management views remain pending.
+Phases 0 and 1 are complete. The application includes verified WhatsApp OTP authentication, access/refresh sessions, user-owned device management, platform authorization, secure context switching, and permission-scoped administrator management.
 
 ## Product boundary
 
@@ -117,6 +117,11 @@ Local endpoints:
 - `/api/v1/auth/sessions/:sessionId` - inspect, label, or revoke one owned session.
 - `/api/v1/auth/sessions/others` - revoke every other active session.
 - `/settings/sessions` - mobile-first Devices & Sessions management page.
+- `/api/v1/admins` - permission-scoped administrator listing and creation.
+- `/api/v1/admins/:adminId` - detail, lifecycle updates, and soft deletion.
+- `/api/v1/admins/:adminId/roles` - replace reviewed role assignments.
+- `/api/v1/admins/:adminId/overrides` - replace explicit permission overrides.
+- `/admin/admins` - URL-driven administrator management workspace.
 
 ## Application structure
 
