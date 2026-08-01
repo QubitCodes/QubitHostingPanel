@@ -11,6 +11,8 @@
 - Explain the plan, architecture, and intended files before implementation.
 - Wait for explicit approval unless the user requests immediate implementation.
 - At completion, provide a practical Git summary and description and remind the user to push.
+- Git commit summaries must begin with a capitalized Conventional Commit type and a capitalized subject, for example: `Feat: Establish React Router hosting panel foundation`.
+- When an approved task is complete and the user asks to start a new task, commit the completed task before implementing the new task. Keep commits focused and never include unrelated user changes.
 - Prefer concise, developer-friendly communication.
 
 ## 1. Architecture and stack
