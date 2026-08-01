@@ -4,7 +4,7 @@ Standalone hosting commerce and management application for Qubit Codes.
 
 ## Status
 
-Phases 0 and 1 are complete. The application includes verified WhatsApp OTP authentication, access/refresh sessions, user-owned device management, platform authorization, secure context switching, and permission-scoped administrator management.
+Phases 0 and 1 are complete. The application includes verified WhatsApp OTP authentication, access/refresh sessions, user-owned device management, platform authorization, secure context switching, permission-scoped administrator management, and the responsive light/dark panel interface for these workflows.
 
 ## Product boundary
 
@@ -105,6 +105,14 @@ The Supabase GitHub integration expects migrations beneath a repository `supabas
 Local endpoints:
 
 - `/` - foundation page.
+- `/login` - request a WhatsApp OTP.
+- `/login/verify/:challengeId` - verify a deep-linked OTP challenge.
+- `/admin/overview` - authenticated Phase 1 overview.
+- `/admin/administrators` - administrator management workspace.
+- `/admin/administrators/create` - URL-addressed create drawer.
+- `/admin/administrators/:adminId/:section` - URL-addressed administrator detail section.
+- `/settings/profile` - identity and context settings.
+- `/settings/security` - authentication security settings.
 - `/api/v1/health` - standardized process health.
 - `/api/v1/openapi.json` - OpenAPI 3.1 contract.
 - `/api/docs` - Scalar API reference.
@@ -121,7 +129,6 @@ Local endpoints:
 - `/api/v1/admins/:adminId` - detail, lifecycle updates, and soft deletion.
 - `/api/v1/admins/:adminId/roles` - replace reviewed role assignments.
 - `/api/v1/admins/:adminId/overrides` - replace explicit permission overrides.
-- `/admin/admins` - URL-driven administrator management workspace.
 
 ## Application structure
 

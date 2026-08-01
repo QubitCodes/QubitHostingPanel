@@ -1,9 +1,23 @@
-import { index, prefix, route, type RouteConfig } from '@react-router/dev/routes';
+import { index, layout, prefix, route, type RouteConfig } from '@react-router/dev/routes';
 
 export default [
 	index('pages/website/home.tsx'),
-	route('settings/sessions', 'pages/account/sessions.tsx'),
-	route('admin/admins', 'pages/admin/admins.tsx'),
+	route('login', 'pages/auth/login.tsx'),
+	route('login/verify/:challengeId', 'pages/auth/verify.tsx'),
+	layout('layouts/application.tsx', [
+		route('admin/overview', 'pages/admin/overview.tsx'),
+		route('admin/administrators', 'pages/admin/admins.tsx'),
+		route('admin/administrators/create', 'pages/admin/administrators-create.tsx'),
+		route('admin/administrators/:adminId', 'pages/admin/administrator-detail.tsx'),
+		route('admin/administrators/:adminId/:section', 'pages/admin/administrator-section.tsx'),
+		layout('layouts/settings.tsx', [
+			route('settings/profile', 'pages/account/profile.tsx'),
+			route('settings/security', 'pages/account/security.tsx'),
+			route('settings/sessions', 'pages/account/sessions.tsx'),
+			route('settings/sessions/:sessionId', 'pages/account/session-detail.tsx')
+		]),
+		route('search/:query', 'pages/search.tsx')
+	]),
 	route('api/docs', 'pages/api/docs.tsx'),
 	...prefix('api/v1', [
 		route('health', 'api/v1/health.ts'),
