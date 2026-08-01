@@ -1,9 +1,4 @@
-import { createHmac, randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
-
-/** Generates a cryptographically secure six-digit one-time password. */
-export function generateOtp(): string {
-	return randomInt(0, 1_000_000).toString().padStart(6, '0');
-}
+import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 
 export function createOtpSalt(): string {
 	return randomBytes(24).toString('hex');
@@ -22,4 +17,3 @@ export function verifyOtpHash(otp: string, salt: string, expectedHash: string, s
 export function hashSensitiveValue(value: string, secret: string): string {
 	return createHmac('sha256', secret).update(value).digest('hex');
 }
-

@@ -20,7 +20,7 @@ Flow:
 3. Resolve the stored country code.
 4. Build the canonical E.164 number.
 5. Create a short-lived OTP challenge.
-6. Generate a cryptographically secure OTP, store only its salted hash, and deliver it through the server-side MSG91 provider.
+6. Ask the published MSG91 SDK to generate and send the OTP with `whatsapp.otp.send({ generate: {} })`, then store only a salted hash of the returned code.
 7. Verify the submitted OTP hash on the server, enforce attempt/expiry limits, and consume it once.
 8. Create an application session with access and refresh tokens.
 9. Return available admin and organisation contexts.
@@ -96,7 +96,7 @@ token version
 - Rate-limit by normalized identity hash, IP, device, purpose, and challenge.
 - Apply resend cooldowns and maximum attempts.
 - Detect replay and consume challenges once.
-- Accept OTP delivery only after MSG91 reports a successful submission.
+- Accept OTP delivery only after `@qubitcodes/msg91` reports a successful generated-code submission.
 - Verify OTP hashes and challenge state server-side before creating application sessions.
 - Mask phone numbers in logs and responses.
 - Never log OTPs, Firebase tokens, refresh tokens, or MSG91 credentials.

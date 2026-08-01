@@ -38,7 +38,7 @@ Gate: completed with clean install, migration, seed, schema verification, typech
 ## Phase 1 - Identity and admin authorization
 
 - [x] Unified users and external identities.
-- [x] MSG91 WhatsApp OTP adapter with application-owned hashed verification; Firebase providers deferred.
+- [x] Published MSG91 SDK WhatsApp OTP generation/delivery with application-owned hashed verification; Firebase providers deferred.
 - [x] Access/refresh tokens and multi-device sessions.
 - [x] Authentication audit events, retry limits, and resend cooldown.
 - [x] Platform roles, permissions, individual allow/deny overrides, and essential-data seeding.

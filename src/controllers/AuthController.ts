@@ -6,7 +6,7 @@ import { db } from '@db/client';
 import { authenticationEvents, otpChallenges, platformUserRoles, userSessions, users } from '@db/schema';
 import type { RequestOtpInput, VerifyOtpInput } from '@schemas/auth';
 import { Msg91OtpProvider, type OtpDeliveryProvider } from '@services/auth/Msg91OtpProvider';
-import { createOtpSalt, generateOtp, hashOtp, hashSensitiveValue, verifyOtpHash } from '@services/auth/otpCryptoService';
+import { createOtpSalt, hashOtp, hashSensitiveValue, verifyOtpHash } from '@services/auth/otpCryptoService';
 import { createRefreshToken, hashRefreshToken, issueAccessToken, verifyAccessToken, type SessionContext } from '@services/auth/tokenService';
 import type { RequestMetadata } from '@utils/request';
 
@@ -70,15 +70,29 @@ export class AuthController {
 				isNull(users.deletedAt)
 			)).limit(2);
 			const user = candidates.length === 1 ? candidates[0] : undefined;
-			const otp = generateOtp();
+			let deliveryStatus: 'submitted' | 'failed' = 'failed';
+			let providerReference: string | undefined;
+			let generatedCode = createOtpSalt();
+			if (user) {
+				try {
+					const delivery = await provider.send(user.mobileE164);
+					generatedCode = delivery.code;
+					providerReference = delivery.providerReference;
+					deliveryStatus = 'submitted';
+				} catch {
+					deliveryStatus = 'failed';
+				}
+			}
 			const otpSalt = createOtpSalt();
 			const now = Date.now();
 			const [challenge] = await db.insert(otpChallenges).values({
 				userId: user?.id,
 				identityHash,
 				maskedDestination: maskMobile(input.localMobileNumber),
-				otpHash: hashOtp(otp, otpSalt, secret),
+				otpHash: hashOtp(generatedCode, otpSalt, secret),
 				otpSalt,
+				deliveryStatus,
+				providerReference,
 				maxAttempts: environment.OTP_MAX_ATTEMPTS,
 				expiresAt: new Date(now + environment.OTP_TTL_MINUTES * 60_000),
 				resendAvailableAt: new Date(now + environment.OTP_RESEND_COOLDOWN_SECONDS * 1_000),
@@ -87,17 +101,6 @@ export class AuthController {
 			}).returning();
 			if (!challenge) throw new Error('Unable to create OTP challenge.');
 
-			let deliveryStatus: 'submitted' | 'failed' = 'failed';
-			let providerReference: string | undefined;
-			if (user) {
-				try {
-					providerReference = await provider.send(user.mobileE164, otp);
-					deliveryStatus = 'submitted';
-				} catch {
-					deliveryStatus = 'failed';
-				}
-			}
-			await db.update(otpChallenges).set({ deliveryStatus, providerReference, updatedAt: new Date() }).where(eq(otpChallenges.id, challenge.id));
 			await db.insert(authenticationEvents).values({
 				userId: user?.id,
 				challengeId: challenge.id,

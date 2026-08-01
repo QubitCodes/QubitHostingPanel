@@ -63,7 +63,7 @@ Requirements:
 - Node.js 22.22 or newer.
 - npm.
 - PostgreSQL or a Supabase development database for migration verification.
-- Local `D:\laragon\www\1_Packages\Msg91` checkout until `@qubitcodes/msg91` is published.
+- Published `@qubitcodes/msg91` package from the npm registry.
 
 ```powershell
 Copy-Item .env.example .env

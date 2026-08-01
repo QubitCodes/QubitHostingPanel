@@ -24,7 +24,7 @@
 	},
 	"dependencies": {
 		"@hookform/resolvers": "^5.2.2",
-		"@qubitcodes/msg91": "file:../1_Packages/Msg91",
+		"@qubitcodes/msg91": "^0.2.0",
 		"@qubitcodes/qcresp": "1.0.1",
 		"@react-router/node": "8.3.0",
 		"@react-router/serve": "8.3.0",

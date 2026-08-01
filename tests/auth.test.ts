@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
 import { requestOtpSchema, switchContextSchema, verifyOtpSchema } from '@schemas/auth';
-import { createOtpSalt, generateOtp, hashOtp, verifyOtpHash } from '@services/auth/otpCryptoService';
+import { createMsg91Client } from '@qubitcodes/msg91';
+
+import { createOtpSalt, hashOtp, verifyOtpHash } from '@services/auth/otpCryptoService';
 
 describe('WhatsApp OTP security primitives', () => {
-	it('generates six digit OTPs and verifies only the correct value', () => {
-		const otp = generateOtp();
+	it('uses the MSG91 default generator and verifies only the correct value', () => {
+		const otp = createMsg91Client({ authKey: 'test', configFile: false }).whatsapp.otp.generate();
 		const salt = createOtpSalt();
 		const secret = 'a-secure-test-secret-with-at-least-32-characters';
 		const hash = hashOtp(otp, salt, secret);
@@ -22,4 +24,3 @@ describe('WhatsApp OTP security primitives', () => {
 		expect(switchContextSchema.safeParse({ context: 'organisation' }).success).toBe(false);
 	});
 });
-
