@@ -92,6 +92,12 @@ npm.cmd run db:seed:super-admin -- --country-code=91 --local-mobile=9400143527 -
 
 Authentication requires server-only `MSG91_AUTH_KEY`, `MSG91_WHATSAPP_NUMBER`, `OTP_HASH_SECRET`, `JWT_ACCESS_SECRET`, and `JWT_REFRESH_SECRET` values. The MSG91 authentication template and language use the SDK's code-owned `common_otp` and `en` defaults. Each application secret must be independently generated with at least 32 characters. Never expose them through Vite-prefixed variables or commit them.
 
+Generate any missing application-owned secrets without replacing existing values:
+
+```powershell
+npm.cmd run env:generate-secrets
+```
+
 For Supabase direct connections in environments with a private/self-signed intermediary certificate chain, use encrypted libpq-compatible SSL parameters: `sslmode=require&uselibpqcompat=true`. Do not commit the resulting connection string.
 
 The Supabase GitHub integration expects migrations beneath a repository `supabase/` directory. Drizzle migrations currently live under `src/db/migrations`, so repository-to-Supabase deployment is not considered active until a reviewed migration synchronization strategy is added. Direct Drizzle migration execution remains the verified Phase 0 workflow.

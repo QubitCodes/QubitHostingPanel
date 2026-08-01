@@ -44,11 +44,19 @@ Gate: completed with clean install, migration, seed, schema verification, typech
 - [x] Platform roles, permissions, individual allow/deny overrides, and essential-data seeding.
 - [x] First Super Admin identity seeded through explicit CLI input rather than persistent environment configuration.
 - [x] Live MSG91 generated-OTP submission accepted by the configured production sender.
-- [ ] Confirm handset delivery and complete the application OTP verification/session flow.
+- [x] Confirm handset delivery and complete the application OTP verification/session flow.
 - [ ] Admin management APIs and views.
 - [x] Server-authorized personal/admin context switching.
 
-Gate: one verified user can enter permitted contexts without privilege leakage; no password flow exists.
+Gate status:
+
+- [x] One verified Super Admin can authenticate through WhatsApp OTP.
+- [x] Access and rotating refresh tokens create a personal session.
+- [x] The same session can enter the permitted admin context.
+- [x] Logout revokes the session and subsequent context access is rejected.
+- [x] No password authentication flow exists.
+
+Gate: authentication and context-isolation checks pass; admin management APIs and views remain before Phase 1 feature completion.
 
 ## Phase 2 - Packages and entitlements
 
