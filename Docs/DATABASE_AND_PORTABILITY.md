@@ -16,6 +16,12 @@ Use Supabase-managed PostgreSQL initially. The panel accesses it through Drizzle
 - Use `DATABASE_URL` and environment-specific configuration.
 - Maintain separate local, staging, and production databases.
 
+### Migration automation boundary
+
+Drizzle SQL migrations under `src/db/migrations` are the current schema source of truth. Supabase's GitHub integration discovers Supabase CLI migrations under `supabase/migrations`; connecting the repository alone does not execute Drizzle's migration directory. Do not maintain two independently authored migration histories.
+
+Until a reviewed synchronization workflow is implemented, run `npm run db:migrate` through a controlled deployment step and verify the result with `npm run db:verify`. Record direct execution and GitHub-driven execution as separate deployment evidence.
+
 ## 3. Authentication boundary
 
 Firebase supplies external identity verification. The application owns users, access relationships, sessions, contexts, roles, permissions, and audit state in PostgreSQL. This avoids coupling panel authorization to Supabase Auth.

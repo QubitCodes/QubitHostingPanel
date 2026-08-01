@@ -81,7 +81,12 @@ Set `DATABASE_URL` before using Drizzle:
 npm.cmd run db:generate
 npm.cmd run db:migrate
 npm.cmd run db:seed
+npm.cmd run db:verify
 ```
+
+For Supabase direct connections in environments with a private/self-signed intermediary certificate chain, use encrypted libpq-compatible SSL parameters: `sslmode=require&uselibpqcompat=true`. Do not commit the resulting connection string.
+
+The Supabase GitHub integration expects migrations beneath a repository `supabase/` directory. Drizzle migrations currently live under `src/db/migrations`, so repository-to-Supabase deployment is not considered active until a reviewed migration synchronization strategy is added. Direct Drizzle migration execution remains the verified Phase 0 workflow.
 
 Local endpoints:
 

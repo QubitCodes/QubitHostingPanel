@@ -31,9 +31,9 @@ Gate status:
 - [x] Production build passes.
 - [x] Production runtime smoke checks pass for home, health, OpenAPI, and JSON API fallback.
 - [x] Dependency audit reports zero known vulnerabilities.
-- [ ] Migration execution against a development PostgreSQL database passes. No local PostgreSQL listener or approved Supabase development connection was available during Phase 0 scaffolding.
+- [x] Migration execution against the Supabase PostgreSQL database passes; `audit_logs` has 13 expected columns and the Drizzle journal records one migration.
 
-Gate: pending development-database migration verification.
+Gate: completed with clean install, migration, seed, schema verification, typecheck, lint, tests, dependency audit, runtime smoke checks, and production build evidence.
 
 ## Phase 1 - Identity and admin authorization
 
