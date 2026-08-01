@@ -97,7 +97,7 @@
 
 - Password authentication is prohibited and must never be implemented.
 - Admins and customers share one identity model.
-- Initial authentication uses Firebase SMS OTP and MSG91 WhatsApp OTP.
+- Initial authentication uses MSG91 WhatsApp OTP. Firebase SMS OTP is deferred until explicitly approved.
 - MSG91 delivery uses `@qubitcodes/msg91`.
 - Store local mobile number, country calling code, canonical E.164 number, and Firebase UID as designed.
 - Use access/refresh tokens and multi-device sessions.

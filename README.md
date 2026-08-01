@@ -4,7 +4,7 @@ Standalone hosting commerce and management application for Qubit Codes.
 
 ## Status
 
-Phase 0 application scaffolding is active. The React Router MVC foundation, environment validation, Drizzle migration layout, mock hosting provider, standardized health API, OpenAPI contract, and Scalar documentation are implemented.
+Phase 0 is complete. Phase 1 identity infrastructure now includes WhatsApp OTP challenges, access/refresh sessions, platform authorization models, controlled seeding, and secure context switching. Live MSG91 sender verification and admin management views remain pending.
 
 ## Product boundary
 
@@ -34,7 +34,7 @@ The public website may display packages and initiate purchases, but the panel re
 - Supabase-managed PostgreSQL initially, accessed through Drizzle ORM.
 - Portable database design supporting later migration to self-hosted PostgreSQL.
 - Password authentication will never be implemented.
-- Firebase SMS OTP and MSG91 WhatsApp OTP for admins and customers.
+- MSG91 WhatsApp OTP for admins and customers; Firebase authentication is deferred.
 - WhatsApp integration through `@qubitcodes/msg91`.
 - Users normally enter only their local mobile number; the stored country code is resolved by the server.
 - One user identity may have both platform-admin and customer/organisation access.
@@ -84,6 +84,8 @@ npm.cmd run db:seed
 npm.cmd run db:verify
 ```
 
+Authentication additionally requires server-only `MSG91_AUTH_KEY`, `MSG91_WHATSAPP_NUMBER`, `OTP_HASH_SECRET`, `JWT_ACCESS_SECRET`, and `JWT_REFRESH_SECRET` values. Each application secret must be independently generated with at least 32 characters. Never expose them through Vite-prefixed variables or commit them.
+
 For Supabase direct connections in environments with a private/self-signed intermediary certificate chain, use encrypted libpq-compatible SSL parameters: `sslmode=require&uselibpqcompat=true`. Do not commit the resulting connection string.
 
 The Supabase GitHub integration expects migrations beneath a repository `supabase/` directory. Drizzle migrations currently live under `src/db/migrations`, so repository-to-Supabase deployment is not considered active until a reviewed migration synchronization strategy is added. Direct Drizzle migration execution remains the verified Phase 0 workflow.
@@ -94,6 +96,11 @@ Local endpoints:
 - `/api/v1/health` - standardized process health.
 - `/api/v1/openapi.json` - OpenAPI 3.1 contract.
 - `/api/docs` - Scalar API reference.
+- `/api/v1/auth/otp/request` - request an enumeration-safe WhatsApp OTP challenge.
+- `/api/v1/auth/otp/verify` - verify a challenge and create a session.
+- `/api/v1/auth/refresh` - rotate a refresh token.
+- `/api/v1/auth/logout` - revoke the bearer session.
+- `/api/v1/auth/context` - switch between personal and authorized admin context.
 
 ## Application structure
 

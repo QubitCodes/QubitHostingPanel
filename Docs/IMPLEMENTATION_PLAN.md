@@ -37,12 +37,14 @@ Gate: completed with clean install, migration, seed, schema verification, typech
 
 ## Phase 1 - Identity and admin authorization
 
-- Unified users and external identities.
-- Firebase SMS OTP and MSG91 WhatsApp OTP.
-- Access/refresh tokens and multi-device sessions.
-- Authentication audit events and rate limiting.
-- Platform roles, permissions, and individual allow/deny overrides.
-- Admin APIs/views and secure context switching.
+- [x] Unified users and external identities.
+- [x] MSG91 WhatsApp OTP adapter with application-owned hashed verification; Firebase providers deferred.
+- [x] Access/refresh tokens and multi-device sessions.
+- [x] Authentication audit events, retry limits, and resend cooldown.
+- [x] Platform roles, permissions, individual allow/deny overrides, and essential-data seeding.
+- [ ] Live MSG91 delivery verification with production sender credentials.
+- [ ] Admin management APIs and views.
+- [x] Server-authorized personal/admin context switching.
 
 Gate: one verified user can enter permitted contexts without privilege leakage; no password flow exists.
 

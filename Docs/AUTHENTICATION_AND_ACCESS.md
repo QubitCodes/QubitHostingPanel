@@ -4,9 +4,9 @@
 
 - Password login will never be implemented.
 - Admins and customers use the same identity system.
-- Initial factors are Firebase SMS OTP and MSG91 WhatsApp OTP.
+- Initial implemented factor is MSG91 WhatsApp OTP.
 - WhatsApp delivery uses `@qubitcodes/msg91`.
-- Google Sign-In and other Firebase-backed identity providers may be added later.
+- Firebase SMS OTP, Google Sign-In, and other Firebase-backed identity providers are deferred.
 - One identity may hold admin access and customer/organisation access simultaneously.
 
 ## 2. Phone-number login experience
@@ -20,8 +20,8 @@ Flow:
 3. Resolve the stored country code.
 4. Build the canonical E.164 number.
 5. Create a short-lived OTP challenge.
-6. Deliver SMS through the Firebase client flow or WhatsApp through the server-side MSG91 provider, as required by the provider.
-7. Verify the provider result on the server.
+6. Generate a cryptographically secure OTP, store only its salted hash, and deliver it through the server-side MSG91 provider.
+7. Verify the submitted OTP hash on the server, enforce attempt/expiry limits, and consume it once.
 8. Create an application session with access and refresh tokens.
 9. Return available admin and organisation contexts.
 
@@ -34,7 +34,7 @@ Store both:
 - Normalized local mobile number for lookup.
 - Country calling code.
 - Canonical E.164 number as the unique phone identity.
-- Firebase UID when assigned.
+- External provider subject identifiers when assigned later.
 - Verification and account status timestamps.
 
 Local numbers are not globally unique. If the same local number matches more than one country, the application must not guess. It may request country disambiguation or use a trusted signed onboarding context.
@@ -45,11 +45,10 @@ A new customer has no stored country code. Registration must establish it throug
 
 ```text
 OtpService
-  FirebaseSmsOtpProvider
   Msg91WhatsAppOtpProvider
 ```
 
-Provider-specific data stays inside services. Controllers validate requests, call the service, and return standardized responses. A client-driven Firebase step may receive only the minimum safe configuration needed to complete verification.
+Provider-specific data stays inside services. Controllers validate requests, call the service, and return standardized responses. The abstraction must permit a later Firebase provider without changing the unified user/session model.
 
 OTP challenges require expiration, attempt limits, resend cooldown, provider reference, channel, purpose, consumed timestamp, and safe audit metadata. Never store or log plaintext OTPs unnecessarily.
 
@@ -97,8 +96,8 @@ token version
 - Rate-limit by normalized identity hash, IP, device, purpose, and challenge.
 - Apply resend cooldowns and maximum attempts.
 - Detect replay and consume challenges once.
-- Validate Firebase tokens server-side before creating application sessions.
-- Verify MSG91 delivery/verification results server-side.
+- Accept OTP delivery only after MSG91 reports a successful submission.
+- Verify OTP hashes and challenge state server-side before creating application sessions.
 - Mask phone numbers in logs and responses.
 - Never log OTPs, Firebase tokens, refresh tokens, or MSG91 credentials.
 - Support session revocation, token rotation, and multi-device sessions.
