@@ -15,6 +15,10 @@ export const switchContextSchema = z.object({
 	organisationId: z.never().optional()
 }).strict();
 
+export const sessionIdSchema = z.uuid();
+export const updateSessionLabelSchema = z.object({
+	label: z.string().trim().min(1).max(100)
+}).strict();
+
 export type RequestOtpInput = z.infer<typeof requestOtpSchema>;
 export type VerifyOtpInput = z.infer<typeof verifyOtpSchema>;
-

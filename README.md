@@ -113,6 +113,10 @@ Local endpoints:
 - `/api/v1/auth/refresh` - rotate a refresh token.
 - `/api/v1/auth/logout` - revoke the bearer session.
 - `/api/v1/auth/context` - switch between personal and authorized admin context.
+- `/api/v1/auth/sessions` - list the current user's device sessions.
+- `/api/v1/auth/sessions/:sessionId` - inspect, label, or revoke one owned session.
+- `/api/v1/auth/sessions/others` - revoke every other active session.
+- `/settings/sessions` - mobile-first Devices & Sessions management page.
 
 ## Application structure
 

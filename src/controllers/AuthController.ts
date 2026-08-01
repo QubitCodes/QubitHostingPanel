@@ -29,12 +29,18 @@ async function createSession(userId: string, tokenVersion: number, metadata: Req
 	const environment = getEnvironment();
 	const refreshToken = createRefreshToken();
 	const expiresAt = new Date(Date.now() + environment.REFRESH_TOKEN_TTL_DAYS * 86_400_000);
+	const { deviceIdentifier, ...sessionClient } = metadata.sessionClient;
 	const [session] = await db.insert(userSessions).values({
 		userId,
 		refreshTokenHash: hashRefreshToken(refreshToken),
 		tokenVersion,
 		expiresAt,
-		...metadata
+		ipAddress: metadata.ipAddress,
+		userAgent: metadata.userAgent,
+		...sessionClient,
+		deviceIdentifierHash: deviceIdentifier
+			? hashSensitiveValue(deviceIdentifier, requireOtpSecret())
+			: undefined
 	}).returning();
 	if (!session) throw new Error('Unable to create authentication session.');
 	return {
@@ -137,7 +143,7 @@ export class AuthController {
 			const valid = verifyOtpHash(input.otp, challenge.otpSalt, challenge.otpHash, requireOtpSecret());
 			if (!valid) {
 				await db.update(otpChallenges).set({ attemptCount: challenge.attemptCount + 1, updatedAt: now }).where(eq(otpChallenges.id, challenge.id));
-				await db.insert(authenticationEvents).values({ userId: challenge.userId, challengeId: challenge.id, type: 'otp_verification_failed', status: 'failure', reason: 'invalid_otp', ...metadata });
+				await db.insert(authenticationEvents).values({ userId: challenge.userId, challengeId: challenge.id, type: 'otp_verification_failed', status: 'failure', reason: 'invalid_otp', ipAddress: metadata.ipAddress, userAgent: metadata.userAgent });
 				return resp.failure('OTP is invalid or expired.', resp.codes.AUTHENTICATION_ERROR, undefined, null, undefined, 401);
 			}
 			const [user] = await db.select().from(users).where(and(eq(users.id, challenge.userId), eq(users.status, 'active'), isNull(users.deletedAt))).limit(1);
@@ -149,7 +155,7 @@ export class AuthController {
 			if (!consumedChallenge) return resp.failure('OTP is invalid or expired.', resp.codes.AUTHENTICATION_ERROR, undefined, null, undefined, 401);
 			await db.update(users).set({ mobileVerifiedAt: now, updatedAt: now }).where(eq(users.id, user.id));
 			const session = await createSession(user.id, user.tokenVersion, metadata);
-			await db.insert(authenticationEvents).values({ userId: user.id, challengeId: challenge.id, type: 'login_succeeded', status: 'success', ...metadata });
+			await db.insert(authenticationEvents).values({ userId: user.id, challengeId: challenge.id, type: 'login_succeeded', status: 'success', ipAddress: metadata.ipAddress, userAgent: metadata.userAgent });
 			return resp.success('Authentication successful.', { user: { id: user.id, displayName: user.displayName }, context: 'personal' }, resp.codes.OK, session);
 		} catch {
 			return resp.failure('Unable to verify OTP.', resp.codes.INTERNAL_SERVICE_ERROR, undefined, null, undefined, 500);
@@ -157,7 +163,7 @@ export class AuthController {
 	}
 
 	/** Rotates the opaque refresh token and returns a fresh access token. */
-	public static async refresh(refreshToken: string): Promise<Response> {
+	public static async refresh(refreshToken: string, metadata?: RequestMetadata): Promise<Response> {
 		try {
 			const hash = hashRefreshToken(refreshToken);
 			const [session] = await db.select().from(userSessions).where(and(eq(userSessions.refreshTokenHash, hash), isNull(userSessions.revokedAt), isNull(userSessions.deletedAt), gt(userSessions.expiresAt, new Date()))).limit(1);
@@ -165,7 +171,7 @@ export class AuthController {
 			const [user] = await db.select().from(users).where(and(eq(users.id, session.userId), eq(users.status, 'active'), eq(users.tokenVersion, session.tokenVersion), isNull(users.deletedAt))).limit(1);
 			if (!user) return resp.failure('Session is no longer valid.', resp.codes.AUTHENTICATION_ERROR, undefined, null, undefined, 401);
 			const rotated = createRefreshToken();
-			await db.update(userSessions).set({ refreshTokenHash: hashRefreshToken(rotated), lastActiveAt: new Date(), updatedAt: new Date() }).where(eq(userSessions.id, session.id));
+			await db.update(userSessions).set({ refreshTokenHash: hashRefreshToken(rotated), lastActiveAt: new Date(), updatedAt: new Date(), ipAddress: metadata?.ipAddress ?? session.ipAddress, userAgent: metadata?.userAgent ?? session.userAgent }).where(eq(userSessions.id, session.id));
 			const accessToken = await issueAccessToken({ context: session.activeContextType, sessionId: session.id, tokenVersion: session.tokenVersion, userId: user.id });
 			return resp.success('Session refreshed.', null, resp.codes.OK, { accessToken, refreshToken: rotated });
 		} catch {

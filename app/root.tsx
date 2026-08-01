@@ -20,6 +20,11 @@ export const meta = () => [
 	{ name: 'viewport', content: 'width=device-width, initial-scale=1' }
 ];
 
+/** Requests privacy-preserving browser Client Hints used for user-visible device descriptions. */
+export const headers = () => ({
+	'Accept-CH': 'Sec-CH-UA, Sec-CH-UA-Mobile, Sec-CH-UA-Platform, Sec-CH-UA-Platform-Version, Sec-CH-UA-Model'
+});
+
 /** Root document shared by public, customer, administration, and API documentation views. */
 export default function App() {
 	return (

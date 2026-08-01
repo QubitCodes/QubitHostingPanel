@@ -101,5 +101,13 @@ token version
 - Mask phone numbers in logs and responses.
 - Never log OTPs, Firebase tokens, refresh tokens, or MSG91 credentials.
 - Support session revocation, token rotation, and multi-device sessions.
+
+## User-owned device and session management
+
+Every user can review and manage their own login sessions from `/settings/sessions`. A session records its user-defined device label, parsed browser/OS/device characteristics, safe Client Hints, IP address, approximate proxy-provided location, timezone, optional network ASN/provider, sign-in time, last activity, expiry, and revocation state.
+
+Session metadata is informational. Authorization never trusts device names, user agents, Client Hints, location, or a browser-generated device identifier. Exact GPS coordinates are not requested from the browser; latitude and longitude are stored only when a trusted deployment proxy supplies approximate GeoIP coordinates.
+
+Users may rename an owned device, revoke one owned session, revoke the current session, or revoke all other active sessions. Queries always scope by authenticated user ID before returning or mutating a session. Refresh-token hashes and device-identifier hashes never appear in API responses.
 - Record successful and failed authentication events without recording secrets.
 - Consider stricter risk rules for entering an admin context.

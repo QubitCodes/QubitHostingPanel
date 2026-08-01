@@ -40,6 +40,7 @@ Gate: completed with clean install, migration, seed, schema verification, typech
 - [x] Unified users and external identities.
 - [x] Published MSG91 SDK WhatsApp OTP generation/delivery with application-owned hashed verification; Firebase providers deferred.
 - [x] Access/refresh tokens and multi-device sessions.
+- [x] User-owned Devices & Sessions page with device labels, metadata visibility, activity timestamps, and individual/all-other revocation.
 - [x] Authentication audit events, retry limits, and resend cooldown.
 - [x] Platform roles, permissions, individual allow/deny overrides, and essential-data seeding.
 - [x] First Super Admin identity seeded through explicit CLI input rather than persistent environment configuration.
