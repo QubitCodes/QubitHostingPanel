@@ -11,15 +11,29 @@
 
 ## Phase 0 - Repository foundation
 
-- Standalone Next.js 16 App Router repository.
-- Strict TypeScript, Tailwind, Drizzle, PostgreSQL, and Zod.
-- Required aliases and MVC directory boundaries.
-- `@qubitcodes/qcrouter`, `@qubitcodes/qcreq`, and `@qubitcodes/qcresp`.
-- Environment validation and safe `.env.example`.
-- Scalar/OpenAPI at `/api/docs`.
-- Build, migration, seed, lint, and test scripts.
+- [x] Standalone React Router v8 and Vite 7 application foundation.
+- [x] Strict TypeScript, Tailwind, Drizzle, PostgreSQL, and Zod.
+- [x] Required aliases and MVC directory boundaries.
+- [x] Native React Router routing/request parsing with `@qubitcodes/qcresp` and `@qubitcodes/msg91`.
+- [x] Environment validation and safe `.env.example`.
+- [x] Scalar/OpenAPI at `/api/docs`.
+- [x] Build, migration, seed, lint, typecheck, and test scripts.
+- [x] Initial audit-log schema, generated raw SQL migration, and centralized audit service.
+- [x] Hosting-provider boundary and deterministic `MockHostingProvider`.
 
-Gate: clean install, migration, seed, typecheck, tests, and production build pass.
+Gate status:
+
+- [x] Dependency installation and lockfile synchronization pass.
+- [x] Essential-data seed command passes; Phase 0 has no required seed records.
+- [x] Typecheck passes.
+- [x] Lint passes with zero warnings.
+- [x] Automated tests pass.
+- [x] Production build passes.
+- [x] Production runtime smoke checks pass for home, health, OpenAPI, and JSON API fallback.
+- [x] Dependency audit reports zero known vulnerabilities.
+- [ ] Migration execution against a development PostgreSQL database passes. No local PostgreSQL listener or approved Supabase development connection was available during Phase 0 scaffolding.
+
+Gate: pending development-database migration verification.
 
 ## Phase 1 - Identity and admin authorization
 

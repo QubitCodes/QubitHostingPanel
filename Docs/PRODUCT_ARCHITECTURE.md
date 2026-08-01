@@ -54,9 +54,9 @@ The public website must never hold Coolify credentials, calculate authoritative 
 Use strict MVC:
 
 - Models: Drizzle schemas and relations under `src/db`.
-- Views: Next.js App Router pages and reusable components.
+- Views: React Router v8 pages under `app/pages` and reusable components under `app/components`.
 - Controllers: request handling and business logic under `src/controllers`.
-- API route handlers: parse requests and delegate to controllers only.
+- React Router loaders/actions and API modules: parse native Web requests and delegate to controllers only.
 - Services: OTP, billing, entitlements, audit, provisioning, encryption, and provider integration.
 
 Provider boundary:
@@ -89,7 +89,7 @@ POST /api/v1/public/checkout-handoffs
 
 Authenticated panel endpoints cover authentication, organisations, subscriptions, usage, and resources. Internal endpoints cover payment webhooks, provider webhooks, scheduled usage snapshots, and provisioning jobs.
 
-All state-changing requests use JSON. All routes use `@qubitcodes/qcreq`, Zod validation, and `@qubitcodes/qcresp`. Undefined `/api/` routes return the standard JSON failure format.
+All state-changing requests use JSON. Routes use native Web `Request` parsing, Zod validation, and `@qubitcodes/qcresp`. Undefined `/api/` routes return the standard JSON failure format. Routing uses React Router's central `app/routes.ts`; `@qubitcodes/qcrouter` and `@qubitcodes/qcreq` are not used.
 
 ## 5. Source-of-truth rules
 

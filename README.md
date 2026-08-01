@@ -4,7 +4,7 @@ Standalone hosting commerce and management application for Qubit Codes.
 
 ## Status
 
-The project is currently in Minimum Viable Application (MVA) planning. Product boundaries, authentication, package billing, entitlements, database portability, infrastructure requirements, and delivery phases are documented. Application scaffolding has not started.
+Phase 0 application scaffolding is active. The React Router MVC foundation, environment validation, Drizzle migration layout, mock hosting provider, standardized health API, OpenAPI contract, and Scalar documentation are implemented.
 
 ## Product boundary
 
@@ -30,7 +30,7 @@ The public website may display packages and initiate purchases, but the panel re
 
 ## Fixed MVA decisions
 
-- Separate Next.js application, repository, deployment, and secrets.
+- Separate React Router v8 application, repository, deployment, and secrets.
 - Supabase-managed PostgreSQL initially, accessed through Drizzle ORM.
 - Portable database design supporting later migration to self-hosted PostgreSQL.
 - Password authentication will never be implemented.
@@ -55,6 +55,60 @@ The public website may display packages and initiate purchases, but the panel re
 6. Read-only Coolify staging integration.
 7. Controlled, idempotent provisioning.
 8. Production-readiness verification.
+
+## Local setup
+
+Requirements:
+
+- Node.js 22.22 or newer.
+- npm.
+- PostgreSQL or a Supabase development database for migration verification.
+- Local `D:\laragon\www\1_Packages\Msg91` checkout until `@qubitcodes/msg91` is published.
+
+```powershell
+Copy-Item .env.example .env
+npm.cmd ci
+npm.cmd run typecheck
+npm.cmd run lint
+npm.cmd run test
+npm.cmd run build
+npm.cmd run dev
+```
+
+Set `DATABASE_URL` before using Drizzle:
+
+```powershell
+npm.cmd run db:generate
+npm.cmd run db:migrate
+npm.cmd run db:seed
+```
+
+Local endpoints:
+
+- `/` - foundation page.
+- `/api/v1/health` - standardized process health.
+- `/api/v1/openapi.json` - OpenAPI 3.1 contract.
+- `/api/docs` - Scalar API reference.
+
+## Application structure
+
+```text
+app/
+  api/v1/          Thin API route entrypoints
+  components/      Reusable view components
+  pages/           Website, customer, admin, and documentation views
+  routes.ts        Central React Router route map
+src/
+  config/          Validated runtime configuration
+  controllers/     Request orchestration and business logic
+  db/              Drizzle client, schemas, migrations, and seeders
+  services/        Audit, OTP, billing, entitlement, and provider services
+  schemas/         Shared validation and OpenAPI contracts
+tests/             Automated unit and contract tests
+storage/           Runtime directory; contents ignored by Git
+```
+
+The application uses native React Router routing and Web `Request` parsing. API responses use `@qubitcodes/qcresp`; WhatsApp integration uses `@qubitcodes/msg91`. The current qcresp release installs Next transitively for `NextResponse`, but this application has no direct Next.js dependency or Next.js application code.
 
 ## Documentation
 

@@ -1,0 +1,37 @@
+{
+	"include": ["**/*", ".react-router/types/**/*"],
+	"exclude": ["node_modules", "build"],
+	"compilerOptions": {
+		"lib": ["DOM", "DOM.Iterable", "ES2022"],
+		"types": ["node", "vite/client"],
+		"isolatedModules": true,
+		"esModuleInterop": true,
+		"jsx": "react-jsx",
+		"moduleResolution": "bundler",
+		"module": "ESNext",
+		"moduleDetection": "force",
+		"noEmit": true,
+		"target": "ES2022",
+		"strict": true,
+		"skipLibCheck": true,
+		"forceConsistentCasingInFileNames": true,
+		"baseUrl": ".",
+		"rootDirs": [".", "./.react-router/types"],
+		"paths": {
+			"@/*": ["src/*"],
+			"@components/*": ["app/components/*"],
+			"@controllers/*": ["src/controllers/*"],
+			"@db/*": ["src/db/*"],
+			"@schemas/*": ["src/schemas/*"],
+			"@requests/*": ["src/requests/*"],
+			"@services/*": ["src/services/*"],
+			"@utils/*": ["src/utils/*"],
+			"@config/*": ["src/config/*"],
+			"@api/*": ["app/api/*"],
+			"@storage/*": ["storage/*"],
+			"@lib/*": ["src/lib/*"],
+			"@middlewares/*": ["src/middlewares/*"],
+			"@root/*": ["./*"]
+		}
+	}
+}

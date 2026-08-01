@@ -5,6 +5,10 @@ node_modules/
 .next/
 out/
 
+# React Router
+.react-router/
+build/
+
 # Testing
 coverage/
 
