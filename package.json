@@ -20,6 +20,7 @@
 		"db:verify": "tsx scripts/verifyDatabase.ts",
 		"db:seed": "tsx src/db/seeders/index.ts",
 		"db:seed:format": "tsx src/db/seeders/db_format_seeder.ts",
+		"db:seed:super-admin": "tsx src/db/seeders/super_admin_seeder.ts",
 		"db:seed:dummy": "tsx src/db/seeders/dummy_data_seeder.ts"
 	},
 	"dependencies": {

@@ -11,8 +11,6 @@ const environmentSchema = z.object({
 	FIREBASE_PRIVATE_KEY: z.string().optional(),
 	MSG91_AUTH_KEY: z.string().optional(),
 	MSG91_WHATSAPP_NUMBER: z.string().optional(),
-	MSG91_OTP_TEMPLATE: z.string().default('common_otp'),
-	MSG91_OTP_TEMPLATE_LANGUAGE: z.string().default('en'),
 	JWT_ACCESS_SECRET: z.string().optional(),
 	JWT_REFRESH_SECRET: z.string().optional(),
 	OTP_HASH_SECRET: z.string().optional(),
@@ -20,10 +18,7 @@ const environmentSchema = z.object({
 	REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().positive().default(30),
 	OTP_TTL_MINUTES: z.coerce.number().int().positive().max(30).default(10),
 	OTP_RESEND_COOLDOWN_SECONDS: z.coerce.number().int().positive().default(60),
-	OTP_MAX_ATTEMPTS: z.coerce.number().int().positive().max(10).default(5),
-	SUPER_ADMIN_LOCAL_MOBILE: z.string().optional(),
-	SUPER_ADMIN_COUNTRY_CALLING_CODE: z.string().optional(),
-	SUPER_ADMIN_DISPLAY_NAME: z.string().optional()
+	OTP_MAX_ATTEMPTS: z.coerce.number().int().positive().max(10).default(5)
 });
 
 export type AppEnvironment = z.infer<typeof environmentSchema>;

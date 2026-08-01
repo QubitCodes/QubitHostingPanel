@@ -42,7 +42,9 @@ Gate: completed with clean install, migration, seed, schema verification, typech
 - [x] Access/refresh tokens and multi-device sessions.
 - [x] Authentication audit events, retry limits, and resend cooldown.
 - [x] Platform roles, permissions, individual allow/deny overrides, and essential-data seeding.
-- [ ] Live MSG91 delivery verification with production sender credentials.
+- [x] First Super Admin identity seeded through explicit CLI input rather than persistent environment configuration.
+- [x] Live MSG91 generated-OTP submission accepted by the configured production sender.
+- [ ] Confirm handset delivery and complete the application OTP verification/session flow.
 - [ ] Admin management APIs and views.
 - [x] Server-authorized personal/admin context switching.
 

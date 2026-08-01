@@ -21,9 +21,7 @@ export class Msg91OtpProvider implements OtpDeliveryProvider {
 		const submission = await client.whatsapp.otp.send({
 			from: 'support',
 			to: destination.replace(/^\+/, ''),
-			generate: {},
-			language: environment.MSG91_OTP_TEMPLATE_LANGUAGE,
-			templateName: environment.MSG91_OTP_TEMPLATE
+			generate: {}
 		});
 		const result = submission.results[0];
 		if (!result) throw new Error('MSG91 did not return an OTP result.');

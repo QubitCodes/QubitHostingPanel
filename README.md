@@ -84,7 +84,13 @@ npm.cmd run db:seed
 npm.cmd run db:verify
 ```
 
-Authentication additionally requires server-only `MSG91_AUTH_KEY`, `MSG91_WHATSAPP_NUMBER`, `OTP_HASH_SECRET`, `JWT_ACCESS_SECRET`, and `JWT_REFRESH_SECRET` values. Each application secret must be independently generated with at least 32 characters. Never expose them through Vite-prefixed variables or commit them.
+Create the first Super Admin explicitly, without persisting identity details in environment configuration:
+
+```powershell
+npm.cmd run db:seed:super-admin -- --country-code=91 --local-mobile=9400143527 --display-name="Super Admin"
+```
+
+Authentication requires server-only `MSG91_AUTH_KEY`, `MSG91_WHATSAPP_NUMBER`, `OTP_HASH_SECRET`, `JWT_ACCESS_SECRET`, and `JWT_REFRESH_SECRET` values. The MSG91 authentication template and language use the SDK's code-owned `common_otp` and `en` defaults. Each application secret must be independently generated with at least 32 characters. Never expose them through Vite-prefixed variables or commit them.
 
 For Supabase direct connections in environments with a private/self-signed intermediary certificate chain, use encrypted libpq-compatible SSL parameters: `sslmode=require&uselibpqcompat=true`. Do not commit the resulting connection string.
 
