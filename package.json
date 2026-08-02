@@ -19,6 +19,7 @@
 		"db:migrate": "drizzle-kit migrate",
 		"db:studio": "drizzle-kit studio",
 		"db:verify": "tsx scripts/verifyDatabase.ts",
+		"db:verify:phase2": "tsx scripts/verifyPhase2Deployment.ts",
 		"db:seed": "tsx src/db/seeders/index.ts",
 		"db:seed:format": "tsx src/db/seeders/db_format_seeder.ts",
 		"db:seed:super-admin": "tsx src/db/seeders/super_admin_seeder.ts",
