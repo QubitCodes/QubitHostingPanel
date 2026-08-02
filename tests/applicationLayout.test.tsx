@@ -31,15 +31,18 @@ describe('application layout SSR', () => {
 	});
 
 	it('renders without browser storage globals', () => {
-		expect(() =>
-			renderToString(
+		let html = '';
+		expect(() => {
+			html = renderToString(
 				<MemoryRouter initialEntries={['/admin/overview']}>
 					<Routes>
 						<Route element={<ApplicationLayout />} path="/admin/overview" />
 					</Routes>
 				</MemoryRouter>,
-			),
-		).not.toThrow();
+			);
+		}).not.toThrow();
+		expect(html).toContain('aria-label="Homepage"');
+		expect(html).toContain('href="/"');
 	});
 
 	it('server-renders administrator routes without the browser location global', () => {

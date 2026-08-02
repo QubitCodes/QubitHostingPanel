@@ -4,6 +4,8 @@ import {
 	ChevronLeft,
 	ChevronRight,
 	EllipsisVertical,
+	Home,
+	LayoutDashboard,
 	LogOut,
 	Menu,
 	Moon,
@@ -18,7 +20,7 @@ import {
 	X,
 } from 'lucide-react';
 import { FormEvent, useEffect, useState } from 'react';
-import { NavLink, Outlet, useLocation, useNavigate } from 'react-router';
+import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router';
 import { toast } from 'sonner';
 
 import {
@@ -78,6 +80,7 @@ export default function ApplicationLayout() {
 	const [fullScreenMenu, setFullScreenMenu] = useState<FullScreenMenuState>();
 	const [adminContextReady, setAdminContextReady] = useState(false);
 	const [canViewApiDocs, setCanViewApiDocs] = useState(false);
+	const [hasCustomerDashboard, setHasCustomerDashboard] = useState(false);
 	const adminRoute = location.pathname.startsWith('/admin/');
 
 	useEffect(() => {
@@ -154,6 +157,16 @@ export default function ApplicationLayout() {
 	useEffect(() => {
 		document.documentElement.classList.toggle('dark', dark);
 	}, [dark]);
+
+	useEffect(() => {
+		if (!adminContextReady) return;
+		void authenticatedFetch('/api/v1/workspaces')
+			.then(async (response) => {
+				const body = await response.json() as { data?: unknown[]; status: boolean };
+				setHasCustomerDashboard(response.ok && body.status && (body.data?.length ?? 0) > 0);
+			})
+			.catch(() => setHasCustomerDashboard(false));
+	}, [adminContextReady]);
 
 	useEffect(() => {
 		document.documentElement.style.setProperty(
@@ -390,6 +403,24 @@ export default function ApplicationLayout() {
 								/>
 							</label>
 						</form>
+						<Link
+							aria-label="Homepage"
+							className="rounded-xl p-2.5 hover:bg-stone-200 dark:hover:bg-stone-800"
+							title="Homepage"
+							to="/"
+						>
+							<Home className="size-5" />
+						</Link>
+						{hasCustomerDashboard && (
+							<Link
+								aria-label="User Panel"
+								className="rounded-xl p-2.5 hover:bg-stone-200 dark:hover:bg-stone-800"
+								title="User Panel"
+								to="/dashboard"
+							>
+								<LayoutDashboard className="size-5" />
+							</Link>
+						)}
 						<button
 							aria-label="Notifications"
 							className="rounded-xl p-2.5 hover:bg-stone-200 dark:hover:bg-stone-800"
