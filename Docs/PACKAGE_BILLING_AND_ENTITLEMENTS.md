@@ -117,3 +117,12 @@ Measured usage contains source, measured value, observation time, and freshness 
 - Upgrade/downgrade workflows calculate new terms explicitly.
 - Downgrades that conflict with current usage require remediation or a scheduled change.
 - Manual entitlement overrides require scope, reason, actor, start/end timestamps, and audit history.
+
+## 8. Transactional email and cost review
+
+- Amazon SES allowances are measured per recipient, not per API request or mailbox.
+- Included monthly recipient limits are package entitlements and are snapshotted at purchase.
+- Optional recipient add-ons are separate products; they do not provide IMAP mailboxes.
+- Removing a price stops future purchases only. Active assignments retain it through `term_ends_at`.
+- Publishing requires an approved cost review covering Mumbai-region compute, EBS, S3, transfer, SES, support, payment fees, and tax assumptions.
+- Cost reviews store server-calculated margin basis points and their evidence notes; a later review does not rewrite prior reviews.

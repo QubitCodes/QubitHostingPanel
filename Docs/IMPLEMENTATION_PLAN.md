@@ -77,6 +77,10 @@ Gate: completed with live WhatsApp authentication, context isolation, session ow
 - [ ] Complete offers, entitlements, public catalogue, and checkout tasks below.
 - [x] Versioned INR monthly/yearly package prices with immutable history, public/private state, effective dates, and tax behaviour.
 - [x] Two initial package categories and six competitively positioned draft packages with yearly pricing equal to ten monthly payments.
+- [x] Guarded price removal with active-customer impact counts and preserved pricing through current term end.
+- [x] Package entitlement definitions and initial enforceable package limits, including transactional SES recipient allowances.
+- [x] Separate SES recipient add-on products with fixed and custom pricing options.
+- [x] Auditable AWS cost/margin reviews with a mandatory approved-review publish gate.
 - Explicit multi-year prices.
 - Offers, coupons, eligibility, limits, and dates.
 - Entitlement definitions and package assignments.

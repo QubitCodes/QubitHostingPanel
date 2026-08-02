@@ -68,6 +68,8 @@ export default [
 		route('packages', 'api/v1/packages/index.ts'),
 		route('packages/:packageSlug', 'api/v1/packages/detail.ts'),
 		route('packages/:packageSlug/prices', 'api/v1/packages/prices.ts'),
+		route('packages/:packageSlug/prices/:priceId', 'api/v1/packages/price-detail.ts'),
+		route('packages/:packageSlug/cost-reviews', 'api/v1/packages/cost-reviews.ts'),
 		route('package-categories', 'api/v1/package-categories/index.ts'),
 	]),
 	route('api/*', 'pages/api/catchall.ts'),

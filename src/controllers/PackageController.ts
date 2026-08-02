@@ -1,10 +1,11 @@
-import { and, asc, desc, eq, isNull } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gt, isNull, sql } from 'drizzle-orm';
 import { resp } from '@qubitcodes/qcresp';
 
 import { db } from '@db/client';
-import { auditLogs, packageCategories, packagePrices, packages } from '@db/schema';
+import { auditLogs, emailUsageProducts, packageCategories, packageCostReviews, packageEntitlements, packagePriceAssignments, packagePrices, packages, entitlementDefinitions } from '@db/schema';
 import type {
 	CreatePackageCategoryInput,
+	CreatePackageCostReviewInput,
 	CreatePackageInput,
 	UpdatePackageInput,
 	SetPackagePricesInput,
@@ -78,6 +79,12 @@ async function categoryExists(categoryId: string | null): Promise<boolean> {
 		)
 		.limit(1);
 	return Boolean(category);
+}
+
+async function hasApprovedCostReview(packageId: string): Promise<boolean> {
+	const [review] = await db.select({ createdAt: packageCostReviews.createdAt, revenueMinor: packageCostReviews.revenueMinor }).from(packageCostReviews).where(and(eq(packageCostReviews.packageId, packageId), eq(packageCostReviews.status, 'approved'), isNull(packageCostReviews.deletedAt))).orderBy(desc(packageCostReviews.createdAt)).limit(1);
+	const [monthlyPrice] = await db.select({ amountMinor: packagePrices.amountMinor, effectiveFrom: packagePrices.effectiveFrom }).from(packagePrices).where(and(eq(packagePrices.packageId, packageId), eq(packagePrices.billingInterval, 'month'), eq(packagePrices.isActive, true), isNull(packagePrices.deletedAt))).orderBy(desc(packagePrices.effectiveFrom)).limit(1);
+	return Boolean(review && monthlyPrice && review.revenueMinor === monthlyPrice.amountMinor && review.createdAt >= monthlyPrice.effectiveFrom);
 }
 
 /** Commercial catalogue administration with server-owned lifecycle validation. */
@@ -179,7 +186,10 @@ export class PackageController {
 				.from(packagePrices)
 				.where(and(eq(packagePrices.packageId, record.id), isNull(packagePrices.deletedAt)))
 				.orderBy(desc(packagePrices.effectiveFrom));
-			return resp.success('Package retrieved.', { ...record, auditLogs: audits, prices });
+			const entitlements = await db.select({ id: packageEntitlements.id, code: entitlementDefinitions.code, name: entitlementDefinitions.name, unit: entitlementDefinitions.unit, enforcementMode: entitlementDefinitions.enforcementMode, numericValue: packageEntitlements.numericValue, booleanValue: packageEntitlements.booleanValue, isUnlimited: packageEntitlements.isUnlimited }).from(packageEntitlements).innerJoin(entitlementDefinitions, eq(entitlementDefinitions.id, packageEntitlements.entitlementId)).where(and(eq(packageEntitlements.packageId, record.id), isNull(packageEntitlements.deletedAt), isNull(entitlementDefinitions.deletedAt))).orderBy(asc(entitlementDefinitions.code));
+			const costReviews = await db.select().from(packageCostReviews).where(and(eq(packageCostReviews.packageId, record.id), isNull(packageCostReviews.deletedAt))).orderBy(desc(packageCostReviews.createdAt));
+			const emailProducts = await db.select().from(emailUsageProducts).where(and(eq(emailUsageProducts.isActive, true), isNull(emailUsageProducts.deletedAt))).orderBy(asc(emailUsageProducts.includedRecipients));
+			return resp.success('Package retrieved.', { ...record, auditLogs: audits, prices, entitlements, costReviews, emailProducts });
 		} catch (error) {
 			return controllerFailure(error);
 		}
@@ -230,6 +240,46 @@ export class PackageController {
 		}
 	}
 
+	/** Reports active term dependencies before a price is removed from sale. */
+	public static async priceDeletionImpact(request: Request, slug: string, priceId: string, metadata: RequestMetadata): Promise<Response> {
+		try {
+			await authorizeAdmin(request, 'packages.delete', metadata);
+			const [price] = await db.select({ id: packagePrices.id }).from(packagePrices).innerJoin(packages, eq(packages.id, packagePrices.packageId)).where(and(eq(packages.slug, slug), eq(packagePrices.id, priceId), isNull(packagePrices.deletedAt), isNull(packages.deletedAt))).limit(1);
+			if (!price) return resp.failure('Package price not found.', resp.codes.RESOURCE_NOT_FOUND, undefined, null, undefined, 404);
+			const now = new Date();
+			const [impact] = await db.select({ activeUsers: count(packagePriceAssignments.id), latestTermEnd: sql<Date | null>`max(${packagePriceAssignments.termEndsAt})` }).from(packagePriceAssignments).where(and(eq(packagePriceAssignments.priceId, priceId), eq(packagePriceAssignments.status, 'active'), gt(packagePriceAssignments.termEndsAt, now), isNull(packagePriceAssignments.deletedAt)));
+			return resp.success('Price deletion impact retrieved.', { activeUsers: Number(impact?.activeUsers ?? 0), latestTermEnd: impact?.latestTermEnd ?? null });
+		} catch (error) { return controllerFailure(error); }
+	}
+
+	/** Soft-deletes a price from sale without altering active customer terms. */
+	public static async removePrice(request: Request, slug: string, priceId: string, metadata: RequestMetadata): Promise<Response> {
+		try {
+			const actor = await authorizeAdmin(request, 'packages.delete', metadata);
+			const now = new Date();
+			const [ownedPrice] = await db.select({ id: packagePrices.id }).from(packagePrices).innerJoin(packages, eq(packages.id, packagePrices.packageId)).where(and(eq(packagePrices.id, priceId), eq(packages.slug, slug), isNull(packagePrices.deletedAt), isNull(packages.deletedAt))).limit(1);
+			if (!ownedPrice) return resp.failure('Package price not found.', resp.codes.RESOURCE_NOT_FOUND, undefined, null, undefined, 404);
+			const [price] = await db.update(packagePrices).set({ isActive: false, isPublic: false, effectiveUntil: now, deletedAt: now, deleteReason: 'Removed from package pricing.', updatedAt: now }).where(and(eq(packagePrices.id, priceId), isNull(packagePrices.deletedAt))).returning({ id: packagePrices.id });
+			await recordAuditLog({ actorUserId: actor.userId, action: 'package.price_deleted', resourceType: 'package_price', resourceId: price.id, metadata: { packageSlug: slug }, ipAddress: metadata.ipAddress, userAgent: metadata.userAgent });
+			return resp.success('Price removed from future purchases. Existing customer terms are unchanged.');
+		} catch (error) { return controllerFailure(error); }
+	}
+
+	/** Records a server-calculated AWS cost and margin review used by the publish gate. */
+	public static async createCostReview(request: Request, slug: string, input: CreatePackageCostReviewInput, metadata: RequestMetadata): Promise<Response> {
+		try {
+			const actor = await authorizeAdmin(request, 'packages.publish', metadata);
+			const [record] = await db.select({ id: packages.id }).from(packages).where(and(eq(packages.slug, slug), isNull(packages.deletedAt))).limit(1);
+			if (!record) return resp.failure('Package not found.', resp.codes.RESOURCE_NOT_FOUND, undefined, null, undefined, 404);
+			const costMinor = Math.round(input.estimatedMonthlyCost * 100);
+			const revenueMinor = Math.round(input.revenue * 100);
+			const marginBasisPoints = Math.round(((revenueMinor - costMinor) / revenueMinor) * 10_000);
+			const [review] = await db.insert(packageCostReviews).values({ packageId: record.id, estimatedMonthlyCostMinor: costMinor, revenueMinor, marginBasisPoints, status: input.status, notes: input.notes, reviewedBy: actor.userId, reviewedAt: new Date() }).returning();
+			await recordAuditLog({ actorUserId: actor.userId, action: 'package.cost_review_created', resourceType: 'package_cost_review', resourceId: review.id, metadata: { packageSlug: slug, status: input.status, marginBasisPoints }, ipAddress: metadata.ipAddress, userAgent: metadata.userAgent });
+			return resp.success('Package cost review recorded.', review, resp.codes.CREATED, undefined, 201);
+		} catch (error) { return controllerFailure(error); }
+	}
+
 	public static async create(
 		request: Request,
 		input: CreatePackageInput,
@@ -252,6 +302,8 @@ export class PackageController {
 				!actor.permissionCodes.has('packages.publish')
 			)
 				return permissionDenied();
+			if (input.status === 'published')
+				return resp.failure('Create the package as a draft and approve its AWS cost and margin review before publishing.', resp.codes.GENERAL_BUSINESS_LOGIC_ERROR, undefined, null, undefined, 422);
 			const [existing] = await db
 				.select({ id: packages.id })
 				.from(packages)
@@ -262,7 +314,7 @@ export class PackageController {
 				.insert(packages)
 				.values({
 					...input,
-					publishedAt: input.status === 'published' ? new Date() : null,
+					publishedAt: null,
 				})
 				.returning();
 			await recordAuditLog({
@@ -317,6 +369,10 @@ export class PackageController {
 					.where(and(eq(packages.slug, input.slug), isNull(packages.deletedAt)))
 					.limit(1);
 				if (existing) return conflict('A package with this slug already exists.');
+			}
+			if (input.status === 'published') {
+				const [current] = await db.select({ id: packages.id }).from(packages).where(and(eq(packages.slug, slug), isNull(packages.deletedAt))).limit(1);
+				if (!current || !(await hasApprovedCostReview(current.id))) return resp.failure('An approved AWS cost and margin review is required before publishing.', resp.codes.GENERAL_BUSINESS_LOGIC_ERROR, undefined, null, undefined, 422);
 			}
 			const [record] = await db
 				.update(packages)

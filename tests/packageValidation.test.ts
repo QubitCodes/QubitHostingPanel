@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
 	createPackageCategorySchema,
+	createPackageCostReviewSchema,
 	createPackageSchema,
 	packageSlugSchema,
 	setPackagePricesSchema,
@@ -67,5 +68,10 @@ describe('package catalogue validation', () => {
 	it('validates positive INR monthly and yearly prices', () => {
 		expect(setPackagePricesSchema.safeParse({ currency: 'INR', monthlyAmount: 399, yearlyAmount: 3990, taxBehavior: 'exclusive', isPublic: false }).success).toBe(true);
 		expect(setPackagePricesSchema.safeParse({ currency: 'INR', monthlyAmount: 0, yearlyAmount: 3990, taxBehavior: 'exclusive', isPublic: false }).success).toBe(false);
+	});
+
+	it('validates auditable AWS cost reviews', () => {
+		expect(createPackageCostReviewSchema.safeParse({ estimatedMonthlyCost: 250, revenue: 799, status: 'approved', notes: 'Mumbai EC2, storage, bandwidth, and SES estimate.' }).success).toBe(true);
+		expect(createPackageCostReviewSchema.safeParse({ estimatedMonthlyCost: 250, revenue: 0, status: 'approved', notes: 'Too short' }).success).toBe(false);
 	});
 });

@@ -113,6 +113,8 @@ Local endpoints:
 - `/admin/packages/create` - focused initial package creation form.
 - `/admin/packages/:packageSlug/:section` - URL-addressed package details and audit history.
 - `/admin/packages/:packageSlug/pricing` - versioned INR monthly/yearly pricing and immutable price history.
+- `/admin/packages/:packageSlug/entitlements` - package limits and SES transactional-email allowances.
+- `/admin/packages/:packageSlug/cost-review` - AWS cost evidence, calculated margins, and publication approval.
 - `/admin/administrators/create` - URL-addressed create drawer.
 - `/admin/administrators/:adminId/:section` - URL-addressed administrator detail section.
 - `/settings/profile` - identity and context settings.

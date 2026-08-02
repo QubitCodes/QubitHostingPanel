@@ -94,9 +94,17 @@ export const setPackagePricesSchema = z.object({
 	yearlyAmount: z.number().positive().max(10_000_000).multipleOf(0.01),
 }).strict();
 
+export const createPackageCostReviewSchema = z.object({
+	estimatedMonthlyCost: z.number().nonnegative().max(10_000_000).multipleOf(0.01),
+	revenue: z.number().positive().max(10_000_000).multipleOf(0.01),
+	status: z.enum(['approved', 'pending', 'rejected']),
+	notes: z.string().trim().min(10).max(5000),
+}).strict();
+
 export type CreatePackageInput = z.infer<typeof createPackageSchema>;
 export type UpdatePackageInput = z.infer<typeof updatePackageSchema>;
 export type CreatePackageCategoryInput = z.infer<
 	typeof createPackageCategorySchema
 >;
 export type SetPackagePricesInput = z.infer<typeof setPackagePricesSchema>;
+export type CreatePackageCostReviewInput = z.infer<typeof createPackageCostReviewSchema>;

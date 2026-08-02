@@ -79,6 +79,13 @@ describe('application layout SSR', () => {
 		expect(createHtml).toContain('Add package');
 		expect(createHtml).toContain('top-20');
 		expect(createHtml).not.toContain('>Basic<');
+		const editHtml = renderToString(
+			<MemoryRouter initialEntries={['/admin/packages/launch/edit/basic']}>
+				<Routes><Route element={<PackagesPage />} path="/admin/packages/:packageSlug/edit/:section" /></Routes>
+			</MemoryRouter>,
+		);
+		expect(editHtml).not.toContain('>Pricing<');
+		expect(editHtml).not.toContain('>Basic<');
 	});
 
 	it('server-renders authentication and profile views without session storage', () => {

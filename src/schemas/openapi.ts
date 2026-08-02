@@ -213,6 +213,13 @@ export const OPENAPI_DOCUMENT = {
 				responses: { '200': { description: 'New active prices created and prior active prices retained as history.' }, '403': { description: 'packages.update permission required.' }, '404': { description: 'Package not found.' } },
 			},
 		},
+		'/packages/{packageSlug}/prices/{priceId}': {
+			get: { summary: 'Inspect active customer impact before deleting a price', operationId: 'packagePriceDeletionImpact', security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/PackageSlug' }], responses: { '200': { description: 'Active user count and latest term end.' } } },
+			delete: { summary: 'Remove a price from future purchases without changing active customer terms', operationId: 'deletePackagePrice', security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/PackageSlug' }], responses: { '200': { description: 'Price soft-deleted; active assignments remain valid.' } } },
+		},
+		'/packages/{packageSlug}/cost-reviews': {
+			post: { summary: 'Record an AWS cost and margin review', operationId: 'createPackageCostReview', security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/PackageSlug' }], requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/PackageCostReviewInput' } } } }, responses: { '201': { description: 'Cost review recorded with server-calculated margin.' }, '403': { description: 'packages.publish permission required.' } } },
+		},
 		'/package-categories': {
 			get: {
 				summary: 'List active package categories and inline-create capability',
@@ -393,6 +400,10 @@ export const OPENAPI_DOCUMENT = {
 					taxBehavior: { type: 'string', enum: ['exclusive', 'inclusive'] },
 					isPublic: { type: 'boolean' },
 				},
+			},
+			PackageCostReviewInput: {
+				type: 'object', additionalProperties: false, required: ['estimatedMonthlyCost', 'revenue', 'status', 'notes'],
+				properties: { estimatedMonthlyCost: { type: 'number', minimum: 0 }, revenue: { type: 'number', exclusiveMinimum: 0 }, status: { type: 'string', enum: ['approved', 'pending', 'rejected'] }, notes: { type: 'string', minLength: 10, maxLength: 5000 } },
 			},
 			PackageInput: {
 				type: 'object',
