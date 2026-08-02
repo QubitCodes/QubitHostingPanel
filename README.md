@@ -100,7 +100,7 @@ npm.cmd run env:generate-secrets
 
 For Supabase direct connections in environments with a private/self-signed intermediary certificate chain, use encrypted libpq-compatible SSL parameters: `sslmode=require&uselibpqcompat=true`. Do not commit the resulting connection string.
 
-The Supabase GitHub integration expects migrations beneath a repository `supabase/` directory. Drizzle migrations currently live under `src/db/migrations`, so repository-to-Supabase deployment is not considered active until a reviewed migration synchronization strategy is added. Direct Drizzle migration execution remains the verified Phase 0 workflow.
+The Supabase GitHub integration expects migrations beneath `supabase/migrations`. That path is a Git-tracked symbolic link to the canonical Drizzle directory at `src/db/migrations`. Supabase migration history is baselined through `0002`; migration `0003` is the first pending GitHub-deployed migration. Verify the integration resolves the symlink before treating this experimental synchronization strategy as production-ready.
 
 Local endpoints:
 

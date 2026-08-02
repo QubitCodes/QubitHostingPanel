@@ -18,7 +18,7 @@ Use Supabase-managed PostgreSQL initially. The panel accesses it through Drizzle
 
 ### Migration automation boundary
 
-Drizzle SQL migrations under `src/db/migrations` are the current schema source of truth. Supabase's GitHub integration discovers Supabase CLI migrations under `supabase/migrations`; connecting the repository alone does not execute Drizzle's migration directory. Do not maintain two independently authored migration histories.
+Drizzle SQL migrations under `src/db/migrations` remain the schema source of truth. The Git-tracked `supabase/migrations` symbolic link exposes that same directory to Supabase's GitHub integration without creating a second authored history. Remote Supabase migration history is baselined through `0002`; confirm the integration dereferences the link and applies `0003` before relying on this experimental setup for future production migrations.
 
 Until a reviewed synchronization workflow is implemented, run `npm run db:migrate` through a controlled deployment step and verify the result with `npm run db:verify`. Record direct execution and GitHub-driven execution as separate deployment evidence.
 
