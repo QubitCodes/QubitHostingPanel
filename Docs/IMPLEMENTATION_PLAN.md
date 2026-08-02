@@ -105,7 +105,7 @@ Delivery order:
 - [x] Build the responsive public landing page with live published package pricing, billing-term selection, sign-in entry, and a registration-ready customer acquisition flow.
 - [x] Add separate customer, workspace, membership, and organisation-extension models with six-digit public IDs.
 - [x] Update OTP registration to transactionally create/reuse the customer profile, Personal Workspace, and Owner membership.
-- [ ] Backfill every current user, including administrators, with missing customer/workspace records idempotently.
+- [x] Backfill every current user, including administrators, with missing customer/workspace records idempotently.
 - [ ] Permit multiple independently billed workspaces per user during the MVA.
 - [ ] Create Personal or Organisation Workspaces and convert Personal Workspaces into organisations without changing workspace identity.
 - [ ] Support audited Personal Workspace ownership transfer with recipient confirmation and automatic replacement workspace when required.
@@ -176,4 +176,4 @@ Gate: production checklist is accepted with evidence.
 
 ## Next implementation approval
 
-Next task: deploy the OTP identity migration, run and verify the idempotent existing-user customer/workspace backfill, then complete workspace creation and checkout persistence.
+Next task: complete workspace creation and checkout persistence after the verified OTP identity migration and existing-user customer/workspace backfill.
