@@ -48,11 +48,6 @@ Gate: completed with clean install, migration, seed, schema verification, typech
 - [x] Confirm handset delivery and complete the application OTP verification/session flow.
 - [x] Admin management APIs and URL-driven views for lifecycle, roles, overrides, sessions, authentication events, and audit history.
 - [x] Server-authorized personal/admin context switching.
-- [x] Passwordless login and OTP verification interface with shared frontend validation.
-- [x] Protected mobile-first application shell with collapsible navigation, profile/credits footer, page-aware top bar, search entry, and light/dark themes.
-- [x] Settings interface with its own URL-driven section sidebar for profile, security, and sessions.
-- [x] Real history-mode URLs for administrator create/detail sections and session details; no hash or query-parameter UI navigation.
-- [x] Loading, empty, error, and responsive states for Phase 1 management views.
 
 Gate status:
 
@@ -62,7 +57,7 @@ Gate status:
 - [x] Logout revokes the session and subsequent context access is rejected.
 - [x] No password authentication flow exists.
 
-Gate: completed with live WhatsApp authentication, context isolation, session ownership/revocation, database-level Super Admin concealment, deny precedence, final-Super-Admin protection, admin lifecycle, role/override seeding, the complete responsive Phase 1 application interface, automated checks, and Supabase verification evidence.
+Gate: completed with live WhatsApp authentication, context isolation, session ownership/revocation, database-level Super Admin concealment, deny precedence, final-Super-Admin protection, admin lifecycle, role/override seeding, automated checks, and Supabase verification evidence.
 
 ## Phase 2 - Packages and entitlements
 
