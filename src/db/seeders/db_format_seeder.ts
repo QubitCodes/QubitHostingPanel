@@ -50,6 +50,7 @@ const RESOURCES = [
 	'admins',
 	'roles',
 	'packages',
+	'package_categories',
 	'offers',
 	'customers',
 	'organisations',
@@ -60,6 +61,11 @@ const RESOURCES = [
 ] as const;
 const ACTIONS = ['view', 'create', 'update', 'delete'] as const;
 const SPECIAL_PERMISSIONS = [
+	{
+		code: 'packages.publish',
+		description: 'Publish or archive commercial packages.',
+		name: 'Publish packages',
+	},
 	{
 		code: 'api_docs.view',
 		description: 'Access the protected Scalar API reference and OpenAPI contract.',
@@ -96,7 +102,7 @@ export async function seedEssentialData(): Promise<void> {
 	for (const resource of RESOURCES) {
 		for (const action of ACTIONS) {
 			const code = `${resource}.${action}`;
-			const name = `${action[0]?.toUpperCase()}${action.slice(1)} ${resource}`;
+			const name = `${action[0]?.toUpperCase()}${action.slice(1)} ${resource.replaceAll('_', ' ')}`;
 			await db
 				.insert(platformPermissions)
 				.values({ code, name })

@@ -7,6 +7,7 @@ import {
 	LogOut,
 	Menu,
 	Moon,
+	PackageOpen,
 	Search,
 	Server,
 	Settings,
@@ -30,12 +31,14 @@ import {
 
 const navigation = [
 	{ label: 'Overview', path: '/admin/overview', icon: Server },
+	{ label: 'Packages', path: '/admin/packages', icon: PackageOpen },
 	{ label: 'Administrators', path: '/admin/administrators', icon: Shield },
 	{ label: 'Settings', path: '/settings/profile', icon: Settings },
 ];
 
 const titles: Record<string, string> = {
 	'/admin/overview': 'Overview',
+	'/admin/packages': 'Packages',
 	'/admin/administrators': 'Administrators',
 	'/settings/profile': 'Profile settings',
 	'/settings/security': 'Security settings',
@@ -45,7 +48,9 @@ const titles: Record<string, string> = {
 function pageTitle(pathname: string): string {
 	return (
 		titles[pathname] ??
-		(pathname.startsWith('/admin/administrators/')
+		(pathname.startsWith('/admin/packages/')
+			? 'Package details'
+			: pathname.startsWith('/admin/administrators/')
 			? 'Administrator details'
 			: pathname.startsWith('/settings/sessions/')
 				? 'Session details'

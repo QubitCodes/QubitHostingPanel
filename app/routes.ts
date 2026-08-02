@@ -12,6 +12,13 @@ export default [
 	route('login/verify/:challengeId', 'pages/auth/verify.tsx'),
 	layout('layouts/application.tsx', [
 		route('admin/overview', 'pages/admin/overview.tsx'),
+		route('admin/packages', 'pages/admin/packages.tsx'),
+		route('admin/packages/create/:section', 'pages/admin/packages-create.tsx'),
+		route('admin/packages/:packageSlug/:section', 'pages/admin/package-detail.tsx'),
+		route(
+			'admin/packages/:packageSlug/edit/:section',
+			'pages/admin/package-edit.tsx',
+		),
 		route('admin/administrators', 'pages/admin/admins.tsx'),
 		route(
 			'admin/administrators/create',
@@ -58,6 +65,9 @@ export default [
 		route('admins/:adminId', 'api/v1/admins/detail.ts'),
 		route('admins/:adminId/roles', 'api/v1/admins/roles.ts'),
 		route('admins/:adminId/overrides', 'api/v1/admins/overrides.ts'),
+		route('packages', 'api/v1/packages/index.ts'),
+		route('packages/:packageSlug', 'api/v1/packages/detail.ts'),
+		route('package-categories', 'api/v1/package-categories/index.ts'),
 	]),
 	route('api/*', 'pages/api/catchall.ts'),
 	route('*', 'pages/website/not-found.tsx'),

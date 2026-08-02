@@ -14,6 +14,7 @@ import { PhoneNumberInput } from '@root/app/components/forms/phone-number-input'
 import { SearchableSelect } from '@root/app/components/forms/searchable-select';
 import ProfilePage from '@root/app/pages/account/profile';
 import AdminsPage from '@root/app/pages/admin/admins';
+import PackagesPage from '@root/app/pages/admin/packages';
 import VerifyLoginPage from '@root/app/pages/auth/verify';
 
 describe('application layout SSR', () => {
@@ -48,6 +49,30 @@ describe('application layout SSR', () => {
 						<Route
 							element={<AdminsPage />}
 							path="/admin/administrators/:adminId/edit/:section"
+						/>
+					</Routes>
+				</MemoryRouter>,
+			),
+		).not.toThrow();
+	});
+
+	it('server-renders package catalogue and URL-addressed package menus', () => {
+		expect(() =>
+			renderToString(
+				<MemoryRouter initialEntries={['/admin/packages']}>
+					<Routes>
+						<Route element={<PackagesPage />} path="/admin/packages" />
+					</Routes>
+				</MemoryRouter>,
+			),
+		).not.toThrow();
+		expect(() =>
+			renderToString(
+				<MemoryRouter initialEntries={['/admin/packages/create/basic']}>
+					<Routes>
+						<Route
+							element={<PackagesPage />}
+							path="/admin/packages/create/:section"
 						/>
 					</Routes>
 				</MemoryRouter>,

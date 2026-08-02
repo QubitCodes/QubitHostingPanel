@@ -19,6 +19,10 @@ Subscription
 
 ## 2. Package prices
 
+Packages may optionally belong to an active package category such as VPS Hosting or Shared Hosting. The category relationship is nullable so uncategorised packages remain valid. Package slugs are the stable human-readable administration identifiers.
+
+Each package may independently enable a trial using a positive whole-number duration and one calendar-aware unit: day, week, or month. Disabled trials retain no duration fields. Trial eligibility and expiry are always calculated by the server; month trials use calendar-month arithmetic rather than a fixed 30-day conversion.
+
 Each price record defines:
 
 - Package.

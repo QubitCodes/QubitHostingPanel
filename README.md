@@ -4,7 +4,7 @@ Standalone hosting commerce and management application for Qubit Codes.
 
 ## Status
 
-Phases 0 and 1 are complete. The application includes verified WhatsApp OTP authentication, access/refresh sessions, user-owned device management, platform authorization, secure context switching, permission-scoped administrator management, and the responsive light/dark panel interface for these workflows.
+Phases 0 and 1 are complete. Phase 2 package-catalogue work is underway with package/category administration, publishing controls, and optional day/week/month trials. The application includes verified WhatsApp OTP authentication, access/refresh sessions, user-owned device management, platform authorization, secure context switching, permission-scoped administrator management, and the responsive light/dark panel interface for these workflows.
 
 ## Product boundary
 
@@ -109,6 +109,8 @@ Local endpoints:
 - `/login/verify/:challengeId` - verify a deep-linked OTP challenge.
 - `/admin/overview` - authenticated Phase 1 overview.
 - `/admin/administrators` - administrator management workspace.
+- `/admin/packages` - searchable and sortable package catalogue administration.
+- `/admin/packages/:packageSlug/:section` - URL-addressed package details and audit history.
 - `/admin/administrators/create` - URL-addressed create drawer.
 - `/admin/administrators/:adminId/:section` - URL-addressed administrator detail section.
 - `/settings/profile` - identity and context settings.
@@ -129,6 +131,9 @@ Local endpoints:
 - `/api/v1/admins/:adminId` - detail, lifecycle updates, and soft deletion.
 - `/api/v1/admins/:adminId/roles` - replace reviewed role assignments.
 - `/api/v1/admins/:adminId/overrides` - replace explicit permission overrides.
+- `/api/v1/packages` - permission-scoped package listing and creation.
+- `/api/v1/packages/:packageSlug` - package detail, publishing updates, and soft deletion.
+- `/api/v1/package-categories` - active category options and permission-controlled inline creation.
 
 ## Application structure
 

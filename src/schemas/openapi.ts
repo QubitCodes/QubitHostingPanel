@@ -154,6 +154,69 @@ export const OPENAPI_DOCUMENT = {
 				responses: { '200': { description: 'Other active sessions revoked.' } },
 			},
 		},
+		'/packages': {
+			get: {
+				summary: 'List packages for administration',
+				operationId: 'listPackages',
+				security: [{ bearerAuth: [] }],
+				responses: {
+					'200': { description: 'Active package records, including drafts and archived packages.' },
+					'403': { description: 'packages.view permission required.' },
+				},
+			},
+			post: {
+				summary: 'Create a commercial package',
+				operationId: 'createPackage',
+				security: [{ bearerAuth: [] }],
+				requestBody: {
+					required: true,
+					content: { 'application/json': { schema: { $ref: '#/components/schemas/PackageInput' } } },
+				},
+				responses: {
+					'201': { description: 'Package created.' },
+					'400': { description: 'Validation or duplicate-slug error.' },
+					'403': { description: 'packages.create permission required; packages.publish is additionally required for non-draft creation.' },
+				},
+			},
+		},
+		'/packages/{packageSlug}': {
+			get: {
+				summary: 'View one package and its audit history',
+				operationId: 'showPackage',
+				security: [{ bearerAuth: [] }],
+				parameters: [{ $ref: '#/components/parameters/PackageSlug' }],
+				responses: { '200': { description: 'Package details.' }, '404': { description: 'Package not found.' } },
+			},
+			patch: {
+				summary: 'Update or publish a package',
+				operationId: 'updatePackage',
+				security: [{ bearerAuth: [] }],
+				parameters: [{ $ref: '#/components/parameters/PackageSlug' }],
+				requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/PackageInput' } } } },
+				responses: { '200': { description: 'Package updated.' }, '403': { description: 'Required package permission missing.' }, '404': { description: 'Package not found.' } },
+			},
+			delete: {
+				summary: 'Soft-delete a package',
+				operationId: 'deletePackage',
+				security: [{ bearerAuth: [] }],
+				parameters: [{ $ref: '#/components/parameters/PackageSlug' }],
+				responses: { '200': { description: 'Package deleted.' }, '404': { description: 'Package not found.' } },
+			},
+		},
+		'/package-categories': {
+			get: {
+				summary: 'List active package categories and inline-create capability',
+				operationId: 'listPackageCategories',
+				security: [{ bearerAuth: [] }],
+				responses: { '200': { description: 'Active package categories.' }, '403': { description: 'package_categories.view permission required.' } },
+			},
+			post: {
+				summary: 'Create a package category',
+				operationId: 'createPackageCategory',
+				security: [{ bearerAuth: [] }],
+				responses: { '201': { description: 'Package category created.' }, '403': { description: 'package_categories.create permission required.' } },
+			},
+		},
 		'/admins': {
 			get: {
 				summary: 'List visible platform administrators',
@@ -279,6 +342,13 @@ export const OPENAPI_DOCUMENT = {
 	},
 	components: {
 		parameters: {
+			PackageSlug: {
+				name: 'packageSlug',
+				in: 'path',
+				required: true,
+				description: 'Human-readable package slug.',
+				schema: { type: 'string', pattern: '^[a-z0-9]+(?:-[a-z0-9]+)*$' },
+			},
 			AdminId: {
 				name: 'adminId',
 				in: 'path',
@@ -302,6 +372,34 @@ export const OPENAPI_DOCUMENT = {
 			bearerAuth: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' },
 		},
 		schemas: {
+			PackageInput: {
+				type: 'object',
+				additionalProperties: false,
+				required: [
+					'categoryId',
+					'description',
+					'displayOrder',
+					'isFeatured',
+					'name',
+					'slug',
+					'status',
+					'trialDuration',
+					'trialDurationUnit',
+					'trialEnabled',
+				],
+				properties: {
+					categoryId: { type: ['string', 'null'], format: 'uuid' },
+					description: { type: ['string', 'null'], maxLength: 5000 },
+					displayOrder: { type: 'integer', minimum: 0 },
+					isFeatured: { type: 'boolean' },
+					name: { type: 'string', minLength: 2, maxLength: 160 },
+					slug: { type: 'string', pattern: '^[a-z0-9]+(?:-[a-z0-9]+)*$' },
+					status: { type: 'string', enum: ['draft', 'published', 'archived'] },
+					trialEnabled: { type: 'boolean' },
+					trialDuration: { type: ['integer', 'null'], minimum: 1, maximum: 365 },
+					trialDurationUnit: { type: ['string', 'null'], enum: ['day', 'week', 'month', null] },
+				},
+			},
 			AdminOptionsResponse: {
 				type: 'object',
 				required: ['status', 'message', 'code', 'data'],
