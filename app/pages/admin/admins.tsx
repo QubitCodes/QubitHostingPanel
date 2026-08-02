@@ -1,12 +1,13 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Check, Plus, Search, Shield, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Controller, useForm } from 'react-hook-form';
+import { Controller, useForm, useWatch } from 'react-hook-form';
 import { Link, useLocation, useNavigate, useParams } from 'react-router';
 import { toast } from 'sonner';
 import type { z } from 'zod';
 
 import { Offcanvas } from '@root/app/components/ui/offcanvas';
+import { PhoneNumberInput } from '@root/app/components/forms/phone-number-input';
 import { authenticatedFetch } from '@root/app/utils/authenticatedFetch';
 import { createAdminSchema } from '@schemas/admin';
 
@@ -102,6 +103,10 @@ export default function AdminsPage() {
 			mobile: draft?.mobile ?? '',
 			roleIds: draft?.roleIds ?? [],
 		},
+	});
+	const createCountryCode = useWatch({
+		control: form.control,
+		name: 'countryCode',
 	});
 	const draftRoleIds = useMemo(() => draft?.roleIds ?? [], [draft]);
 
@@ -461,29 +466,42 @@ export default function AdminsPage() {
 									go('roles');
 								}}
 							>
-								{(['displayName', 'countryCode', 'mobile'] as const).map(
-									(name) => (
-										<Controller
-											control={form.control}
-											key={name}
-											name={name}
-											render={({ field, fieldState }) => (
-												<label className="block text-sm font-medium capitalize">
-													{name.replace(/([A-Z])/g, ' $1')}
-													<input
-														{...field}
-														className="mt-2 w-full rounded-xl border border-stone-300 bg-white px-3 py-3 dark:border-stone-700 dark:bg-stone-900"
-													/>
-													{fieldState.error && (
-														<span className="mt-1 block text-xs text-rose-600">
-															{fieldState.error.message}
-														</span>
-													)}
-												</label>
+								<Controller
+									control={form.control}
+									name="displayName"
+									render={({ field, fieldState }) => (
+										<label className="block text-sm font-medium">
+											Display name
+											<input
+												{...field}
+												className="mt-2 w-full rounded-xl border border-stone-300 bg-white px-3 py-3 dark:border-stone-700 dark:bg-stone-900"
+											/>
+											{fieldState.error && (
+												<span className="mt-1 block text-xs text-rose-600">
+													{fieldState.error.message}
+												</span>
 											)}
+										</label>
+									)}
+								/>
+								<Controller
+									control={form.control}
+									name="mobile"
+									render={({ field, fieldState }) => (
+										<PhoneNumberInput
+											countryCode={createCountryCode}
+											error={fieldState.error?.message}
+											id="admin-mobile"
+											mobile={field.value}
+											onChange={(value) => {
+												form.setValue('countryCode', value.countryCode ?? '', {
+													shouldValidate: true,
+												});
+												field.onChange(value.mobile);
+											}}
 										/>
-									),
-								)}
+									)}
+								/>
 								<button
 									className="rounded-xl bg-[#123c32] px-4 py-2.5 font-semibold text-white"
 									type="submit"
