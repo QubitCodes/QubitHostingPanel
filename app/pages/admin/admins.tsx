@@ -15,6 +15,7 @@ import { toast } from 'sonner';
 import { z } from 'zod';
 
 import { authenticatedFetch } from '@root/app/utils/authenticatedFetch';
+import { Offcanvas } from '@root/app/components/ui/offcanvas';
 import { createAdminSchema } from '@schemas/admin';
 
 interface AdminSummary {
@@ -335,27 +336,7 @@ export default function AdminsPage() {
 				</div>
 			</div>
 			{(creating || selectedId) && (
-				<div
-					className="fixed inset-0 z-40 bg-slate-950/50"
-					onMouseDown={(event) => {
-						if (event.currentTarget === event.target) closePanel();
-					}}
-				>
-					<aside className="ml-auto h-full w-full max-w-2xl overflow-y-auto bg-white p-5 shadow-2xl dark:bg-slate-900 sm:p-7">
-						<div className="flex items-center justify-between">
-							<h2 className="text-xl font-bold">
-								{creating
-									? 'Add administrator'
-									: detail?.displayName || 'Administrator details'}
-							</h2>
-							<button
-								className="rounded-lg p-2 hover:bg-slate-100 dark:hover:bg-slate-800"
-								onClick={closePanel}
-							>
-								<X className="size-5" />
-								<span className="sr-only">Close</span>
-							</button>
-						</div>
+				<Offcanvas onClose={closePanel} title={creating ? 'Add administrator' : detail?.displayName || 'Administrator details'} width={creating ? 'md' : 'xl'}>
 						{creating ? (
 							<form
 								className="mt-6 space-y-5"
@@ -681,8 +662,7 @@ export default function AdminsPage() {
 						) : (
 							<p className="mt-8 text-slate-500">Loading administrator…</p>
 						)}
-					</aside>
-				</div>
+				</Offcanvas>
 			)}
 		</div>
 	);

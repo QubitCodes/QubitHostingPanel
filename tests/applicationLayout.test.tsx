@@ -3,6 +3,7 @@ import { MemoryRouter, Route, Routes } from 'react-router';
 import { describe, expect, it } from 'vitest';
 
 import ApplicationLayout from '@root/app/layouts/application';
+import { Offcanvas } from '@root/app/components/ui/offcanvas';
 import ProfilePage from '@root/app/pages/account/profile';
 import AdminsPage from '@root/app/pages/admin/admins';
 import VerifyLoginPage from '@root/app/pages/auth/verify';
@@ -33,5 +34,12 @@ describe('application layout SSR', () => {
 			</MemoryRouter>
 		)).not.toThrow();
 		expect(() => renderToString(<ProfilePage />)).not.toThrow();
+	});
+
+	it('renders a full offcanvas below the topbar and within the live sidebar edge', () => {
+		const html = renderToString(<Offcanvas onClose={() => undefined} title="Test drawer" width="full"><p>Drawer content</p></Offcanvas>);
+		expect(html).toContain('top-20');
+		expect(html).toContain('lg:left-[var(--app-sidebar-width,16rem)]');
+		expect(html).toContain('max-w-none');
 	});
 });

@@ -46,6 +46,11 @@ export default function ApplicationLayout() {
 		document.documentElement.classList.toggle('dark', dark);
 	}, [dark]);
 
+	useEffect(() => {
+		document.documentElement.style.setProperty('--app-sidebar-width', collapsed ? '5rem' : '16rem');
+		return () => { document.documentElement.style.removeProperty('--app-sidebar-width'); };
+	}, [collapsed]);
+
 	function toggleTheme(): void {
 		const next = !dark; setDark(next); localStorage.setItem('theme', next ? 'dark' : 'light'); document.documentElement.classList.toggle('dark', next);
 	}
