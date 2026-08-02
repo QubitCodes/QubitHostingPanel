@@ -203,6 +203,16 @@ export const OPENAPI_DOCUMENT = {
 				responses: { '200': { description: 'Package deleted.' }, '404': { description: 'Package not found.' } },
 			},
 		},
+		'/packages/{packageSlug}/prices': {
+			post: {
+				summary: 'Create new monthly and yearly package price versions',
+				operationId: 'setPackagePrices',
+				security: [{ bearerAuth: [] }],
+				parameters: [{ $ref: '#/components/parameters/PackageSlug' }],
+				requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/PackagePricesInput' } } } },
+				responses: { '200': { description: 'New active prices created and prior active prices retained as history.' }, '403': { description: 'packages.update permission required.' }, '404': { description: 'Package not found.' } },
+			},
+		},
 		'/package-categories': {
 			get: {
 				summary: 'List active package categories and inline-create capability',
@@ -372,6 +382,18 @@ export const OPENAPI_DOCUMENT = {
 			bearerAuth: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' },
 		},
 		schemas: {
+			PackagePricesInput: {
+				type: 'object',
+				additionalProperties: false,
+				required: ['currency', 'monthlyAmount', 'yearlyAmount', 'taxBehavior', 'isPublic'],
+				properties: {
+					currency: { type: 'string', enum: ['INR'] },
+					monthlyAmount: { type: 'number', exclusiveMinimum: 0 },
+					yearlyAmount: { type: 'number', exclusiveMinimum: 0 },
+					taxBehavior: { type: 'string', enum: ['exclusive', 'inclusive'] },
+					isPublic: { type: 'boolean' },
+				},
+			},
 			PackageInput: {
 				type: 'object',
 				additionalProperties: false,

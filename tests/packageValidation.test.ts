@@ -4,6 +4,7 @@ import {
 	createPackageCategorySchema,
 	createPackageSchema,
 	packageSlugSchema,
+	setPackagePricesSchema,
 } from '@schemas/package';
 
 const validPackage = {
@@ -61,5 +62,10 @@ describe('package catalogue validation', () => {
 				slug: 'vps-hosting',
 			}).success,
 		).toBe(true);
+	});
+
+	it('validates positive INR monthly and yearly prices', () => {
+		expect(setPackagePricesSchema.safeParse({ currency: 'INR', monthlyAmount: 399, yearlyAmount: 3990, taxBehavior: 'exclusive', isPublic: false }).success).toBe(true);
+		expect(setPackagePricesSchema.safeParse({ currency: 'INR', monthlyAmount: 0, yearlyAmount: 3990, taxBehavior: 'exclusive', isPublic: false }).success).toBe(false);
 	});
 });

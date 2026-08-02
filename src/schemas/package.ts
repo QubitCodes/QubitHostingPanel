@@ -86,8 +86,17 @@ export const deletePackageSchema = z
 	.object({ reason: z.string().trim().min(3).max(500) })
 	.strict();
 
+export const setPackagePricesSchema = z.object({
+	currency: z.literal('INR').default('INR'),
+	isPublic: z.boolean().default(false),
+	monthlyAmount: z.number().positive().max(10_000_000).multipleOf(0.01),
+	taxBehavior: z.enum(['exclusive', 'inclusive']).default('exclusive'),
+	yearlyAmount: z.number().positive().max(10_000_000).multipleOf(0.01),
+}).strict();
+
 export type CreatePackageInput = z.infer<typeof createPackageSchema>;
 export type UpdatePackageInput = z.infer<typeof updatePackageSchema>;
 export type CreatePackageCategoryInput = z.infer<
 	typeof createPackageCategorySchema
 >;
+export type SetPackagePricesInput = z.infer<typeof setPackagePricesSchema>;

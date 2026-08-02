@@ -2,11 +2,12 @@ import { and, asc, desc, eq, isNull } from 'drizzle-orm';
 import { resp } from '@qubitcodes/qcresp';
 
 import { db } from '@db/client';
-import { auditLogs, packageCategories, packages } from '@db/schema';
+import { auditLogs, packageCategories, packagePrices, packages } from '@db/schema';
 import type {
 	CreatePackageCategoryInput,
 	CreatePackageInput,
 	UpdatePackageInput,
+	SetPackagePricesInput,
 } from '@schemas/package';
 import { recordAuditLog } from '@services/auditLogService';
 import { authorizeAdmin } from '@services/authorization/adminAuthorizationService';
@@ -173,7 +174,57 @@ export class PackageController {
 				)
 				.orderBy(desc(auditLogs.createdAt))
 				.limit(50);
-			return resp.success('Package retrieved.', { ...record, auditLogs: audits });
+			const prices = await db
+				.select()
+				.from(packagePrices)
+				.where(and(eq(packagePrices.packageId, record.id), isNull(packagePrices.deletedAt)))
+				.orderBy(desc(packagePrices.effectiveFrom));
+			return resp.success('Package retrieved.', { ...record, auditLogs: audits, prices });
+		} catch (error) {
+			return controllerFailure(error);
+		}
+	}
+
+	/** Replaces current INR prices while retaining immutable historical versions. */
+	public static async setPrices(
+		request: Request,
+		slug: string,
+		input: SetPackagePricesInput,
+		metadata: RequestMetadata,
+	): Promise<Response> {
+		try {
+			const actor = await authorizeAdmin(request, 'packages.update', metadata);
+			const [record] = await db
+				.select({ id: packages.id, slug: packages.slug })
+				.from(packages)
+				.where(and(eq(packages.slug, slug), isNull(packages.deletedAt)))
+				.limit(1);
+			if (!record)
+				return resp.failure('Package not found.', resp.codes.RESOURCE_NOT_FOUND, undefined, null, undefined, 404);
+			const now = new Date();
+			const inserted = await db.transaction(async (transaction) => {
+				await transaction
+					.update(packagePrices)
+					.set({ effectiveUntil: now, isActive: false, updatedAt: now })
+					.where(and(eq(packagePrices.packageId, record.id), eq(packagePrices.currency, input.currency), eq(packagePrices.isActive, true), isNull(packagePrices.deletedAt)));
+				return transaction
+					.insert(packagePrices)
+					.values([
+						{ packageId: record.id, currency: input.currency, billingInterval: 'month', intervalCount: 1, amountMinor: Math.round(input.monthlyAmount * 100), taxBehavior: input.taxBehavior, isPublic: input.isPublic },
+						{ packageId: record.id, currency: input.currency, billingInterval: 'year', intervalCount: 1, amountMinor: Math.round(input.yearlyAmount * 100), taxBehavior: input.taxBehavior, isPublic: input.isPublic },
+					])
+					.returning();
+			});
+			await recordAuditLog({
+				actorUserId: actor.userId,
+				action: 'package.prices_updated',
+				resourceType: 'package',
+				resourceId: record.id,
+				metadata: { currency: input.currency, monthlyAmount: input.monthlyAmount, yearlyAmount: input.yearlyAmount, isPublic: input.isPublic },
+				ipAddress: metadata.ipAddress,
+				userAgent: metadata.userAgent,
+			});
+			return resp.success('Package prices updated.', inserted, resp.codes.UPDATED);
 		} catch (error) {
 			return controllerFailure(error);
 		}

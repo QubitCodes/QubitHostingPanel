@@ -74,8 +74,10 @@ Gate: completed with live WhatsApp authentication, context isolation, session ow
 - [x] Package CRUD, human-readable slug URLs, draft/published/archived lifecycle, featured/display controls, audit history, and permission-gated publishing.
 - [x] Optional validated package trials with positive duration and day/week/month units.
 - [x] Responsive package table with URL-backed search/status/category filters, sortable columns, and sticky icon actions.
-- [ ] Complete package pricing, offers, entitlements, public catalogue, and checkout tasks below.
-- Monthly, yearly, and explicit multi-year prices.
+- [ ] Complete offers, entitlements, public catalogue, and checkout tasks below.
+- [x] Versioned INR monthly/yearly package prices with immutable history, public/private state, effective dates, and tax behaviour.
+- [x] Two initial package categories and six competitively positioned draft packages with yearly pricing equal to ten monthly payments.
+- Explicit multi-year prices.
 - Offers, coupons, eligibility, limits, and dates.
 - Entitlement definitions and package assignments.
 - Public package APIs and signed checkout handoff.

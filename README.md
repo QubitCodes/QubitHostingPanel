@@ -112,6 +112,7 @@ Local endpoints:
 - `/admin/packages` - searchable and sortable package catalogue administration.
 - `/admin/packages/create` - focused initial package creation form.
 - `/admin/packages/:packageSlug/:section` - URL-addressed package details and audit history.
+- `/admin/packages/:packageSlug/pricing` - versioned INR monthly/yearly pricing and immutable price history.
 - `/admin/administrators/create` - URL-addressed create drawer.
 - `/admin/administrators/:adminId/:section` - URL-addressed administrator detail section.
 - `/settings/profile` - identity and context settings.

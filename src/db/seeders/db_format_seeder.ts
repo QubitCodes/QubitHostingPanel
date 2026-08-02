@@ -1,4 +1,4 @@
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, eq, isNull, sql } from 'drizzle-orm';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -7,7 +7,50 @@ import {
 	platformPermissions,
 	platformRolePermissions,
 	platformRoles,
+	packageCategories,
+	packagePrices,
+	packages,
 } from '@db/schema';
+
+const PACKAGE_SEEDS = [
+	{ name: 'Launch', slug: 'launch', categorySlug: 'cloud-app-hosting', description: 'A focused starter plan for one production application.', monthly: 399, trialDuration: 7, displayOrder: 10 },
+	{ name: 'Growth', slug: 'growth', categorySlug: 'cloud-app-hosting', description: 'Room for growing applications, databases, domains, and daily backups.', monthly: 799, trialDuration: 7, displayOrder: 20 },
+	{ name: 'Business', slug: 'business', categorySlug: 'cloud-app-hosting', description: 'Higher application and database capacity for established teams.', monthly: 1499, trialDuration: 14, displayOrder: 30 },
+	{ name: 'Cloud 2 GB', slug: 'cloud-2-gb', categorySlug: 'managed-cloud', description: 'Managed cloud environment with a 2 GB compute target.', monthly: 2499, trialDuration: null, displayOrder: 40 },
+	{ name: 'Cloud 4 GB', slug: 'cloud-4-gb', categorySlug: 'managed-cloud', description: 'Managed cloud environment with a 4 GB compute target.', monthly: 4499, trialDuration: null, displayOrder: 50 },
+	{ name: 'Cloud 8 GB', slug: 'cloud-8-gb', categorySlug: 'managed-cloud', description: 'Managed cloud environment with an 8 GB compute target.', monthly: 7999, trialDuration: null, displayOrder: 60 },
+] as const;
+
+async function seedPackageCatalogue(): Promise<void> {
+	const categories = [
+		{ name: 'Cloud App Hosting', slug: 'cloud-app-hosting', description: 'Managed application hosting on shared cloud capacity.', displayOrder: 10 },
+		{ name: 'Managed Cloud', slug: 'managed-cloud', description: 'Dedicated managed cloud capacity for demanding workloads.', displayOrder: 20 },
+	] as const;
+	for (const category of categories)
+		await db.insert(packageCategories).values(category).onConflictDoUpdate({ target: packageCategories.slug, targetWhere: sql`${packageCategories.deletedAt} IS NULL`, set: { name: category.name, description: category.description, displayOrder: category.displayOrder, updatedAt: new Date() } });
+	const categoryRows = await db.select({ id: packageCategories.id, slug: packageCategories.slug }).from(packageCategories).where(isNull(packageCategories.deletedAt));
+	for (const seed of PACKAGE_SEEDS) {
+		const categoryId = categoryRows.find(({ slug }) => slug === seed.categorySlug)?.id;
+		if (!categoryId) throw new Error(`Package category ${seed.categorySlug} was not seeded.`);
+		await db.insert(packages).values({
+			categoryId,
+			name: seed.name,
+			slug: seed.slug,
+			description: seed.description,
+			status: 'draft',
+			displayOrder: seed.displayOrder,
+			trialEnabled: seed.trialDuration !== null,
+			trialDuration: seed.trialDuration,
+			trialDurationUnit: seed.trialDuration === null ? null : 'day',
+		}).onConflictDoUpdate({ target: packages.slug, targetWhere: sql`${packages.deletedAt} IS NULL`, set: { categoryId, name: seed.name, description: seed.description, displayOrder: seed.displayOrder, updatedAt: new Date() } });
+		const [packageRow] = await db.select({ id: packages.id }).from(packages).where(and(eq(packages.slug, seed.slug), isNull(packages.deletedAt))).limit(1);
+		if (!packageRow) throw new Error(`Package ${seed.slug} was not seeded.`);
+		for (const price of [{ billingInterval: 'month' as const, amountMinor: seed.monthly * 100 }, { billingInterval: 'year' as const, amountMinor: seed.monthly * 10 * 100 }]) {
+			const [existing] = await db.select({ id: packagePrices.id }).from(packagePrices).where(and(eq(packagePrices.packageId, packageRow.id), eq(packagePrices.currency, 'INR'), eq(packagePrices.billingInterval, price.billingInterval), eq(packagePrices.isActive, true), isNull(packagePrices.deletedAt))).limit(1);
+			if (!existing) await db.insert(packagePrices).values({ packageId: packageRow.id, currency: 'INR', billingInterval: price.billingInterval, amountMinor: price.amountMinor, taxBehavior: 'exclusive', isActive: true, isPublic: false });
+		}
+	}
+}
 
 const ROLE_SEEDS = [
 	{
@@ -165,8 +208,9 @@ export async function seedEssentialData(): Promise<void> {
 				.onConflictDoNothing();
 		}
 	}
+	await seedPackageCatalogue();
 	console.info(
-		`Seeded ${ROLE_SEEDS.length} roles and ${permissions.length} permissions.`,
+		`Seeded ${ROLE_SEEDS.length} roles, ${permissions.length} permissions, and ${PACKAGE_SEEDS.length} draft packages.`,
 	);
 }
 

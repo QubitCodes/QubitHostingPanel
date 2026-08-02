@@ -46,6 +46,20 @@ interface PackageRecord extends PackageForm {
 	id: string;
 	publishedAt?: string | null;
 	updatedAt: string;
+	prices?: PackagePriceRecord[];
+}
+
+interface PackagePriceRecord {
+	amountMinor: number;
+	billingInterval: 'month' | 'year';
+	createdAt: string;
+	currency: 'INR';
+	effectiveFrom: string;
+	effectiveUntil?: string | null;
+	id: string;
+	isActive: boolean;
+	isPublic: boolean;
+	taxBehavior: 'exclusive' | 'inclusive';
 }
 
 interface ApiEnvelope<T> {
@@ -93,6 +107,9 @@ export default function PackagesPage() {
 	const [canCreateCategory, setCanCreateCategory] = useState(false);
 	const [detail, setDetail] = useState<PackageRecord>();
 	const [busy, setBusy] = useState(false);
+	const [monthlyAmount, setMonthlyAmount] = useState('');
+	const [yearlyAmount, setYearlyAmount] = useState('');
+	const [pricePublic, setPricePublic] = useState(false);
 	const packageSlug = params.packageSlug;
 	const section = params.section ?? 'basic';
 	const creating = location.pathname === '/admin/packages/create';
@@ -140,6 +157,11 @@ export default function PackagesPage() {
 		void api<PackageRecord>(`/api/v1/packages/${packageSlug}`)
 			.then((record) => {
 				setDetail(record);
+				const monthly = record.prices?.find((price) => price.isActive && price.billingInterval === 'month');
+				const yearly = record.prices?.find((price) => price.isActive && price.billingInterval === 'year');
+				setMonthlyAmount(monthly ? String(monthly.amountMinor / 100) : '');
+				setYearlyAmount(yearly ? String(yearly.amountMinor / 100) : '');
+				setPricePublic(Boolean(monthly?.isPublic && yearly?.isPublic));
 				if (editing)
 					form.reset({
 						categoryId: record.categoryId,
@@ -197,6 +219,25 @@ export default function PackagesPage() {
 		if (!value || value === 'all') next.delete(key);
 		else next.set(key, value);
 		setSearchParams(next, { replace: true });
+	}
+
+	async function savePrices(): Promise<void> {
+		if (!packageSlug) return;
+		setBusy(true);
+		try {
+			await api(`/api/v1/packages/${packageSlug}/prices`, {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ currency: 'INR', monthlyAmount: Number(monthlyAmount), yearlyAmount: Number(yearlyAmount), taxBehavior: 'exclusive', isPublic: pricePublic }),
+			});
+			toast.success('Package prices updated. Previous prices remain in history.');
+			const record = await api<PackageRecord>(`/api/v1/packages/${packageSlug}`);
+			setDetail(record);
+		} catch (error) {
+			toast.error(error instanceof Error ? error.message : 'Unable to save prices.');
+		} finally {
+			setBusy(false);
+		}
 	}
 
 	function updateSort(column: string): void {
@@ -336,7 +377,7 @@ export default function PackagesPage() {
 			{open && (
 				<Offcanvas onClose={() => navigate(`/admin/packages${location.search}`)} title={creating ? 'Add package' : detail?.name ?? 'Package details'} width="full">
 					{!creating && <div className="flex items-end gap-3 border-b border-stone-200 dark:border-stone-800">
-						<nav className="min-w-0 flex-1 overflow-x-auto"><div className="flex w-max gap-2">{['basic', ...(!editing ? ['audit-logs'] : [])].map((tab) => <Link className={`whitespace-nowrap border-b-2 px-4 py-3 text-sm font-semibold capitalize ${section === tab ? 'border-brand-action text-brand-primary dark:text-brand-action' : 'border-transparent text-app-muted'}`} key={tab} to={editing ? `/admin/packages/${packageSlug}/edit/${tab}${location.search}` : `/admin/packages/${packageSlug}/${tab}${location.search}`}>{tab.replace('-', ' ')}</Link>)}</div></nav>
+						<nav className="min-w-0 flex-1 overflow-x-auto"><div className="flex w-max gap-2">{['basic', ...(!editing ? ['pricing', 'audit-logs'] : [])].map((tab) => <Link className={`whitespace-nowrap border-b-2 px-4 py-3 text-sm font-semibold capitalize ${section === tab ? 'border-brand-action text-brand-primary dark:text-brand-action' : 'border-transparent text-app-muted'}`} key={tab} to={editing ? `/admin/packages/${packageSlug}/edit/${tab}${location.search}` : `/admin/packages/${packageSlug}/${tab}${location.search}`}>{tab.replace('-', ' ')}</Link>)}</div></nav>
 						{detail && !editing && <Link className="mb-2.5 inline-flex shrink-0 items-center gap-2 rounded-xl bg-brand-action px-4 py-2.5 text-sm font-semibold text-brand-ink" to={`/admin/packages/${detail.slug}/edit/basic${location.search}`}><Pencil className="size-4" /> Edit</Link>}
 					</div>}
 
@@ -355,6 +396,7 @@ export default function PackagesPage() {
 					)}
 
 					{section === 'basic' && !creating && !editing && detail && <section className="mt-6 grid max-w-4xl gap-4 sm:grid-cols-2">{[['Name', detail.name], ['Slug', detail.slug], ['Category', detail.categoryName ?? 'Uncategorised'], ['Status', detail.status], ['Featured', detail.isFeatured ? 'Yes' : 'No'], ['Trial', detail.trialEnabled ? `${detail.trialDuration} ${detail.trialDurationUnit}${detail.trialDuration === 1 ? '' : 's'}` : 'Disabled']].map(([label, value]) => <article className="rounded-2xl border border-stone-200 bg-app-surface p-4 dark:border-stone-800" key={label}><p className="text-xs uppercase tracking-wide text-app-muted">{label}</p><p className="mt-2 font-semibold capitalize">{value}</p></article>)}</section>}
+					{section === 'pricing' && detail && <section className="mt-6 max-w-4xl space-y-6"><div className="rounded-2xl border border-stone-200 bg-app-surface p-5 dark:border-stone-800"><div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"><div><h3 className="font-semibold">Current INR pricing</h3><p className="text-sm text-app-muted">Amounts exclude GST. Saving creates a new version.</p></div><label className="flex items-center gap-2 text-sm font-medium"><input checked={pricePublic} className="size-4 accent-brand-action" onChange={(event) => setPricePublic(event.target.checked)} type="checkbox" /> Public price</label></div><div className="mt-5 grid gap-4 sm:grid-cols-2"><label className="text-sm font-medium">Monthly price (₹)<input className="mt-2 w-full rounded-xl border border-stone-300 bg-app-surface px-3 py-3 dark:border-stone-700" min="0.01" onChange={(event) => { setMonthlyAmount(event.target.value); if (event.target.value) setYearlyAmount(String(Number(event.target.value) * 10)); }} step="0.01" type="number" value={monthlyAmount} /></label><label className="text-sm font-medium">Yearly price (₹)<input className="mt-2 w-full rounded-xl border border-stone-300 bg-app-surface px-3 py-3 dark:border-stone-700" min="0.01" onChange={(event) => setYearlyAmount(event.target.value)} step="0.01" type="number" value={yearlyAmount} /><span className="mt-1 block text-xs text-app-muted">Suggested: ten months of the monthly price.</span></label></div><button className="mt-5 rounded-xl bg-brand-action px-4 py-2.5 font-semibold text-brand-ink disabled:opacity-60" disabled={busy || !monthlyAmount || !yearlyAmount} onClick={() => void savePrices()} type="button">{busy ? 'Saving…' : 'Save new price version'}</button></div><div><h3 className="font-semibold">Price history</h3><div className="mt-3 overflow-hidden rounded-2xl border border-stone-200 dark:border-stone-800"><table className="w-full text-sm"><thead className="bg-stone-50 text-left text-xs uppercase text-app-muted dark:bg-stone-950/50"><tr><th className="px-4 py-3">Term</th><th className="px-4 py-3">Price</th><th className="px-4 py-3">Visibility</th><th className="px-4 py-3">Effective</th></tr></thead><tbody className="divide-y divide-stone-200 dark:divide-stone-800">{detail.prices?.map((price) => <tr key={price.id}><td className="px-4 py-3 capitalize">{price.billingInterval}ly</td><td className="px-4 py-3">₹{(price.amountMinor / 100).toLocaleString('en-IN')}</td><td className="px-4 py-3">{price.isActive ? (price.isPublic ? 'Public' : 'Private') : 'Historical'}</td><td className="px-4 py-3 text-app-muted">{new Date(price.effectiveFrom).toLocaleDateString()}{price.effectiveUntil ? ` – ${new Date(price.effectiveUntil).toLocaleDateString()}` : ''}</td></tr>)}{!detail.prices?.length && <tr><td className="px-4 py-8 text-center text-app-muted" colSpan={4}>No prices configured.</td></tr>}</tbody></table></div></div></section>}
 					{section === 'audit-logs' && detail && <div className="mt-6 max-w-4xl space-y-3">{detail.auditLogs?.map((log) => <article className="rounded-2xl border border-stone-200 p-4 dark:border-stone-800" key={log.id}><p className="font-semibold">{log.action}</p><p className="mt-1 text-xs text-app-muted">{new Date(log.createdAt).toLocaleString()}</p></article>)}{!detail.auditLogs?.length && <p className="text-app-muted">No audit activity recorded.</p>}</div>}
 				</Offcanvas>
 			)}

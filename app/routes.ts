@@ -67,6 +67,7 @@ export default [
 		route('admins/:adminId/overrides', 'api/v1/admins/overrides.ts'),
 		route('packages', 'api/v1/packages/index.ts'),
 		route('packages/:packageSlug', 'api/v1/packages/detail.ts'),
+		route('packages/:packageSlug/prices', 'api/v1/packages/prices.ts'),
 		route('package-categories', 'api/v1/package-categories/index.ts'),
 	]),
 	route('api/*', 'pages/api/catchall.ts'),
