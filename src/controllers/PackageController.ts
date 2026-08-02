@@ -223,6 +223,8 @@ export class PackageController {
 					.values([
 						{ packageId: record.id, currency: input.currency, billingInterval: 'month', intervalCount: 1, amountMinor: Math.round(input.monthlyAmount * 100), taxBehavior: input.taxBehavior, isPublic: input.isPublic },
 						{ packageId: record.id, currency: input.currency, billingInterval: 'year', intervalCount: 1, amountMinor: Math.round(input.yearlyAmount * 100), taxBehavior: input.taxBehavior, isPublic: input.isPublic },
+						{ packageId: record.id, currency: input.currency, billingInterval: 'year', intervalCount: 2, amountMinor: Math.round(input.twoYearAmount * 100), taxBehavior: input.taxBehavior, isPublic: input.isPublic },
+						{ packageId: record.id, currency: input.currency, billingInterval: 'year', intervalCount: 3, amountMinor: Math.round(input.threeYearAmount * 100), taxBehavior: input.taxBehavior, isPublic: input.isPublic },
 					])
 					.returning();
 			});
@@ -231,7 +233,7 @@ export class PackageController {
 				action: 'package.prices_updated',
 				resourceType: 'package',
 				resourceId: record.id,
-				metadata: { currency: input.currency, monthlyAmount: input.monthlyAmount, yearlyAmount: input.yearlyAmount, isPublic: input.isPublic },
+				metadata: { currency: input.currency, monthlyAmount: input.monthlyAmount, yearlyAmount: input.yearlyAmount, twoYearAmount: input.twoYearAmount, threeYearAmount: input.threeYearAmount, isPublic: input.isPublic },
 				ipAddress: metadata.ipAddress,
 				userAgent: metadata.userAgent,
 			});

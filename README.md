@@ -118,6 +118,8 @@ Local endpoints:
 - `/admin/offers` - offers, coupons, eligibility, dates, and redemption policies.
 - `/api/v1/public/catalogue` - published packages with current public prices and visible entitlements.
 - `/api/v1/public/checkout-quotes` - server-calculated, signed, short-lived checkout quote.
+
+Initial publication policy: Launch, Growth, and Business may be public after their pooled-capacity cost reviews; Managed Cloud tiers stay draft until exact dedicated AWS quotations are approved.
 - `/admin/administrators/create` - URL-addressed create drawer.
 - `/admin/administrators/:adminId/:section` - URL-addressed administrator detail section.
 - `/settings/profile` - identity and context settings.

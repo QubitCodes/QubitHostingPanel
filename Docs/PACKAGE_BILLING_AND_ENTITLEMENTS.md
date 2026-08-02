@@ -134,3 +134,10 @@ Measured usage contains source, measured value, observation time, and freshness 
 - The server checks offer dates, eligibility, global limits, stacking, and coupon state before calculating the discount.
 - New-customer-only offers are not applied by the anonymous quotation endpoint; they require verified customer context later in checkout.
 - Quotes contain server-owned subtotal, discount, tax, and total amounts and are signed with a separate secret for a short expiry window.
+
+## 10. Initial publication decision
+
+- Launch, Growth, and Business use pooled Mumbai capacity and are approved for initial publication with conservative monthly allocations of ₹180, ₹350, and ₹700 respectively.
+- Those allocations include compute, gp3 storage, S3 backups, SES recipients, internet transfer, monitoring, support, payment fees, and contingency.
+- Cloud 2 GB, Cloud 4 GB, and Cloud 8 GB remain draft until exact Mumbai instance, public IPv4, EBS, transfer, support, and Savings Plan quotations are recorded.
+- One-, two-, and three-year prices are explicit database records. Initial two-/three-year suggestions equal 20 and 30 monthly payments and remain independently editable.

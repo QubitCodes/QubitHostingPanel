@@ -81,13 +81,19 @@ Gate: completed with live WhatsApp authentication, context isolation, session ow
 - [x] Package entitlement definitions and initial enforceable package limits, including transactional SES recipient allowances.
 - [x] Separate SES recipient add-on products with fixed and custom pricing options.
 - [x] Auditable AWS cost/margin reviews with a mandatory approved-review publish gate.
-- Explicit multi-year prices.
+- [x] Explicit two-year and three-year prices stored as independent historical price records.
 - [x] Offers, coupons, package/price eligibility, redemption limits, customer restrictions, stacking, priorities, and dates.
 - [x] Editable entitlement definitions and package assignments for future subscription snapshots.
 - [x] Public package API exposing only published packages, current public prices, and customer-visible entitlements.
 - [x] Server-authoritative price, offer, discount, configurable tax, and total calculation with a signed expiring checkout quote.
 
 Gate: unpublished data is private, price tampering fails, and historical prices remain stable.
+
+Deployment status:
+
+- [ ] Supabase applies migrations `0011` and `0012` from the production branch.
+- [ ] Live database verification confirms offers, explicit multi-year prices, approved shared-tier reviews, and three published shared tiers.
+- [ ] Live public catalogue, coupon eligibility, signed quote, unpublished privacy, and tampered-total checks pass.
 
 ## Phase 3 - Customer and organisation onboarding
 

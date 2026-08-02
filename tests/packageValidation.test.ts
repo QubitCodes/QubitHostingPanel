@@ -66,8 +66,8 @@ describe('package catalogue validation', () => {
 	});
 
 	it('validates positive INR monthly and yearly prices', () => {
-		expect(setPackagePricesSchema.safeParse({ currency: 'INR', monthlyAmount: 399, yearlyAmount: 3990, taxBehavior: 'exclusive', isPublic: false }).success).toBe(true);
-		expect(setPackagePricesSchema.safeParse({ currency: 'INR', monthlyAmount: 0, yearlyAmount: 3990, taxBehavior: 'exclusive', isPublic: false }).success).toBe(false);
+		expect(setPackagePricesSchema.safeParse({ currency: 'INR', monthlyAmount: 399, yearlyAmount: 3990, twoYearAmount: 7980, threeYearAmount: 11970, taxBehavior: 'exclusive', isPublic: false }).success).toBe(true);
+		expect(setPackagePricesSchema.safeParse({ currency: 'INR', monthlyAmount: 0, yearlyAmount: 3990, twoYearAmount: 7980, threeYearAmount: 11970, taxBehavior: 'exclusive', isPublic: false }).success).toBe(false);
 	});
 
 	it('validates auditable AWS cost reviews', () => {

@@ -410,11 +410,13 @@ export const OPENAPI_DOCUMENT = {
 			PackagePricesInput: {
 				type: 'object',
 				additionalProperties: false,
-				required: ['currency', 'monthlyAmount', 'yearlyAmount', 'taxBehavior', 'isPublic'],
+				required: ['currency', 'monthlyAmount', 'yearlyAmount', 'twoYearAmount', 'threeYearAmount', 'taxBehavior', 'isPublic'],
 				properties: {
 					currency: { type: 'string', enum: ['INR'] },
 					monthlyAmount: { type: 'number', exclusiveMinimum: 0 },
 					yearlyAmount: { type: 'number', exclusiveMinimum: 0 },
+					twoYearAmount: { type: 'number', exclusiveMinimum: 0 },
+					threeYearAmount: { type: 'number', exclusiveMinimum: 0 },
 					taxBehavior: { type: 'string', enum: ['exclusive', 'inclusive'] },
 					isPublic: { type: 'boolean' },
 				},
