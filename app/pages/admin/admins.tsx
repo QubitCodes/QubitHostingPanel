@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import { Controller, useForm } from 'react-hook-form';
 import { useCallback, useEffect, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router';
+import { Link, useLocation, useNavigate, useParams } from 'react-router';
 import { toast } from 'sonner';
 import { z } from 'zod';
 
@@ -88,6 +88,7 @@ function formatted(value: string): string {
 /** URL-driven administrator workspace for identities, roles, overrides, sessions, and security history. */
 export default function AdminsPage() {
 	const navigate = useNavigate();
+	const location = useLocation();
 	const { adminId: selectedId } = useParams();
 	const creating = location.pathname.endsWith('/create');
 	const [admins, setAdmins] = useState<AdminSummary[]>([]);
