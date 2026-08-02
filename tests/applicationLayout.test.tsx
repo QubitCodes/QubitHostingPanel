@@ -66,18 +66,19 @@ describe('application layout SSR', () => {
 				</MemoryRouter>,
 			),
 		).not.toThrow();
-		expect(() =>
-			renderToString(
-				<MemoryRouter initialEntries={['/admin/packages/create/basic']}>
-					<Routes>
-						<Route
-							element={<PackagesPage />}
-							path="/admin/packages/create/:section"
-						/>
-					</Routes>
-				</MemoryRouter>,
-			),
-		).not.toThrow();
+		const createHtml = renderToString(
+			<MemoryRouter initialEntries={['/admin/packages/create']}>
+				<Routes>
+					<Route
+						element={<PackagesPage />}
+						path="/admin/packages/create"
+					/>
+				</Routes>
+			</MemoryRouter>,
+		);
+		expect(createHtml).toContain('Add package');
+		expect(createHtml).toContain('top-20');
+		expect(createHtml).not.toContain('>Basic<');
 	});
 
 	it('server-renders authentication and profile views without session storage', () => {

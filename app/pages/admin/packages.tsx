@@ -95,7 +95,7 @@ export default function PackagesPage() {
 	const [busy, setBusy] = useState(false);
 	const packageSlug = params.packageSlug;
 	const section = params.section ?? 'basic';
-	const creating = location.pathname.includes('/packages/create/');
+	const creating = location.pathname === '/admin/packages/create';
 	const editing = location.pathname.includes('/edit/');
 	const open = creating || Boolean(packageSlug);
 	const form = useForm<PackageForm>({
@@ -272,7 +272,7 @@ export default function PackagesPage() {
 					<h2 className="mt-1 text-3xl font-bold">Packages</h2>
 					<p className="mt-2 text-sm text-app-muted">Manage package visibility, categories, and trial eligibility.</p>
 				</div>
-				<Link className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-action px-4 py-2.5 text-sm font-semibold text-brand-ink" to={`/admin/packages/create/basic${location.search}`}>
+				<Link className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-action px-4 py-2.5 text-sm font-semibold text-brand-ink" to={`/admin/packages/create${location.search}`}>
 					<PackagePlus className="size-4" /> Add package
 				</Link>
 			</div>
@@ -335,10 +335,10 @@ export default function PackagesPage() {
 
 			{open && (
 				<Offcanvas onClose={() => navigate(`/admin/packages${location.search}`)} title={creating ? 'Add package' : detail?.name ?? 'Package details'} width="full">
-					<div className="flex items-end gap-3 border-b border-stone-200 dark:border-stone-800">
-						<nav className="min-w-0 flex-1 overflow-x-auto"><div className="flex w-max gap-2">{['basic', ...(!creating && !editing ? ['audit-logs'] : [])].map((tab) => <Link className={`whitespace-nowrap border-b-2 px-4 py-3 text-sm font-semibold capitalize ${section === tab ? 'border-brand-action text-brand-primary dark:text-brand-action' : 'border-transparent text-app-muted'}`} key={tab} to={creating ? `/admin/packages/create/${tab}${location.search}` : editing ? `/admin/packages/${packageSlug}/edit/${tab}${location.search}` : `/admin/packages/${packageSlug}/${tab}${location.search}`}>{tab.replace('-', ' ')}</Link>)}</div></nav>
+					{!creating && <div className="flex items-end gap-3 border-b border-stone-200 dark:border-stone-800">
+						<nav className="min-w-0 flex-1 overflow-x-auto"><div className="flex w-max gap-2">{['basic', ...(!editing ? ['audit-logs'] : [])].map((tab) => <Link className={`whitespace-nowrap border-b-2 px-4 py-3 text-sm font-semibold capitalize ${section === tab ? 'border-brand-action text-brand-primary dark:text-brand-action' : 'border-transparent text-app-muted'}`} key={tab} to={editing ? `/admin/packages/${packageSlug}/edit/${tab}${location.search}` : `/admin/packages/${packageSlug}/${tab}${location.search}`}>{tab.replace('-', ' ')}</Link>)}</div></nav>
 						{detail && !editing && <Link className="mb-2.5 inline-flex shrink-0 items-center gap-2 rounded-xl bg-brand-action px-4 py-2.5 text-sm font-semibold text-brand-ink" to={`/admin/packages/${detail.slug}/edit/basic${location.search}`}><Pencil className="size-4" /> Edit</Link>}
-					</div>
+					</div>}
 
 					{section === 'basic' && (creating || editing) && (
 						<form className="mt-6 grid max-w-4xl gap-5 sm:grid-cols-2" onSubmit={form.handleSubmit((values) => void save(values))}>

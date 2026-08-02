@@ -13,7 +13,7 @@ export default [
 	layout('layouts/application.tsx', [
 		route('admin/overview', 'pages/admin/overview.tsx'),
 		route('admin/packages', 'pages/admin/packages.tsx'),
-		route('admin/packages/create/:section', 'pages/admin/packages-create.tsx'),
+		route('admin/packages/create', 'pages/admin/packages-create.tsx'),
 		route('admin/packages/:packageSlug/:section', 'pages/admin/package-detail.tsx'),
 		route(
 			'admin/packages/:packageSlug/edit/:section',

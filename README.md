@@ -110,6 +110,7 @@ Local endpoints:
 - `/admin/overview` - authenticated Phase 1 overview.
 - `/admin/administrators` - administrator management workspace.
 - `/admin/packages` - searchable and sortable package catalogue administration.
+- `/admin/packages/create` - focused initial package creation form.
 - `/admin/packages/:packageSlug/:section` - URL-addressed package details and audit history.
 - `/admin/administrators/create` - URL-addressed create drawer.
 - `/admin/administrators/:adminId/:section` - URL-addressed administrator detail section.
