@@ -4,7 +4,7 @@ Standalone hosting commerce and management application for Qubit Codes.
 
 ## Status
 
-Phases 0 and 1 are complete. Phase 2 package-catalogue work is underway with package/category administration, publishing controls, and optional day/week/month trials. The application includes verified WhatsApp OTP authentication, access/refresh sessions, user-owned device management, platform authorization, secure context switching, permission-scoped administrator management, and the responsive light/dark panel interface for these workflows.
+Phases 0 through 2 are complete. Phase 3 begins with the public landing and registration experience, followed by customer profiles, workspace tenancy, organisation extensions, workspace billing, and subscriptions. The application includes verified WhatsApp OTP authentication, access/refresh sessions, user-owned device management, platform authorization, secure context switching, package/offer commerce, and the responsive light/dark panel interface.
 
 ## Product boundary
 
@@ -17,7 +17,7 @@ qubit.codes
         | Versioned APIs and signed checkout handoff
         v
 panel.qubit.codes
-  Authentication, organisations, purchases, subscriptions,
+  Authentication, customers, workspaces, organisations, subscriptions,
   entitlements, usage, administration, and customer resources
         |
         | Private provider adapter
@@ -37,8 +37,13 @@ The public website may display packages and initiate purchases, but the panel re
 - MSG91 WhatsApp OTP for admins and customers; Firebase authentication is deferred.
 - WhatsApp integration through `@qubitcodes/msg91`.
 - Users may enter a registered mobile number alone or include its calling code; international input is parsed into normalized `country_code` and `mobile` fields.
-- One user identity may have both platform-admin and customer/organisation access.
-- Secure server-authorized switching between admin and organisation contexts.
+- One user identity may have both platform-admin and customer/workspace access.
+- Every user, including an administrator, receives a customer profile and Personal Workspace.
+- Workspaces are independent tenant, billing, subscription, entitlement, usage, and resource boundaries.
+- Customers may own multiple workspaces; a Personal Workspace has one transferable Owner.
+- Organisations are optional extensions of workspaces; multi-user organisation membership is deferred until after the MVA.
+- Secure server-authorized switching between admin and workspace contexts.
+- Immutable workspace billing-profile versions with authorized cross-workspace cloning and lineage.
 - Admin roles, role permissions, and individual allow/deny overrides.
 - Monthly, yearly, and explicit multi-year package prices.
 - Offers, coupons, discounts, subscriptions, and purchased entitlement snapshots.
@@ -50,11 +55,12 @@ The public website may display packages and initiate purchases, but the panel re
 1. Repository and MVC foundation.
 2. Unified OTP identity and admin authorization.
 3. Packages, prices, offers, and entitlements.
-4. Customer and organisation onboarding.
-5. Subscription snapshots and usage enforcement.
-6. Read-only Coolify staging integration.
-7. Controlled, idempotent provisioning.
-8. Production-readiness verification.
+4. Public landing page and customer-registration entry.
+5. Customer, workspace, organisation-extension, billing, and subscription onboarding.
+6. Subscription snapshots and usage enforcement.
+7. Read-only Coolify staging integration.
+8. Controlled, idempotent provisioning.
+9. Production-readiness verification.
 
 ## Local setup
 
@@ -100,7 +106,7 @@ npm.cmd run env:generate-secrets
 
 For Supabase direct connections in environments with a private/self-signed intermediary certificate chain, use encrypted libpq-compatible SSL parameters: `sslmode=require&uselibpqcompat=true`. Do not commit the resulting connection string.
 
-The Supabase GitHub integration expects migrations beneath `supabase/migrations`. That path is a Git-tracked symbolic link to the canonical Drizzle directory at `src/db/migrations`. Supabase migration history is baselined through `0002`; migration `0003` is the first pending GitHub-deployed migration. Verify the integration resolves the symlink before treating this experimental synchronization strategy as production-ready.
+The Supabase GitHub integration expects real migration files beneath `supabase/migrations`; it does not reliably traverse the current Git-tracked symbolic link to `src/db/migrations`. Drizzle's live ledger is also older than the deployed schema. Until those histories are reconciled, review and apply each new canonical migration deliberately, verify the live schema, and remind the developer to push the migration with its code. Do not assume `drizzle-kit migrate` can safely replay the drifted production ledger.
 
 Local endpoints:
 
@@ -171,6 +177,7 @@ The application uses native React Router routing and Web `Request` parsing. API 
 - [MVA requirements](Docs/MVA_REQUIREMENTS.md)
 - [Authentication and access](Docs/AUTHENTICATION_AND_ACCESS.md)
 - [Packages, billing, and entitlements](Docs/PACKAGE_BILLING_AND_ENTITLEMENTS.md)
+- [Customers, workspaces, and organisations](Docs/WORKSPACES_CUSTOMERS_AND_ORGANISATIONS.md)
 - [Database and portability](Docs/DATABASE_AND_PORTABILITY.md)
 - [Infrastructure requirements](Docs/INFRASTRUCTURE_REQUIREMENTS.md)
 - [Implementation plan](Docs/IMPLEMENTATION_PLAN.md)

@@ -64,22 +64,38 @@ Support:
 
 The server recalculates every checkout using current authoritative data. The public website submits identifiers, never trusted price totals.
 
-## 6. Customer and organisation onboarding
+## 6. Customer, workspace, and organisation onboarding
 
 Initial onboarding:
 
 1. Identify or create the user through a verified OTP flow.
-2. Collect organisation details.
-3. Create an organisation membership with Owner role.
-4. Select a package and billing term.
-5. Complete or prepare checkout.
-6. Activate subscription only after verified payment state.
-7. Snapshot purchased pricing and entitlements.
-8. Make the organisation eligible for provisioning.
+2. Create or reuse the one-to-one customer profile.
+3. Create a Personal Workspace and its single Owner membership when the user owns no workspace.
+4. Select or create the workspace that will own the purchase.
+5. Optionally create an Organisation Workspace or convert an existing Personal Workspace by adding its organisation extension.
+6. Collect or clone versioned workspace billing details.
+7. Select a package and billing term.
+8. Complete or prepare checkout.
+9. Activate the workspace subscription only after verified payment state.
+10. Snapshot purchased pricing, offers, tax, billing details, and entitlements.
+11. Make the workspace eligible for provisioning.
 
-The MVA supports one operational owner per organisation. The schema must support multiple memberships from the beginning. Invitations and customer-defined roles can be enabled later without replacing the identity model.
+Every current and future user, including a platform administrator, may also be a customer. An idempotent backfill creates missing customer profiles, Personal Workspaces, and Owner memberships for existing users.
 
-## 7. Usage restrictions
+The MVA permits multiple workspaces per user. A Personal Workspace contains exactly one Owner at a time but is transferable. Each workspace owns independent billing, plan, subscription, entitlements, usage, and resources. Organisation membership remains single-owner in the MVA; the membership schema must support future multiple members and Owners without replacement.
+
+## 7. Public landing and registration entry
+
+Before the remaining onboarding screens, the panel shall provide a responsive public landing page because customer self-registration is now required.
+
+- Explain the hosting service and published plans.
+- Read packages and prices from the panel public API.
+- Provide clear login and registration entry points.
+- Route authenticated users to their active workspace or context selection.
+- Preserve light/dark themes, mobile-first behavior, accessibility, and non-AI-generic visual language.
+- Never calculate authoritative checkout totals in the browser.
+
+## 8. Usage restrictions
 
 Initial entitlement types:
 
@@ -103,15 +119,18 @@ Enforcement modes:
 
 Count-based limits are checked transactionally before provisioning. Measured limits use recent, timestamped usage observations and display data freshness.
 
-## 8. Subscription entitlement snapshots
+## 9. Subscription entitlement snapshots
 
 Every purchase creates immutable commercial and entitlement snapshots. Later package edits do not silently change an existing subscription. Administrators require an explicit, audited migration workflow to move existing subscriptions to new terms.
 
-## 9. Out of scope for the first MVA
+## 10. Out of scope for the first MVA
 
 - Password authentication.
-- Customer-defined organisation roles.
 - Organisation invitation UI.
+- Multiple organisation members and multiple Owners.
+- Organisation roles, custom permissions, and billing-only member access.
+- Workspace merging, splitting, and resource transfer between workspaces.
+- Organisation-to-Personal conversion through the normal customer UI.
 - Automatic placement across multiple production servers.
 - Complex proration and automatic overage charging.
 - Full terminal access.

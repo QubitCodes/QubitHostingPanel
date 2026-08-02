@@ -91,22 +91,32 @@ Gate: unpublished data is private, price tampering fails, and historical prices 
 
 Deployment status:
 
-- [x] Supabase production database has migrations `0011` through `0013` applied; `0013` safely carries publication data added after `0012` had already run.
+- [x] Supabase production database has migrations `0011` through `0014` applied; `0013` safely carries publication data added after `0012` had already run.
 - [x] Live database verification confirms offers, explicit multi-year prices, approved shared-tier reviews, and three published shared tiers.
 - [x] Live public catalogue, coupon eligibility rejection, signed quote, unpublished privacy, and tampered-total checks pass.
 
 Gate: completed with live Supabase schema/catalogue evidence, four active billing terms per package, approved cost reviews for all public tiers, three private Cloud drafts, a three-package public catalogue, signed server-authoritative quotes, and rejection of client totals and ineligible coupons.
 
-## Phase 3 - Customer and organisation onboarding
+## Phase 3 - Public registration, customers, workspaces, and subscriptions
 
-- OTP customer onboarding.
-- Organisation creation and Owner membership.
-- Existing admin-to-customer registration without duplicate identities.
-- Context selector and organisation dashboard shell.
-- Subscription lifecycle and payment-provider abstraction.
-- Purchased price and entitlement snapshots.
+Delivery order:
 
-Gate: one user can own an organisation and retain independently authorized admin access.
+- [ ] Build the responsive public landing page with published package pricing, login, and customer-registration entry points.
+- [ ] Add separate customer, workspace, membership, and organisation-extension models with six-digit public IDs.
+- [ ] Update OTP registration to transactionally create/reuse the customer profile, Personal Workspace, and Owner membership.
+- [ ] Backfill every current user, including administrators, with missing customer/workspace records idempotently.
+- [ ] Permit multiple independently billed workspaces per user during the MVA.
+- [ ] Create Personal or Organisation Workspaces and convert Personal Workspaces into organisations without changing workspace identity.
+- [ ] Support audited Personal Workspace ownership transfer with recipient confirmation and automatic replacement workspace when required.
+- [ ] Add immutable workspace billing-profile versions and authorized cloning with source lineage.
+- [ ] Replace organisation-specific session context with server-authorized workspace context and workspace selector.
+- [ ] Build the workspace dashboard shell and URL-backed overview, billing, subscription, security, create, and conversion views.
+- [ ] Add workspace-owned checkout records, payment-provider abstraction, attempts, and verified-webhook foundations.
+- [ ] Add one primary hosting subscription per workspace plus add-on items and lifecycle state.
+- [ ] Snapshot purchased price, offers, tax, billing profile, and entitlements immutably.
+- [ ] Add customer/workspace/subscription administration, OpenAPI documentation, tests, and live Supabase verification.
+
+Gate: every user has a customer profile and workspace, each workspace has isolated billing/plan state, ownership transfer preserves workspace history, and admin access remains independently authorized.
 
 ## Phase 4 - Usage and restriction engine
 
@@ -153,11 +163,16 @@ Gate: production checklist is accepted with evidence.
 ## Deferred roadmap
 
 - Organisation invitations and multiple customer users.
-- Customer-defined organisation roles.
+- Multiple organisation Owners and final-Owner protection.
+- Organisation billing-manager/member roles and custom workspace permissions.
+- Organisation membership and seat-limit enforcement.
+- Ownership recovery and transfer-dispute workflows.
+- Workspace merging, splitting, and cross-workspace resource transfers.
+- Customer-facing Organisation-to-Personal reversion.
 - Google Sign-In and other Firebase providers.
 - Multiple Coolify servers and placement policies.
 - Proration, overage charging, and additional hosting providers.
 
 ## Next implementation approval
 
-Before Phase 0 application code, present the exact repository structure, dependencies, database domains, and intended files for confirmation.
+Next task: present the public landing-page content, information architecture, responsive sections, registration entry flow, routes, and intended files for approval before implementation.

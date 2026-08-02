@@ -11,7 +11,7 @@ qubit.codes
         | Versioned public API and signed checkout handoff
         v
 panel.qubit.codes
-  Identity, organisations, packages, checkout, subscriptions,
+  Identity, customers, workspaces, organisations, checkout, subscriptions,
   entitlements, usage, administration, and customer resources
         |
         | Private provider adapter
@@ -36,7 +36,8 @@ The public website must never hold Coolify credentials, calculate authoritative 
 
 - Authenticate admins and customers.
 - Manage platform roles, permissions, and individual overrides.
-- Manage customer identities, organisations, and memberships.
+- Manage unified user identities, customer profiles, workspaces, organisation extensions, and memberships.
+- Use workspaces as the tenant, billing, subscription, entitlement, usage, and resource boundary.
 - Own packages, prices, offers, subscriptions, and entitlement snapshots.
 - Enforce package restrictions before provisioning.
 - Integrate with payments and verify payment webhooks.
@@ -87,18 +88,31 @@ GET  /api/v1/public/packages/:slug
 POST /api/v1/public/checkout-handoffs
 ```
 
-Authenticated panel endpoints cover authentication, organisations, subscriptions, usage, and resources. Internal endpoints cover payment webhooks, provider webhooks, scheduled usage snapshots, and provisioning jobs.
+Authenticated panel endpoints cover authentication, customers, workspaces, organisation extensions, subscriptions, usage, and resources. Internal endpoints cover payment webhooks, provider webhooks, scheduled usage snapshots, and provisioning jobs.
 
 All state-changing requests use JSON. Routes use native Web `Request` parsing, Zod validation, and `@qubitcodes/qcresp`. Undefined `/api/` routes return the standard JSON failure format. Routing uses React Router's central `app/routes.ts`; `@qubitcodes/qcrouter` and `@qubitcodes/qcreq` are not used.
 
 ## 5. Source-of-truth rules
 
-- Panel database: identities, permissions, organisations, commercial state, entitlements, ownership, desired resource state, jobs, and audit history.
+- Panel database: identities, permissions, customers, workspaces, organisation extensions, commercial state, entitlements, ownership, desired resource state, jobs, and audit history.
 - Payment provider: verified payment transaction state, reconciled into the panel.
 - Coolify: actual infrastructure state, reconciled into the panel.
 - Usage snapshots: timestamped observations; they do not silently rewrite subscription entitlements.
 
-## 6. Security boundaries
+## 6. Workspace tenancy
+
+Customers and organisations are separate entities. A customer is the service profile of a user; an organisation is an optional extension of a workspace. The workspace is the durable tenant boundary.
+
+- Every registered user, including an administrator, receives a customer profile and Personal Workspace.
+- A user may own multiple workspaces and may retain independently authorized admin access.
+- A Personal Workspace has one owner at a time and may be transferred.
+- A workspace may be created as, or converted into, an Organisation Workspace without changing another workspace.
+- Every workspace independently owns billing-profile versions, checkouts, subscriptions, entitlement snapshots, usage, and resources.
+- Organisation multi-user membership is schema-ready but deferred until after the MVA.
+
+See `WORKSPACES_CUSTOMERS_AND_ORGANISATIONS.md` for invariants and lifecycle rules.
+
+## 7. Security boundaries
 
 - Encrypt Coolify and payment credentials at rest.
 - Use least-privilege, team-scoped Coolify API tokens.

@@ -7,7 +7,7 @@
 - Initial implemented factor is MSG91 WhatsApp OTP.
 - WhatsApp delivery uses `@qubitcodes/msg91`.
 - Firebase SMS OTP, Google Sign-In, and other Firebase-backed identity providers are deferred.
-- One identity may hold admin access and customer/organisation access simultaneously.
+- One identity may hold admin access and customer/workspace access simultaneously.
 
 ## 2. Phone-number login experience
 
@@ -23,7 +23,8 @@ Flow:
 6. Ask the published MSG91 SDK to generate and send the OTP with `whatsapp.otp.send({ generate: {} })`, then store only a salted hash of the returned code.
 7. Verify the submitted OTP hash on the server, enforce attempt/expiry limits, and consume it once.
 8. Create an application session with access and refresh tokens.
-9. Return available admin and organisation contexts.
+9. Ensure the verified user has a customer profile, at least one workspace, and an Owner membership.
+10. Return available admin and workspace contexts.
 
 Do not reveal whether a number is an administrator or whether a matching record exists. Responses must be generic where disclosure could enable enumeration.
 
@@ -62,11 +63,12 @@ User
     Admin role assignments
     Individual permission overrides
   Customer access
-    Organisation ownerships
-    Organisation memberships
+    Customer profile
+    Workspace ownerships and memberships
+    Optional organisation extensions
 ```
 
-When an administrator registers as a customer, reuse the verified user and create the customer/organisation relationships. When a customer becomes an administrator, add platform access to the same user.
+When an administrator registers as a customer, reuse the verified user and create only missing customer/workspace relationships. When a customer becomes an administrator, add platform access to the same user. Admin status must never block service registration or workspace ownership.
 
 ## 6. Context switching
 
@@ -74,11 +76,11 @@ Available contexts may include:
 
 - Platform administration.
 - Personal/customer onboarding.
-- One or more organisations.
+- One or more workspaces, including Personal and Organisation Workspaces.
 
 Switching context is a server-authorized action. The backend verifies eligibility and rotates or issues a short-lived access token containing the active context. It is not merely a frontend layout toggle.
 
-Admin permissions never leak into an organisation context. Admin status does not bypass organisation ownership checks. Every protected request validates both user identity and active context.
+Admin permissions never leak into a workspace context. Admin status does not bypass workspace membership checks. Every protected request validates user identity, active context, active workspace, and membership.
 
 Recommended access-token claims:
 
@@ -86,10 +88,12 @@ Recommended access-token claims:
 subject user ID
 session ID
 active context type
-active organisation ID when applicable
+active workspace ID when applicable
 issued and expiry timestamps
 token version
 ```
+
+Every user has at least one workspace after registration/backfill. Personal Workspaces have one Owner at a time and support audited ownership transfer. If transfer would leave the sender without a workspace, the transaction creates a replacement empty Personal Workspace. Organisation multi-user membership is deferred, but the membership model must remain extensible.
 
 ## 7. Security controls
 

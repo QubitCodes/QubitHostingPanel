@@ -15,6 +15,7 @@
 3. `MVA_REQUIREMENTS.md` - approved first-release functional requirements.
 4. `AUTHENTICATION_AND_ACCESS.md` - passwordless identity, permissions, organisations, and context switching.
 5. `PACKAGE_BILLING_AND_ENTITLEMENTS.md` - packages, prices, offers, subscriptions, and usage restrictions.
+6. `WORKSPACES_CUSTOMERS_AND_ORGANISATIONS.md` - customer identity, workspace tenancy, organisation extensions, billing snapshots, transfers, and deferred membership features.
 6. `DATABASE_AND_PORTABILITY.md` - Supabase-first database strategy and later migration path.
 7. `INFRASTRUCTURE_REQUIREMENTS.md` - local, staging, and production infrastructure requirements.
 8. `IMPLEMENTATION_PLAN.md` - delivery phases, verification gates, and deferred work.

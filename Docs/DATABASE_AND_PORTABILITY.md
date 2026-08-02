@@ -61,9 +61,9 @@ Never treat approval to migrate as proof that migration completed. Record dump, 
 
 - Identity and sessions.
 - Platform roles, permissions, assignments, and overrides.
-- Organisations, memberships, and organisation roles.
+- Customers, workspaces, memberships, organisation extensions, and immutable workspace billing-profile versions.
 - Packages, prices, offers, and redemptions.
-- Subscriptions, price snapshots, and entitlement snapshots.
+- Workspace subscriptions, billing snapshots, price snapshots, offer/tax snapshots, and entitlement snapshots.
 - Provider connections and encrypted credentials.
 - Desired resources, provider resources, usage observations, and reservations.
 - Provisioning jobs and reconciliation findings.

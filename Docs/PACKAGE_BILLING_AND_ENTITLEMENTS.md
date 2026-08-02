@@ -13,7 +13,7 @@ Package
 Subscription
   Purchased price snapshot
   Purchased entitlement snapshots
-  Organisation ownership
+  Workspace ownership
   Payment and lifecycle state
 ```
 
@@ -54,7 +54,17 @@ An offer contains:
 
 Checkout evaluates offers server-side and records the applied rule and calculated discount in the purchase snapshot.
 
-## 4. Subscription lifecycle
+## 4. Workspace billing profiles
+
+Billing details belong to a workspace and are immutable once used.
+
+- Each update creates a new version and advances the workspace's current billing-profile reference.
+- Checkouts, subscriptions, payment attempts, transactions, and invoices link to the exact billing-profile version used.
+- A permitted owner may clone billing details from another accessible workspace.
+- Cloning creates an independent version and records source workspace, source version, actor, and timestamp.
+- User-profile changes and later source-workspace changes cannot rewrite billing history.
+
+## 5. Subscription lifecycle
 
 Initial states:
 
@@ -64,7 +74,9 @@ pending -> active -> past_due -> suspended -> cancelled -> expired
 
 Payment success is accepted only from a verified provider webhook or an explicitly audited administrative workflow. Provisioning must be idempotent and must not begin from an unverified browser redirect alone.
 
-## 5. Entitlements
+Each workspace has at most one active primary hosting subscription during the MVA. Add-ons are independently snapshotted subscription items owned by the same workspace.
+
+## 6. Entitlements
 
 An entitlement definition includes:
 
@@ -93,11 +105,11 @@ bandwidth.monthly_gb
 organisation.members.count
 ```
 
-## 6. Enforcement
+## 7. Enforcement
 
 Before a resource mutation:
 
-1. Validate active organisation context.
+1. Validate active workspace context and membership.
 2. Validate active subscription.
 3. Read the subscription entitlement snapshot.
 4. Read locked/reconciled usage and pending reservations.
@@ -110,7 +122,7 @@ Pending jobs count toward limits so concurrent requests cannot exceed a quota.
 
 Measured usage contains source, measured value, observation time, and freshness status. The interface must distinguish actual, reserved, and stale usage.
 
-## 7. Upgrades, downgrades, and package edits
+## 8. Upgrades, downgrades, and package edits
 
 - Editing a package changes future purchases only.
 - Existing subscriptions retain snapshots.
@@ -118,7 +130,7 @@ Measured usage contains source, measured value, observation time, and freshness 
 - Downgrades that conflict with current usage require remediation or a scheduled change.
 - Manual entitlement overrides require scope, reason, actor, start/end timestamps, and audit history.
 
-## 8. Transactional email and cost review
+## 9. Transactional email and cost review
 
 - Amazon SES allowances are measured per recipient, not per API request or mailbox.
 - Included monthly recipient limits are package entitlements and are snapshotted at purchase.
@@ -127,7 +139,7 @@ Measured usage contains source, measured value, observation time, and freshness 
 - Publishing requires an approved cost review covering Mumbai-region compute, EBS, S3, transfer, SES, support, payment fees, and tax assumptions.
 - Cost reviews store server-calculated margin basis points and their evidence notes; a later review does not rewrite prior reviews.
 
-## 9. Public catalogue and checkout quotes
+## 10. Public catalogue and checkout quotes
 
 - Public catalogue reads are database-filtered to published packages, active public prices, and customer-visible entitlements.
 - Checkout clients submit a price identifier and optional coupon only; submitted totals are never accepted.
@@ -135,7 +147,7 @@ Measured usage contains source, measured value, observation time, and freshness 
 - New-customer-only offers are not applied by the anonymous quotation endpoint; they require verified customer context later in checkout.
 - Quotes contain server-owned subtotal, discount, tax, and total amounts and are signed with a separate secret for a short expiry window.
 
-## 10. Initial publication decision
+## 11. Initial publication decision
 
 - Launch, Growth, and Business use pooled Mumbai capacity and are approved for initial publication with conservative monthly allocations of ₹180, ₹350, and ₹700 respectively.
 - Those allocations include compute, gp3 storage, S3 backups, SES recipients, internet transfer, monitoring, support, payment fees, and contingency.
