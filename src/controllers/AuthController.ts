@@ -1,4 +1,4 @@
-import { and, eq, gt, isNull, or } from 'drizzle-orm';
+import { and, eq, gt, isNotNull, isNull, or } from 'drizzle-orm';
 import { resp } from '@qubitcodes/qcresp';
 
 import { getEnvironment } from '@config/env';
@@ -6,6 +6,7 @@ import { db } from '@db/client';
 import { authenticationEvents, otpChallenges, platformUserRoles, userSessions, users } from '@db/schema';
 import type { RequestOtpInput, VerifyOtpInput } from '@schemas/auth';
 import { Msg91OtpProvider, type OtpDeliveryProvider } from '@services/auth/Msg91OtpProvider';
+import { canUseDevelopmentAuthBypass, parseDevelopmentAuthMobile } from '@services/auth/developmentAuthBypassService';
 import { createOtpSalt, hashOtp, hashSensitiveValue, verifyOtpHash } from '@services/auth/otpCryptoService';
 import { createRefreshToken, hashRefreshToken, issueAccessToken, verifyAccessToken, type SessionContext } from '@services/auth/tokenService';
 import { authorizeAdmin } from '@services/authorization/adminAuthorizationService';
@@ -61,13 +62,38 @@ async function createSession(userId: string, tokenVersion: number, metadata: Req
 
 export class AuthController {
 	/** Creates a generic, enumeration-safe WhatsApp OTP challenge. */
-	public static async requestOtp(input: RequestOtpInput, metadata: RequestMetadata, provider: OtpDeliveryProvider = new Msg91OtpProvider()): Promise<Response> {
+	public static async requestOtp(input: RequestOtpInput, metadata: RequestMetadata, provider: OtpDeliveryProvider = new Msg91OtpProvider(), request?: Request): Promise<Response> {
 		try {
 			const environment = getEnvironment();
 			const secret = requireOtpSecret();
+			const parsedMobile = parseDevelopmentAuthMobile(input.mobile);
 			const countryCode = input.countryCode ? `+${input.countryCode.replace(/\D/g, '')}` : undefined;
-			const identityKey = countryCode ? `${countryCode}${input.mobile}` : input.mobile;
+			const identityKey = countryCode ? `${countryCode}${parsedMobile.mobile}` : parsedMobile.mobile;
 			const identityHash = hashSensitiveValue(identityKey, secret);
+			if (parsedMobile.bypassRequested) {
+				if (!request || !canUseDevelopmentAuthBypass(environment, request)) return resp.failure('Development authentication is unavailable.', resp.codes.AUTHENTICATION_ERROR, undefined, null, undefined, 401);
+				const candidates = await db.select().from(users).where(and(
+					eq(users.mobile, parsedMobile.mobile),
+					...(countryCode ? [eq(users.countryCode, countryCode)] : []),
+					eq(users.status, 'active'),
+					isNotNull(users.mobileVerifiedAt),
+					isNull(users.deletedAt),
+				)).limit(2);
+				const user = candidates.length === 1 ? candidates[0] : undefined;
+				if (!user) return resp.failure('Development authentication is unavailable.', resp.codes.AUTHENTICATION_ERROR, undefined, null, undefined, 401);
+				const session = await createSession(user.id, user.tokenVersion, metadata);
+				await db.insert(authenticationEvents).values({
+					userId: user.id,
+					identityHash,
+					type: 'login_succeeded',
+					status: 'success',
+					reason: 'development_bypass',
+					ipAddress: metadata.ipAddress,
+					userAgent: metadata.userAgent,
+					metadata: { authenticationMethod: 'development_bypass' },
+				});
+				return resp.success('Authentication successful.', { user: { id: user.id, displayName: user.displayName, countryCode: user.countryCode, mobile: user.mobile, mobileE164: `${user.countryCode}${user.mobile}` }, context: 'personal' }, resp.codes.OK, session);
+			}
 			const [cooldownChallenge] = await db.select().from(otpChallenges).where(and(
 				eq(otpChallenges.identityHash, identityHash),
 				isNull(otpChallenges.deletedAt),
@@ -81,7 +107,7 @@ export class AuthController {
 				}, resp.codes.ACCEPTED, undefined, 202);
 			}
 			const candidates = await db.select().from(users).where(and(
-				eq(users.mobile, input.mobile),
+				eq(users.mobile, parsedMobile.mobile),
 				...(countryCode ? [eq(users.countryCode, countryCode)] : []),
 				eq(users.status, 'active'),
 				isNull(users.deletedAt)

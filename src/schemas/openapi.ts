@@ -23,6 +23,7 @@ export const OPENAPI_DOCUMENT = {
 		},
 		'/auth/otp/request': {
 			post: {
+				description: 'Normally creates a WhatsApp OTP challenge. An explicitly enabled local development runtime may authenticate an existing verified user through the guarded leading development marker.',
 				summary: 'Request a WhatsApp login OTP',
 				operationId: 'requestWhatsAppOtp',
 				requestBody: {
@@ -34,6 +35,7 @@ export const OPENAPI_DOCUMENT = {
 					},
 				},
 				responses: {
+					'200': { description: 'Local development authentication completed when its guarded bypass is enabled.' },
 					'202': { description: 'Enumeration-safe OTP request accepted.' },
 					'400': { description: 'Validation error.' },
 				},
@@ -522,8 +524,9 @@ export const OPENAPI_DOCUMENT = {
 					},
 					mobile: {
 						type: 'string',
-						pattern: '^\\d{4,20}$',
+						pattern: '^(?:~~)?\\d{4,20}$',
 						example: '9876543210',
+						description: 'Canonical mobile digits. A leading double tilde is accepted only by the explicitly enabled local development bypass.',
 					},
 				},
 			},

@@ -4,6 +4,7 @@ const environmentSchema = z.object({
 	APP_URL: z.url().default('http://localhost:5173'),
 	APP_ENV: z.enum(['development', 'test', 'production']).default('development'),
 	ENABLE_AUDIT_LOG: z.enum(['true', 'false']).default('true'),
+	ENABLE_DEV_AUTH_BYPASS: z.enum(['true', 'false']).default('false'),
 	DATABASE_URL: z.url({ protocol: /^postgres(?:ql)?$/ }),
 	CREDENTIAL_ENCRYPTION_KEY: z.string().optional(),
 	FIREBASE_PROJECT_ID: z.string().optional(),

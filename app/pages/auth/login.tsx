@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import type { z } from 'zod';
 
 import { PhoneNumberInput } from '@root/app/components/forms/phone-number-input';
+import { getDeviceIdentifier } from '@root/app/utils/authenticatedFetch';
 import { requestOtpSchema } from '@schemas/auth';
 
 type LoginForm = z.infer<typeof requestOtpSchema>;
@@ -23,16 +24,36 @@ export default function LoginPage() {
 		try {
 			const response = await fetch('/api/v1/auth/otp/request', {
 				method: 'POST',
-				headers: { 'content-type': 'application/json' },
+				headers: { 'content-type': 'application/json', 'x-device-id': getDeviceIdentifier() },
 				body: JSON.stringify(values),
 			});
 			const body = (await response.json()) as {
-				data?: { challengeId?: string };
+				data?: { challengeId?: string; user?: { displayName?: string; id: string } };
 				message: string;
+				misc?: { accessToken?: string; refreshToken?: string };
 				status: boolean;
 			};
-			if (!response.ok || !body.status || !body.data?.challengeId)
+			if (!response.ok || !body.status)
 				throw new Error(body.message);
+			if (body.misc?.accessToken && body.misc.refreshToken) {
+				sessionStorage.setItem('accessToken', body.misc.accessToken);
+				sessionStorage.setItem('refreshToken', body.misc.refreshToken);
+				sessionStorage.setItem('authUser', JSON.stringify(body.data?.user ?? {}));
+				const contextResponse = await fetch('/api/v1/auth/context', {
+					method: 'POST',
+					headers: { authorization: `Bearer ${body.misc.accessToken}`, 'content-type': 'application/json' },
+					body: JSON.stringify({ context: 'admin' }),
+				});
+				const context = await contextResponse.json() as { misc?: { accessToken?: string }; status: boolean };
+				if (contextResponse.ok && context.status && context.misc?.accessToken) {
+					sessionStorage.setItem('accessToken', context.misc.accessToken);
+					navigate('/admin/administrators');
+					return;
+				}
+				navigate('/settings/profile');
+				return;
+			}
+			if (!body.data?.challengeId) throw new Error(body.message);
 			sessionStorage.setItem(
 				'pendingMobile',
 				`${values.countryCode ?? ''}${values.mobile}`,
@@ -103,6 +124,7 @@ export default function LoginPage() {
 							name="mobile"
 							render={({ field, fieldState }) => (
 								<PhoneNumberInput
+									allowDevelopmentBypass
 									autoFocus
 									countryCode={countryCode}
 									error={fieldState.error?.message}

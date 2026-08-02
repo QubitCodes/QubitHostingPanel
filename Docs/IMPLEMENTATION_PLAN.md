@@ -57,6 +57,7 @@ Gate: completed with clean install, migration, seed, schema verification, typech
 - [x] Separate URL-addressable administrator view/edit workspaces and role/permission-aware administrator list summaries.
 - [x] Server-authorized personal/admin context switching.
 - [x] Permission-gated Scalar API documentation, hidden JSON 404 fallback, account dropdown, and Qubit Codes product credit.
+- [x] Explicitly gated loopback-only development authentication bypass for verified active users, with strict leading-marker input handling, normal revocable sessions, and authentication audit events.
 
 Gate status:
 

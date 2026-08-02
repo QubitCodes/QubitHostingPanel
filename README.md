@@ -98,6 +98,8 @@ npm.cmd run db:seed:super-admin -- --country-code=91 --local-mobile=9400143527 -
 
 Authentication requires server-only `MSG91_AUTH_KEY`, `MSG91_WHATSAPP_NUMBER`, `OTP_HASH_SECRET`, `JWT_ACCESS_SECRET`, and `JWT_REFRESH_SECRET` values. The MSG91 authentication template and language use the SDK's code-owned `common_otp` and `en` defaults. Each application secret must be independently generated with at least 32 characters. Never expose them through Vite-prefixed variables or commit them.
 
+For local development only, `ENABLE_DEV_AUTH_BYPASS=true` permits a verified active database user to sign in by prefixing the login mobile with `~~`. The server additionally requires `APP_ENV=development`, `NODE_ENV=development`, and a loopback request URL. The marker is never stored, never sent to MSG91, and is rejected outside that complete guard. Keep the flag disabled in every shared, staging, and production environment.
+
 Generate any missing application-owned secrets without replacing existing values:
 
 ```powershell

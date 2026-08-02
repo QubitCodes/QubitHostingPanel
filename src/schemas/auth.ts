@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 export const requestOtpSchema = z.object({
 	countryCode: z.string().trim().regex(/^\+?\d{1,4}$/).optional(),
-	mobile: z.string().trim().regex(/^\d{4,20}$/, 'Enter a valid mobile number.')
+	mobile: z.string().trim().regex(/^(?:~~)?\d{4,20}$/, 'Enter a valid mobile number.')
 }).strict();
 
 export const verifyOtpSchema = z.object({

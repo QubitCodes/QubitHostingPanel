@@ -14,6 +14,7 @@ interface CountryOption {
 }
 
 interface PhoneNumberInputProps {
+	allowDevelopmentBypass?: boolean;
 	autoFocus?: boolean;
 	countryCode?: string;
 	error?: string;
@@ -24,8 +25,15 @@ interface PhoneNumberInputProps {
 	placeholder?: string;
 }
 
+/** Keeps at most one transient leading development marker and removes every later tilde. */
+export function sanitizeDevelopmentBypassMarker(value: string, allowed: boolean): { phoneValue: string; prefix: string } {
+	const prefix = allowed ? value.startsWith('~~') ? '~~' : value.startsWith('~') ? '~' : '' : '';
+	return { prefix, phoneValue: value.slice(prefix.length).replace(/~/g, '') };
+}
+
 /** Reusable E.164-aware mobile input with a searchable, theme-aware country picker. */
 export function PhoneNumberInput({
+	allowDevelopmentBypass = false,
 	autoFocus,
 	countryCode,
 	error,
@@ -69,13 +77,14 @@ export function PhoneNumberInput({
 
 	function normalizeMobile(value: string): void {
 		const compact = value.replace(/[()\s.-]/g, '');
-		if (compact.startsWith('+')) {
-			const parsed = parsePhoneNumberFromString(compact);
+		const { phoneValue, prefix: bypassPrefix } = sanitizeDevelopmentBypassMarker(compact, allowDevelopmentBypass);
+		if (phoneValue.startsWith('+')) {
+			const parsed = parsePhoneNumberFromString(phoneValue);
 			if (parsed) {
 				setSelectedCountry(parsed.country);
 				onChange({
 					countryCode: `+${parsed.countryCallingCode}`,
-					mobile: parsed.nationalNumber,
+					mobile: `${bypassPrefix}${parsed.nationalNumber}`,
 				});
 				return;
 			}
@@ -83,16 +92,16 @@ export function PhoneNumberInput({
 				...new Set(countries.map((country) => country.callingCode)),
 			]
 				.sort((left, right) => right.length - left.length)
-				.find((code) => compact.startsWith(code));
+				.find((code) => phoneValue.startsWith(code));
 			if (callingCode) {
 				onChange({
 					countryCode: callingCode,
-					mobile: compact.slice(callingCode.length).replace(/\D/g, ''),
+					mobile: `${bypassPrefix}${phoneValue.slice(callingCode.length).replace(/\D/g, '')}`,
 				});
 				return;
 			}
 		}
-		onChange({ countryCode, mobile: compact.replace(/\D/g, '') });
+		onChange({ countryCode, mobile: `${bypassPrefix}${phoneValue.replace(/\D/g, '')}` });
 	}
 
 	function selectCountry(option: CountryOption): void {
