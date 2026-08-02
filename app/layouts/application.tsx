@@ -28,14 +28,23 @@ export default function ApplicationLayout() {
 	const location = useLocation();
 	const [collapsed, setCollapsed] = useState(false);
 	const [mobileOpen, setMobileOpen] = useState(false);
-	const [dark, setDark] = useState(() => localStorage.getItem('theme') === 'dark' || (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches));
+	const [dark, setDark] = useState(false);
 	const [query, setQuery] = useState('');
-	const user = (() => { try { return JSON.parse(sessionStorage.getItem('authUser') ?? '{}') as { displayName?: string; mobileE164?: string }; } catch { return {}; } })();
+	const [user, setUser] = useState<{ displayName?: string; mobileE164?: string }>({});
 
 	useEffect(() => {
-		if (!sessionStorage.getItem('accessToken')) navigate('/login', { replace: true });
+		const timeout = window.setTimeout(() => {
+			const storedTheme = localStorage.getItem('theme');
+			setDark(storedTheme === 'dark' || (!storedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches));
+			try { setUser(JSON.parse(sessionStorage.getItem('authUser') ?? '{}') as { displayName?: string; mobileE164?: string }); } catch { setUser({}); }
+			if (!sessionStorage.getItem('accessToken')) navigate('/login', { replace: true });
+		}, 0);
+		return () => window.clearTimeout(timeout);
+	}, [navigate]);
+
+	useEffect(() => {
 		document.documentElement.classList.toggle('dark', dark);
-	}, [dark, navigate]);
+	}, [dark]);
 
 	function toggleTheme(): void {
 		const next = !dark; setDark(next); localStorage.setItem('theme', next ? 'dark' : 'light'); document.documentElement.classList.toggle('dark', next);
