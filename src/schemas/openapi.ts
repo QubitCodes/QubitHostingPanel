@@ -426,7 +426,18 @@ export const OPENAPI_DOCUMENT = {
 				properties: { estimatedMonthlyCost: { type: 'number', minimum: 0 }, revenue: { type: 'number', exclusiveMinimum: 0 }, status: { type: 'string', enum: ['approved', 'pending', 'rejected'] }, notes: { type: 'string', minLength: 10, maxLength: 5000 } },
 			},
 			CheckoutQuoteInput: { type: 'object', additionalProperties: false, required: ['priceId'], properties: { priceId: { type: 'string', format: 'uuid' }, couponCode: { type: ['string', 'null'] } } },
-			OfferInput: { type: 'object', description: 'Strict offer payload containing discount type/value, lifecycle dates, coupon, eligibility IDs, limits, customer restriction, stacking, and priority.' },
+			OfferInput: {
+				type: 'object',
+				additionalProperties: false,
+				description: 'Offer discount, lifecycle, package, billing-term, audience, subscription, recurrence, and trial rules.',
+				required: ['name', 'slug', 'description', 'couponCode', 'discountType', 'percentage', 'fixedAmount', 'currency', 'status', 'startsAt', 'endsAt', 'customerEligibility', 'subscriptionEvent', 'discountRecurrence', 'recurrenceCycles', 'trialHandling', 'minimumSubtotal', 'maximumDiscount', 'maxRedemptions', 'maxRedemptionsPerCustomer', 'stackable', 'priority', 'packageIds', 'priceIds', 'eligibleTerms'],
+				properties: {
+					name: { type: 'string', minLength: 2, maxLength: 160 }, slug: { type: 'string', pattern: '^[a-z0-9]+(?:-[a-z0-9]+)*$' }, description: { type: ['string', 'null'], maxLength: 5000 }, couponCode: { type: ['string', 'null'] },
+					discountType: { type: 'string', enum: ['percentage', 'fixed'] }, percentage: { type: ['number', 'null'], exclusiveMinimum: 0, maximum: 100 }, fixedAmount: { type: ['number', 'null'], exclusiveMinimum: 0 }, currency: { type: 'string', enum: ['INR'] }, status: { type: 'string', enum: ['draft', 'active', 'archived'] },
+					startsAt: { type: ['string', 'null'], format: 'date-time' }, endsAt: { type: ['string', 'null'], format: 'date-time' }, customerEligibility: { type: 'string', enum: ['everyone', 'new_customers', 'existing_customers'] }, subscriptionEvent: { type: 'string', enum: ['new_subscription', 'renewal', 'both'] }, discountRecurrence: { type: 'string', enum: ['once', 'cycles', 'term'] }, recurrenceCycles: { type: ['integer', 'null'], minimum: 1, maximum: 120 }, trialHandling: { type: 'string', enum: ['after_trial', 'immediate', 'exclude_trial'] },
+					minimumSubtotal: { type: ['number', 'null'], exclusiveMinimum: 0 }, maximumDiscount: { type: ['number', 'null'], exclusiveMinimum: 0 }, maxRedemptions: { type: ['integer', 'null'], minimum: 1 }, maxRedemptionsPerCustomer: { type: 'integer', minimum: 1 }, stackable: { type: 'boolean' }, priority: { type: 'integer', minimum: 0, maximum: 10000 }, packageIds: { type: 'array', maxItems: 100, items: { type: 'string', format: 'uuid' } }, priceIds: { type: 'array', maxItems: 100, items: { type: 'string', format: 'uuid' } }, eligibleTerms: { type: 'array', maxItems: 24, items: { type: 'object', additionalProperties: false, required: ['billingInterval', 'intervalCount'], properties: { billingInterval: { type: 'string', enum: ['month', 'year'] }, intervalCount: { type: 'integer', minimum: 1, maximum: 12 } } } },
+				},
+			},
 			PackageInput: {
 				type: 'object',
 				additionalProperties: false,

@@ -3,12 +3,18 @@ import { checkoutQuoteSchema } from '@schemas/checkout';
 import { createOfferSchema } from '@schemas/offer';
 import { setPackageEntitlementsSchema } from '@schemas/package';
 
-const offer = { name: 'Launch offer', slug: 'launch-offer', description: null, couponCode: 'LAUNCH10', discountType: 'percentage' as const, percentage: 10, fixedAmount: null, currency: 'INR' as const, status: 'active' as const, startsAt: null, endsAt: null, newCustomerOnly: false, maxRedemptions: 100, maxRedemptionsPerCustomer: 1, stackable: false, priority: 10, packageIds: [], priceIds: [] };
+const offer = { name: 'Launch offer', slug: 'launch-offer', description: null, couponCode: 'LAUNCH10', discountType: 'percentage' as const, percentage: 10, fixedAmount: null, currency: 'INR' as const, status: 'active' as const, startsAt: null, endsAt: null, customerEligibility: 'everyone' as const, subscriptionEvent: 'both' as const, discountRecurrence: 'once' as const, recurrenceCycles: null, trialHandling: 'after_trial' as const, minimumSubtotal: null, maximumDiscount: 500, maxRedemptions: 100, maxRedemptionsPerCustomer: 1, stackable: false, priority: 10, packageIds: [], priceIds: [], eligibleTerms: [{ billingInterval: 'month' as const, intervalCount: 1 }] };
 
 describe('commercial validation', () => {
 	it('requires matching offer discount values', () => {
 		expect(createOfferSchema.safeParse(offer).success).toBe(true);
 		expect(createOfferSchema.safeParse({ ...offer, fixedAmount: 100 }).success).toBe(false);
+	});
+	it('validates duration and recurrence configuration', () => {
+		expect(createOfferSchema.safeParse({ ...offer, discountRecurrence: 'cycles', recurrenceCycles: 3 }).success).toBe(true);
+		expect(createOfferSchema.safeParse({ ...offer, discountRecurrence: 'cycles', recurrenceCycles: null }).success).toBe(false);
+		expect(createOfferSchema.safeParse({ ...offer, eligibleTerms: [{ billingInterval: 'year', intervalCount: 2 }] }).success).toBe(true);
+		expect(createOfferSchema.safeParse({ ...offer, eligibleTerms: [{ billingInterval: 'month', intervalCount: 1 }, { billingInterval: 'month', intervalCount: 1 }] }).success).toBe(false);
 	});
 	it('accepts identifier-only checkout quotes', () => {
 		expect(checkoutQuoteSchema.safeParse({ priceId: '00000000-0000-4000-8000-000000000000', couponCode: 'SAVE10' }).success).toBe(true);

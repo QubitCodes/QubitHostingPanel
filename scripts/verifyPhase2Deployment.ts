@@ -21,7 +21,7 @@ async function verifyPhase2Deployment(): Promise<void> {
 			SELECT table_name
 			FROM information_schema.tables
 			WHERE table_schema = 'public'
-				AND table_name IN ('offers', 'offer_eligible_prices', 'offer_redemptions', 'package_cost_reviews')
+				AND table_name IN ('offers', 'offer_eligible_prices', 'offer_eligible_terms', 'offer_redemptions', 'package_cost_reviews')
 			ORDER BY table_name
 		`);
 		const packageResult = await client.query<PackageDeploymentRow>(`
@@ -52,7 +52,7 @@ async function verifyPhase2Deployment(): Promise<void> {
 			ORDER BY package.slug
 		`);
 
-		const expectedTables = ['offer_eligible_prices', 'offer_redemptions', 'offers', 'package_cost_reviews'];
+		const expectedTables = ['offer_eligible_prices', 'offer_eligible_terms', 'offer_redemptions', 'offers', 'package_cost_reviews'];
 		const deployedTables = tableResult.rows.map((row) => row.table_name);
 		if (JSON.stringify(deployedTables) !== JSON.stringify(expectedTables)) {
 			throw new Error(`Phase 2 tables are incomplete: ${deployedTables.join(', ')}`);
