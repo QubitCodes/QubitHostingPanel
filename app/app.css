@@ -46,3 +46,8 @@ body {
 	min-height: 100vh;
 	margin: 0;
 }
+
+/* Keep public plan cards fluid without allowing their content to widen the page. */
+.plans-grid {
+	grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr));
+}

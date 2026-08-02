@@ -110,7 +110,7 @@ The Supabase GitHub integration expects real migration files beneath `supabase/m
 
 Local endpoints:
 
-- `/` - foundation page.
+- `/` - responsive public landing page with live published plans, billing terms, platform overview, FAQ, theme control, and sign-in entry.
 - `/login` - request a WhatsApp OTP.
 - `/login/verify/:challengeId` - verify a deep-linked OTP challenge.
 - `/admin/overview` - authenticated Phase 1 overview.

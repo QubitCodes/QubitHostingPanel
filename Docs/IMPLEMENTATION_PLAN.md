@@ -101,7 +101,7 @@ Gate: completed with live Supabase schema/catalogue evidence, four active billin
 
 Delivery order:
 
-- [ ] Build the responsive public landing page with published package pricing, login, and customer-registration entry points.
+- [x] Build the responsive public landing page with live published package pricing, billing-term selection, sign-in entry, and a registration-ready customer acquisition flow.
 - [ ] Add separate customer, workspace, membership, and organisation-extension models with six-digit public IDs.
 - [ ] Update OTP registration to transactionally create/reuse the customer profile, Personal Workspace, and Owner membership.
 - [ ] Backfill every current user, including administrators, with missing customer/workspace records idempotently.

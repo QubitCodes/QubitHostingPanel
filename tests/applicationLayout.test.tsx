@@ -16,8 +16,20 @@ import ProfilePage from '@root/app/pages/account/profile';
 import AdminsPage from '@root/app/pages/admin/admins';
 import PackagesPage from '@root/app/pages/admin/packages';
 import VerifyLoginPage from '@root/app/pages/auth/verify';
+import { LandingPage } from '@root/app/pages/website/home';
 
 describe('application layout SSR', () => {
+	it('server-renders the public landing page without browser globals', () => {
+		const html = renderToString(
+			<MemoryRouter initialEntries={['/']}>
+				<Routes><Route element={<LandingPage catalogue={[]} />} path="/" /></Routes>
+			</MemoryRouter>,
+		);
+		expect(html).toContain('Hosting that feels');
+		expect(html).toContain('Straightforward plans');
+		expect(html).toContain('Already have an account?');
+	});
+
 	it('renders without browser storage globals', () => {
 		expect(() =>
 			renderToString(
