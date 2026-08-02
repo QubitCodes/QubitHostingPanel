@@ -115,7 +115,7 @@ export function PhoneNumberInput({
 							aria-expanded={open}
 							aria-haspopup="listbox"
 							aria-label="Choose country code"
-							className="flex h-full min-w-28 items-center gap-2 rounded-l-2xl border-r border-stone-200 bg-stone-50 px-3 text-sm font-semibold text-stone-900 outline-none hover:bg-stone-100 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-100 dark:hover:bg-stone-800"
+							className="flex h-full min-w-24 items-center gap-1.5 rounded-l-2xl border-r border-stone-200 bg-stone-50 px-2 text-sm font-semibold text-stone-900 outline-none hover:bg-stone-100 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-100 dark:hover:bg-stone-800"
 							onClick={() => setOpen((value) => !value)}
 							type="button"
 						>
