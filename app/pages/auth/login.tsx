@@ -31,7 +31,7 @@ export default function LoginPage() {
 				body: JSON.stringify(values),
 			});
 			const body = (await response.json()) as {
-				data?: { challengeId?: string; user?: { displayName?: string; hasAdminAccess?: boolean; id: string } };
+				data?: { challengeId?: string; user?: { displayName?: string; hasAdminAccess?: boolean; hasCustomerDashboardAccess?: boolean; id: string } };
 				message: string;
 				misc?: { accessToken?: string; refreshToken?: string };
 				status: boolean;
@@ -42,7 +42,8 @@ export default function LoginPage() {
 				sessionStorage.setItem('accessToken', body.misc.accessToken);
 				sessionStorage.setItem('refreshToken', body.misc.refreshToken);
 				sessionStorage.setItem('authUser', JSON.stringify(body.data?.user ?? {}));
-				navigate(returnTo ?? '/workspaces');
+				const user = body.data?.user;
+				navigate(returnTo ?? (user?.hasCustomerDashboardAccess ? '/dashboard' : user?.hasAdminAccess ? '/admin/overview' : '/'));
 				return;
 			}
 			if (!body.data?.challengeId) throw new Error(body.message);

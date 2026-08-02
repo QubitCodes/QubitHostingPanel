@@ -23,7 +23,7 @@ Flow:
 6. Ask the published MSG91 SDK to generate and send the OTP with `whatsapp.otp.send({ generate: {} })`, then store only a salted hash of the returned code.
 7. Verify the submitted OTP hash on the server, enforce attempt/expiry limits, and consume it once.
 8. Create an application session with access and refresh tokens.
-9. Ensure the verified user has a customer profile, at least one workspace, and an Owner membership.
+9. Ensure the verified user has a customer profile without creating a workspace before purchase.
 10. Return available admin and workspace contexts.
 
 Do not reveal whether a number is an administrator or whether a matching record exists. Responses must be generic where disclosure could enable enumeration.
@@ -40,7 +40,7 @@ Store both:
 
 Local numbers are not globally unique. If the same local number matches more than one country, the application must not guess. It may request country disambiguation or use a trusted signed onboarding context.
 
-A new customer registers by supplying a country code and mobile number. Successful OTP verification creates the user, customer profile, Personal Workspace, and Owner membership transactionally. Country-code-free input remains an existing-user login convenience.
+A new customer registers by supplying a country code and mobile number. Successful OTP verification creates the user and customer profile transactionally. The first workspace and Owner membership are created only after the first purchase and post-purchase setup. Country-code-free input remains an existing-user login convenience.
 
 ## 4. OTP service abstraction
 
@@ -68,7 +68,7 @@ User
     Optional organisation extensions
 ```
 
-When an administrator registers as a customer, reuse the verified user and create only missing customer/workspace relationships. When a customer becomes an administrator, add platform access to the same user. Admin status must never block service registration or workspace ownership.
+When an administrator registers as a customer, reuse the verified user and create only the missing customer profile. Workspace relationships begin with purchase. When a customer becomes an administrator, add platform access to the same user. Admin status must never block service registration or workspace ownership.
 
 ## 6. Context switching
 
@@ -93,7 +93,7 @@ issued and expiry timestamps
 token version
 ```
 
-Every user has at least one workspace after registration/backfill. Personal Workspaces have one Owner at a time and support audited ownership transfer. If transfer would leave the sender without a workspace, the transaction creates a replacement empty Personal Workspace. Organisation multi-user membership is deferred, but the membership model must remain extensible.
+Every user has a customer profile after registration/backfill but may have no workspace before purchasing. Personal Workspaces have one Owner at a time and support audited ownership transfer. Organisation multi-user membership is deferred, but the membership model must remain extensible.
 
 ## 7. Security controls
 

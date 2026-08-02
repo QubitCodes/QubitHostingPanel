@@ -242,6 +242,19 @@ export const OPENAPI_DOCUMENT = {
 				responses: { '200': { description: 'Workspace memberships retrieved.' }, '401': { description: 'Authentication required.' } },
 			},
 		},
+		'/checkouts': {
+			post: {
+				summary: 'Persist an authenticated purchase from a signed server quote',
+				operationId: 'purchaseCheckout',
+				security: [{ bearerAuth: [] }],
+				requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', additionalProperties: false, required: ['quoteToken'], properties: { quoteToken: { type: 'string', minLength: 32 } } } } } },
+				responses: { '201': { description: 'Purchase persisted; workspace setup required.' }, '401': { description: 'Authentication required.' }, '422': { description: 'Quote invalid or expired.' } },
+			},
+		},
+		'/checkouts/{checkoutId}': {
+			get: { summary: 'Retrieve an owned purchase checkout', operationId: 'showCheckout', security: [{ bearerAuth: [] }], parameters: [{ in: 'path', name: 'checkoutId', required: true, schema: { type: 'integer', minimum: 100000, maximum: 999999 } }], responses: { '200': { description: 'Checkout retrieved.' }, '404': { description: 'Checkout not found.' } } },
+			post: { summary: 'Create and configure the purchased workspace', operationId: 'configureCheckoutWorkspace', security: [{ bearerAuth: [] }], parameters: [{ in: 'path', name: 'checkoutId', required: true, schema: { type: 'integer', minimum: 100000, maximum: 999999 } }], responses: { '201': { description: 'Workspace and subscription created from purchase snapshots.' }, '422': { description: 'Checkout already configured or input invalid.' } } },
+		},
 		'/workspaces/{workspaceId}': {
 			get: {
 				summary: 'View an authorized workspace by its six-digit public ID',

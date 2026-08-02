@@ -38,7 +38,7 @@ The public website may display packages and initiate purchases, but the panel re
 - WhatsApp integration through `@qubitcodes/msg91`.
 - Users may enter a registered mobile number alone or include its calling code; international input is parsed into normalized `country_code` and `mobile` fields.
 - One user identity may have both platform-admin and customer/workspace access.
-- Every user, including an administrator, receives a customer profile and Personal Workspace.
+- Every user, including an administrator, receives a customer profile; the first workspace is created only after the first purchase.
 - Workspaces are independent tenant, billing, subscription, entitlement, usage, and resource boundaries.
 - Customers may own multiple workspaces; a Personal Workspace has one transferable Owner.
 - Organisations are optional extensions of workspaces; multi-user organisation membership is deferred until after the MVA.
@@ -141,6 +141,8 @@ Initial publication policy: Launch, Growth, and Business may be public after the
 - `/api/v1/auth/otp/verify` - verify a challenge and create a session.
 - `/api/v1/workspaces` - list the authenticated customer's workspace memberships.
 - `/api/v1/workspaces/:workspaceId` - view an authorized workspace by six-digit public ID.
+- `/api/v1/checkouts` - persist a purchase from a signed server quote.
+- `/api/v1/checkouts/:checkoutId` - retrieve a purchase or configure its first workspace.
 - `/api/v1/auth/refresh` - rotate a refresh token.
 - `/api/v1/auth/logout` - revoke the bearer session.
 - `/api/v1/auth/context` - switch between personal and authorized admin context.

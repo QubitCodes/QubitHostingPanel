@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { checkoutQuoteSchema } from '@schemas/checkout';
+import { checkoutQuoteSchema, configureCheckoutWorkspaceSchema, purchaseCheckoutSchema } from '@schemas/checkout';
 import { createOfferSchema } from '@schemas/offer';
 import { setPackageEntitlementsSchema } from '@schemas/package';
 
@@ -19,6 +19,12 @@ describe('commercial validation', () => {
 	it('accepts identifier-only checkout quotes', () => {
 		expect(checkoutQuoteSchema.safeParse({ priceId: '00000000-0000-4000-8000-000000000000', couponCode: 'SAVE10' }).success).toBe(true);
 		expect(checkoutQuoteSchema.safeParse({ priceId: 'bad', total: 1 }).success).toBe(false);
+	});
+	it('validates purchase tokens and post-purchase workspace setup', () => {
+		expect(purchaseCheckoutSchema.safeParse({ quoteToken: 'x'.repeat(32) }).success).toBe(true);
+		expect(configureCheckoutWorkspaceSchema.safeParse({ name: 'Production', type: 'personal', organisation: null }).success).toBe(true);
+		expect(configureCheckoutWorkspaceSchema.safeParse({ name: 'Company', type: 'organisation', organisation: null }).success).toBe(false);
+		expect(configureCheckoutWorkspaceSchema.safeParse({ name: 'Company', type: 'organisation', organisation: { displayName: 'Qubit Codes', legalName: null } }).success).toBe(true);
 	});
 	it('enforces one entitlement value or unlimited', () => {
 		const entitlementId = '00000000-0000-4000-8000-000000000000';

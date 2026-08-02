@@ -2,7 +2,7 @@ import { and, asc, eq, isNull } from 'drizzle-orm';
 import { resp } from '@qubitcodes/qcresp';
 
 import { db } from '@db/client';
-import { customers, organisations, workspaceMemberships, workspaces } from '@db/schema';
+import { customers, organisations, packages, workspaceMemberships, workspaces, workspaceSubscriptions } from '@db/schema';
 import { authenticateSession } from '@services/auth/authenticatedSessionService';
 import type { RequestMetadata } from '@utils/request';
 
@@ -15,6 +15,10 @@ const workspaceProjection = {
 	status: workspaces.status,
 	role: workspaceMemberships.role,
 	organisationDisplayName: organisations.displayName,
+	subscriptionStatus: workspaceSubscriptions.status,
+	packageName: packages.name,
+	termEndsAt: workspaceSubscriptions.termEndsAt,
+	trialEndsAt: workspaceSubscriptions.trialEndsAt,
 };
 
 /** Customer-authorized workspace reads for the User Panel. */
@@ -26,6 +30,8 @@ export class WorkspaceController {
 				.innerJoin(workspaceMemberships, and(eq(workspaceMemberships.customerId, customers.id), eq(workspaceMemberships.status, 'active'), isNull(workspaceMemberships.deletedAt)))
 				.innerJoin(workspaces, and(eq(workspaces.id, workspaceMemberships.workspaceId), eq(workspaces.status, 'active'), isNull(workspaces.deletedAt)))
 				.leftJoin(organisations, and(eq(organisations.workspaceId, workspaces.id), isNull(organisations.deletedAt)))
+				.leftJoin(workspaceSubscriptions, and(eq(workspaceSubscriptions.workspaceId, workspaces.id), isNull(workspaceSubscriptions.deletedAt)))
+				.leftJoin(packages, eq(packages.id, workspaceSubscriptions.packageId))
 				.where(and(eq(customers.userId, authenticated.userId), isNull(customers.deletedAt)))
 				.orderBy(asc(workspaces.createdAt));
 			return resp.success('Workspaces retrieved.', rows);
@@ -41,6 +47,8 @@ export class WorkspaceController {
 				.innerJoin(workspaceMemberships, and(eq(workspaceMemberships.customerId, customers.id), eq(workspaceMemberships.status, 'active'), isNull(workspaceMemberships.deletedAt)))
 				.innerJoin(workspaces, and(eq(workspaces.id, workspaceMemberships.workspaceId), eq(workspaces.publicId, publicId), eq(workspaces.status, 'active'), isNull(workspaces.deletedAt)))
 				.leftJoin(organisations, and(eq(organisations.workspaceId, workspaces.id), isNull(organisations.deletedAt)))
+				.leftJoin(workspaceSubscriptions, and(eq(workspaceSubscriptions.workspaceId, workspaces.id), isNull(workspaceSubscriptions.deletedAt)))
+				.leftJoin(packages, eq(packages.id, workspaceSubscriptions.packageId))
 				.where(and(eq(customers.userId, authenticated.userId), isNull(customers.deletedAt)))
 				.limit(1);
 			if (!workspace) return resp.failure('Workspace not found.', resp.codes.RESOURCE_NOT_FOUND, undefined, null, undefined, 404);

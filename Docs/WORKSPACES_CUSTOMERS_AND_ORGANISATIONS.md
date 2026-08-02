@@ -14,9 +14,9 @@ Admin authorization and workspace authorization are independent. Admin privilege
 ## 2. MVA invariants
 
 - Every active user has exactly one customer profile.
-- Every active user owns at least one workspace.
-- Registration atomically creates the user/customer relationship, one Personal Workspace, and its Owner membership.
-- Existing users, including administrators, receive the same customer profile and Personal Workspace through an idempotent backfill.
+- Every active user has a customer profile but may own no workspace before purchasing.
+- Registration atomically creates only the user/customer relationship.
+- Existing users, including administrators, receive missing customer profiles through an idempotent backfill.
 - A user may own multiple workspaces during the MVA.
 - A Personal Workspace has exactly one user and one Owner at any moment.
 - Personal Workspace ownership is transferable.
@@ -53,7 +53,7 @@ The database must enforce or transactionally protect:
 - one organisation extension per workspace;
 - unique active workspace slugs and public IDs;
 - exactly one active membership for a Personal Workspace;
-- at least one owned workspace per active user;
+- no workspace before a completed first purchase;
 - the final active Owner cannot be removed without a successful transfer;
 - organisation extension only on an organisation-type workspace.
 
@@ -64,11 +64,11 @@ New registration completes in one transaction:
 1. Verify the OTP challenge.
 2. Create or reuse the user by canonical phone identity.
 3. Create the customer profile if absent.
-4. Create a Personal Workspace if the user owns no workspace.
-5. Create its Owner membership.
-6. Create the session and return authorized admin/workspace contexts.
+4. Create the session and return independently authorized admin/customer capabilities.
 
-The essential-data backfill must be idempotent. For every current non-deleted user it creates only missing customer/workspace/membership records. Re-running it must not create duplicates or change an existing workspace.
+The essential-data backfill must be idempotent. For every current non-deleted user it creates only a missing customer profile. Re-running it must not create duplicates or change workspaces.
+
+The first purchase is persisted before workspace setup. The customer then names the workspace and chooses Personal or Organisation. Workspace, Owner membership, optional organisation extension, subscription, and commercial snapshots are created transactionally.
 
 ## 5. Workspace creation and conversion
 
@@ -115,15 +115,14 @@ issued/expiry timestamps
 token version
 ```
 
-Workspace routes use the six-digit public workspace ID:
+The active workspace is selected from the dashboard topbar; customer page URLs do not expose a workspace segment:
 
 ```text
-/workspaces
-/workspaces/create
-/workspace/:workspaceId/overview
-/workspace/:workspaceId/billing
-/workspace/:workspaceId/subscription
-/workspace/:workspaceId/security
+/dashboard
+/dashboard/workspaces/create
+/dashboard/billing
+/dashboard/subscription
+/dashboard/security
 ```
 
 All workspace queries include both active workspace ID and an authorized active membership predicate.

@@ -5,3 +5,4 @@ export * from './identity';
 export * from './offers';
 export * from './packages';
 export * from './tenancy';
+export * from './subscriptions';

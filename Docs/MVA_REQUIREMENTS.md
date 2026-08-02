@@ -70,7 +70,7 @@ Initial onboarding:
 
 1. Identify or create the user through a verified OTP flow.
 2. Create or reuse the one-to-one customer profile.
-3. Create a Personal Workspace and its single Owner membership when the user owns no workspace.
+3. Create no workspace during registration; persist the first purchase before requesting workspace name and type.
 4. Select or create the workspace that will own the purchase.
 5. Optionally create an Organisation Workspace or convert an existing Personal Workspace by adding its organisation extension.
 6. Collect or clone versioned workspace billing details.
@@ -80,7 +80,7 @@ Initial onboarding:
 10. Snapshot purchased pricing, offers, tax, billing details, and entitlements.
 11. Make the workspace eligible for provisioning.
 
-Every current and future user, including a platform administrator, may also be a customer. An idempotent backfill creates missing customer profiles, Personal Workspaces, and Owner memberships for existing users.
+Every current and future user, including a platform administrator, may also be a customer. An idempotent backfill creates only missing customer profiles. Workspaces and Owner memberships begin after purchase.
 
 The MVA permits multiple workspaces per user. A Personal Workspace contains exactly one Owner at a time but is transferable. Each workspace owns independent billing, plan, subscription, entitlements, usage, and resources. Organisation membership remains single-owner in the MVA; the membership schema must support future multiple members and Owners without replacement.
 

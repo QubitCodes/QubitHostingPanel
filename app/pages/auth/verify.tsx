@@ -35,7 +35,7 @@ export default function VerifyLoginPage() {
 				body: JSON.stringify({ challengeId, otp: values.otp }),
 			});
 			const body = (await response.json()) as {
-				data?: { user?: { displayName?: string; hasAdminAccess?: boolean; id: string } };
+				data?: { user?: { displayName?: string; hasAdminAccess?: boolean; hasCustomerDashboardAccess?: boolean; id: string } };
 				message: string;
 				misc?: { accessToken?: string; refreshToken?: string };
 				status: boolean;
@@ -50,7 +50,8 @@ export default function VerifyLoginPage() {
 			sessionStorage.setItem('accessToken', body.misc.accessToken);
 			sessionStorage.setItem('refreshToken', body.misc.refreshToken);
 			sessionStorage.setItem('authUser', JSON.stringify(body.data?.user ?? {}));
-			navigate(returnTo ?? '/workspaces');
+			const user = body.data?.user;
+			navigate(returnTo ?? (user?.hasCustomerDashboardAccess ? '/dashboard' : user?.hasAdminAccess ? '/admin/overview' : '/'));
 		} catch (error) {
 			toast.error(
 				error instanceof Error ? error.message : 'Unable to verify OTP.',
