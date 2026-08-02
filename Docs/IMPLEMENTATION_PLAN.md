@@ -102,7 +102,7 @@ Gate: completed with live Supabase schema/catalogue evidence, four active billin
 Delivery order:
 
 - [x] Build the responsive public landing page with live published package pricing, billing-term selection, sign-in entry, and a registration-ready customer acquisition flow.
-- [ ] Add separate customer, workspace, membership, and organisation-extension models with six-digit public IDs.
+- [x] Add separate customer, workspace, membership, and organisation-extension models with six-digit public IDs.
 - [ ] Update OTP registration to transactionally create/reuse the customer profile, Personal Workspace, and Owner membership.
 - [ ] Backfill every current user, including administrators, with missing customer/workspace records idempotently.
 - [ ] Permit multiple independently billed workspaces per user during the MVA.
@@ -175,4 +175,4 @@ Gate: production checklist is accepted with evidence.
 
 ## Next implementation approval
 
-Next task: present the public landing-page content, information architecture, responsive sections, registration entry flow, routes, and intended files for approval before implementation.
+Next task: update OTP registration to transactionally create or reuse the customer profile, Personal Workspace, and Owner membership, then add an idempotent existing-user backfill.

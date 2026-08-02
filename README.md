@@ -4,7 +4,7 @@ Standalone hosting commerce and management application for Qubit Codes.
 
 ## Status
 
-Phases 0 through 2 are complete. Phase 3 begins with the public landing and registration experience, followed by customer profiles, workspace tenancy, organisation extensions, workspace billing, and subscriptions. The application includes verified WhatsApp OTP authentication, access/refresh sessions, user-owned device management, platform authorization, secure context switching, package/offer commerce, and the responsive light/dark panel interface.
+Phases 0 through 2 are complete. Phase 3 now includes the public landing page and the customer/workspace tenancy schema foundation; transactional OTP onboarding and existing-user backfill come next. The application includes verified WhatsApp OTP authentication, access/refresh sessions, user-owned device management, platform authorization, secure context switching, package/offer commerce, and the responsive light/dark panel interface.
 
 ## Product boundary
 
@@ -107,6 +107,8 @@ npm.cmd run env:generate-secrets
 For Supabase direct connections in environments with a private/self-signed intermediary certificate chain, use encrypted libpq-compatible SSL parameters: `sslmode=require&uselibpqcompat=true`. Do not commit the resulting connection string.
 
 The Supabase GitHub integration expects real migration files beneath `supabase/migrations`; it does not reliably traverse the current Git-tracked symbolic link to `src/db/migrations`. Drizzle's live ledger is also older than the deployed schema. Until those histories are reconciled, review and apply each new canonical migration deliberately, verify the live schema, and remind the developer to push the migration with its code. Do not assume `drizzle-kit migrate` can safely replay the drifted production ledger.
+
+Migration `0015_fluffy_odin.sql` establishes the Phase 3 tenancy foundation: one-to-one customer profiles, independent Personal or Organisation Workspaces, extensible workspace memberships, and optional organisation extensions. Customer and workspace URLs use database-generated six-digit public IDs; UUIDs remain internal primary keys.
 
 Local endpoints:
 
