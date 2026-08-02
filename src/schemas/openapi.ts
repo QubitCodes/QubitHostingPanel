@@ -264,7 +264,13 @@ export const OPENAPI_DOCUMENT = {
 				name: 'adminId',
 				in: 'path',
 				required: true,
-				schema: { type: 'string', format: 'uuid' },
+				description: 'Six-digit public administrator ID.',
+				schema: {
+					type: 'integer',
+					minimum: 100000,
+					maximum: 999999,
+					example: 123456,
+				},
 			},
 			SessionId: {
 				name: 'sessionId',

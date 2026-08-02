@@ -133,6 +133,15 @@ function authorizationFailure(): Response {
 	);
 }
 
+async function resolveUserId(publicId: number): Promise<string | undefined> {
+	const [user] = await db
+		.select({ id: users.id })
+		.from(users)
+		.where(and(eq(users.publicId, publicId), isNull(users.deletedAt)))
+		.limit(1);
+	return user?.id;
+}
+
 export class AdminController {
 	/** Lists platform administrators while hiding Super Admin identities at query level when required. */
 	public static async index(
@@ -166,6 +175,7 @@ export class AdminController {
 			const records = await db
 				.selectDistinct({
 					id: users.id,
+					publicId: users.publicId,
 					displayName: users.displayName,
 					countryCode: users.countryCode,
 					mobile: users.mobile,
@@ -206,11 +216,21 @@ export class AdminController {
 	/** Returns an administrator with roles, overrides, sessions, events, and audit history. */
 	public static async show(
 		request: Request,
-		userId: string,
+		publicId: number,
 		metadata: RequestMetadata,
 	): Promise<Response> {
 		try {
 			const actor = await authorizeAdmin(request, 'admins.view', metadata);
+			const userId = await resolveUserId(publicId);
+			if (!userId)
+				return resp.failure(
+					'Administrator not found.',
+					resp.codes.RESOURCE_NOT_FOUND,
+					undefined,
+					null,
+					undefined,
+					404,
+				);
 			if (!(await ensureVisibleTarget(actor, userId)))
 				return resp.failure(
 					'Administrator not found.',
@@ -223,6 +243,7 @@ export class AdminController {
 			const [adminRecord] = await db
 				.select({
 					id: users.id,
+					publicId: users.publicId,
 					displayName: users.displayName,
 					countryCode: users.countryCode,
 					mobile: users.mobile,
@@ -405,6 +426,7 @@ export class AdminController {
 				})
 				.returning({
 					id: users.id,
+					publicId: users.publicId,
 					displayName: users.displayName,
 					countryCode: users.countryCode,
 					mobile: users.mobile,
@@ -452,12 +474,22 @@ export class AdminController {
 	/** Updates safe profile/status fields and protects the final active Super Admin. */
 	public static async update(
 		request: Request,
-		userId: string,
+		publicId: number,
 		input: UpdateAdminInput,
 		metadata: RequestMetadata,
 	): Promise<Response> {
 		try {
 			const actor = await authorizeAdmin(request, 'admins.update', metadata);
+			const userId = await resolveUserId(publicId);
+			if (!userId)
+				return resp.failure(
+					'Administrator not found.',
+					resp.codes.RESOURCE_NOT_FOUND,
+					undefined,
+					null,
+					undefined,
+					404,
+				);
 			if (!(await ensureVisibleTarget(actor, userId)))
 				return resp.failure(
 					'Administrator not found.',
@@ -487,6 +519,7 @@ export class AdminController {
 				.where(and(eq(users.id, userId), isNull(users.deletedAt)))
 				.returning({
 					id: users.id,
+					publicId: users.publicId,
 					displayName: users.displayName,
 					status: users.status,
 				});
@@ -531,12 +564,22 @@ export class AdminController {
 	/** Soft-deletes one visible administrator and revokes all active sessions. */
 	public static async remove(
 		request: Request,
-		userId: string,
+		publicId: number,
 		reason: string,
 		metadata: RequestMetadata,
 	): Promise<Response> {
 		try {
 			const actor = await authorizeAdmin(request, 'admins.delete', metadata);
+			const userId = await resolveUserId(publicId);
+			if (!userId)
+				return resp.failure(
+					'Administrator not found.',
+					resp.codes.RESOURCE_NOT_FOUND,
+					undefined,
+					null,
+					undefined,
+					404,
+				);
 			if (!(await ensureVisibleTarget(actor, userId)))
 				return resp.failure(
 					'Administrator not found.',
@@ -624,12 +667,22 @@ export class AdminController {
 	/** Replaces active role assignments while preventing hidden-role escalation. */
 	public static async replaceRoles(
 		request: Request,
-		userId: string,
+		publicId: number,
 		roleIds: string[],
 		metadata: RequestMetadata,
 	): Promise<Response> {
 		try {
 			const actor = await authorizeAdmin(request, 'roles.update', metadata);
+			const userId = await resolveUserId(publicId);
+			if (!userId)
+				return resp.failure(
+					'Administrator not found.',
+					resp.codes.RESOURCE_NOT_FOUND,
+					undefined,
+					null,
+					undefined,
+					404,
+				);
 			if (!(await ensureVisibleTarget(actor, userId)))
 				return resp.failure(
 					'Administrator not found.',
@@ -717,12 +770,22 @@ export class AdminController {
 	/** Replaces explicit permission overrides; denies remain dominant during resolution. */
 	public static async replaceOverrides(
 		request: Request,
-		userId: string,
+		publicId: number,
 		input: ReplaceAdminOverridesInput,
 		metadata: RequestMetadata,
 	): Promise<Response> {
 		try {
 			const actor = await authorizeAdmin(request, 'roles.update', metadata);
+			const userId = await resolveUserId(publicId);
+			if (!userId)
+				return resp.failure(
+					'Administrator not found.',
+					resp.codes.RESOURCE_NOT_FOUND,
+					undefined,
+					null,
+					undefined,
+					404,
+				);
 			if (!(await ensureVisibleTarget(actor, userId)))
 				return resp.failure(
 					'Administrator not found.',

@@ -48,6 +48,7 @@ Gate: completed with clean install, migration, seed, schema verification, typech
 - [x] Confirm handset delivery and complete the application OTP verification/session flow.
 - [x] Admin management APIs and URL-driven views for lifecycle, roles, overrides, sessions, authentication events, and audit history.
 - [x] Full-width administrator create/view/update workspace with URL-addressable Basic details, Roles, and Permissions tabs; searchable bulk role/permission controls; inherited permission visibility; explicit allow/deny notes; and override reset.
+- [x] Six-digit public user IDs for human-readable administrator URLs, database-backed permission labels, and Super Admin permission fallback with explicit-deny precedence.
 - [x] Server-authorized personal/admin context switching.
 
 Gate status:

@@ -14,6 +14,7 @@ interface AdminSummary {
 	createdAt: string;
 	displayName?: string | null;
 	id: string;
+	publicId: number;
 	mobileE164: string;
 	mobileVerifiedAt?: string | null;
 	status: 'active' | 'inactive' | 'suspended';
@@ -306,7 +307,7 @@ export default function AdminsPage() {
 			});
 			const overrides = buildOverrides();
 			if (overrides.length)
-				await api(`/api/v1/admins/${created.id}/overrides`, {
+				await api(`/api/v1/admins/${created.publicId}/overrides`, {
 					method: 'PUT',
 					headers: { 'content-type': 'application/json' },
 					body: JSON.stringify({ overrides }),
@@ -315,7 +316,7 @@ export default function AdminsPage() {
 				sessionStorage.removeItem('adminCreateDraft');
 			toast.success('Administrator created.');
 			await loadBase();
-			navigate(`/admin/administrators/${created.id}/basic`);
+			navigate(`/admin/administrators/${created.publicId}/basic`);
 		} catch (error) {
 			toast.error(
 				error instanceof Error
@@ -412,12 +413,15 @@ export default function AdminsPage() {
 										{admin.displayName || 'Unnamed administrator'}
 									</p>
 									<p className="text-stone-500">{admin.mobileE164}</p>
+									<p className="text-xs font-medium text-stone-400">
+										ID {admin.publicId}
+									</p>
 								</td>
 								<td className="px-5 py-4 capitalize">{admin.status}</td>
 								<td className="px-5 py-4 text-right">
 									<Link
 										className="font-semibold text-teal-700 dark:text-[#e0ff71]"
-										to={`/admin/administrators/${admin.id}/basic`}
+										to={`/admin/administrators/${admin.publicId}/basic`}
 									>
 										Manage
 									</Link>
