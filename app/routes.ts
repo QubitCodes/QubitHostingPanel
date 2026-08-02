@@ -1,4 +1,10 @@
-import { index, layout, prefix, route, type RouteConfig } from '@react-router/dev/routes';
+import {
+	index,
+	layout,
+	prefix,
+	route,
+	type RouteConfig,
+} from '@react-router/dev/routes';
 
 export default [
 	index('pages/website/home.tsx'),
@@ -7,16 +13,29 @@ export default [
 	layout('layouts/application.tsx', [
 		route('admin/overview', 'pages/admin/overview.tsx'),
 		route('admin/administrators', 'pages/admin/admins.tsx'),
-		route('admin/administrators/create', 'pages/admin/administrators-create.tsx'),
-		route('admin/administrators/:adminId', 'pages/admin/administrator-detail.tsx'),
-		route('admin/administrators/:adminId/:section', 'pages/admin/administrator-section.tsx'),
+		route(
+			'admin/administrators/create',
+			'pages/admin/administrators-create.tsx',
+		),
+		route(
+			'admin/administrators/create/:section',
+			'pages/admin/administrator-create-section.tsx',
+		),
+		route(
+			'admin/administrators/:adminId',
+			'pages/admin/administrator-detail.tsx',
+		),
+		route(
+			'admin/administrators/:adminId/:section',
+			'pages/admin/administrator-section.tsx',
+		),
 		layout('layouts/settings.tsx', [
 			route('settings/profile', 'pages/account/profile.tsx'),
 			route('settings/security', 'pages/account/security.tsx'),
 			route('settings/sessions', 'pages/account/sessions.tsx'),
-			route('settings/sessions/:sessionId', 'pages/account/session-detail.tsx')
+			route('settings/sessions/:sessionId', 'pages/account/session-detail.tsx'),
 		]),
-		route('search/:query', 'pages/search.tsx')
+		route('search/:query', 'pages/search.tsx'),
 	]),
 	route('api/docs', 'pages/api/docs.tsx'),
 	...prefix('api/v1', [
@@ -34,8 +53,8 @@ export default [
 		route('admins/options', 'api/v1/admins/options.ts'),
 		route('admins/:adminId', 'api/v1/admins/detail.ts'),
 		route('admins/:adminId/roles', 'api/v1/admins/roles.ts'),
-		route('admins/:adminId/overrides', 'api/v1/admins/overrides.ts')
+		route('admins/:adminId/overrides', 'api/v1/admins/overrides.ts'),
 	]),
 	route('api/*', 'pages/api/catchall.ts'),
-	route('*', 'pages/website/not-found.tsx')
+	route('*', 'pages/website/not-found.tsx'),
 ] satisfies RouteConfig;

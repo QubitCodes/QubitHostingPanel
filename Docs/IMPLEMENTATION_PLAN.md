@@ -47,6 +47,7 @@ Gate: completed with clean install, migration, seed, schema verification, typech
 - [x] Live MSG91 generated-OTP submission accepted by the configured production sender.
 - [x] Confirm handset delivery and complete the application OTP verification/session flow.
 - [x] Admin management APIs and URL-driven views for lifecycle, roles, overrides, sessions, authentication events, and audit history.
+- [x] Full-width administrator create/view/update workspace with URL-addressable Basic details, Roles, and Permissions tabs; searchable bulk role/permission controls; inherited permission visibility; explicit allow/deny notes; and override reset.
 - [x] Server-authorized personal/admin context switching.
 
 Gate status:

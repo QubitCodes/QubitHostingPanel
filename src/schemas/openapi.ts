@@ -224,11 +224,19 @@ export const OPENAPI_DOCUMENT = {
 		},
 		'/admins/options': {
 			get: {
-				summary: 'List assignable roles and permissions',
+				summary: 'List assignable roles, inherited grants, and permissions',
 				operationId: 'getAdminOptions',
 				security: [{ bearerAuth: [] }],
 				responses: {
-					'200': { description: 'Caller-scoped role and permission options.' },
+					'200': {
+						description:
+							'Caller-scoped role and permission options, including each role permission assignment.',
+						content: {
+							'application/json': {
+								schema: { $ref: '#/components/schemas/AdminOptionsResponse' },
+							},
+						},
+					},
 					'403': { description: 'Role visibility permission required.' },
 				},
 			},
@@ -269,6 +277,50 @@ export const OPENAPI_DOCUMENT = {
 			bearerAuth: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' },
 		},
 		schemas: {
+			AdminOptionsResponse: {
+				type: 'object',
+				required: ['status', 'message', 'code', 'data'],
+				properties: {
+					status: { type: 'boolean', const: true },
+					message: { type: 'string' },
+					code: { type: 'integer', const: 100 },
+					data: {
+						type: 'object',
+						required: ['roles', 'permissions'],
+						properties: {
+							roles: {
+								type: 'array',
+								items: {
+									type: 'object',
+									required: ['id', 'code', 'name', 'permissionIds'],
+									properties: {
+										id: { type: 'string', format: 'uuid' },
+										code: { type: 'string' },
+										name: { type: 'string' },
+										description: { type: ['string', 'null'] },
+										permissionIds: {
+											type: 'array',
+											items: { type: 'string', format: 'uuid' },
+										},
+									},
+								},
+							},
+							permissions: {
+								type: 'array',
+								items: {
+									type: 'object',
+									required: ['id', 'code', 'name'],
+									properties: {
+										id: { type: 'string', format: 'uuid' },
+										code: { type: 'string' },
+										name: { type: 'string' },
+									},
+								},
+							},
+						},
+					},
+				},
+			},
 			OtpRequest: {
 				type: 'object',
 				additionalProperties: false,
