@@ -36,7 +36,7 @@ The public website may display packages and initiate purchases, but the panel re
 - Password authentication will never be implemented.
 - MSG91 WhatsApp OTP for admins and customers; Firebase authentication is deferred.
 - WhatsApp integration through `@qubitcodes/msg91`.
-- Users normally enter only their local mobile number; the stored country code is resolved by the server.
+- Users may enter a registered mobile number alone or include its calling code; international input is parsed into normalized `country_code` and `mobile` fields.
 - One user identity may have both platform-admin and customer/organisation access.
 - Secure server-authorized switching between admin and organisation contexts.
 - Admin roles, role permissions, and individual allow/deny overrides.

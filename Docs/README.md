@@ -26,7 +26,7 @@
 - Checkout, subscriptions, entitlements, customer resources, and Coolify integration belong to the panel.
 - One user identity may have platform-admin access and customer/organisation access simultaneously.
 - Password authentication will never be implemented.
-- Users log in with a local mobile number only; the stored country code is resolved by the server.
+- Users log in with a registered mobile number and may include a calling code, which the interface normalizes into a country selector.
 - Supabase supplies managed PostgreSQL initially, without coupling core business logic to Supabase-only services.
 - A real Coolify server is not required to begin local development.
 

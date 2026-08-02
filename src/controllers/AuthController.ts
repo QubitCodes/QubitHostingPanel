@@ -57,7 +57,9 @@ export class AuthController {
 		try {
 			const environment = getEnvironment();
 			const secret = requireOtpSecret();
-			const identityHash = hashSensitiveValue(input.localMobileNumber, secret);
+			const countryCode = input.countryCode ? `+${input.countryCode.replace(/\D/g, '')}` : undefined;
+			const identityKey = countryCode ? `${countryCode}${input.mobile}` : input.mobile;
+			const identityHash = hashSensitiveValue(identityKey, secret);
 			const [cooldownChallenge] = await db.select().from(otpChallenges).where(and(
 				eq(otpChallenges.identityHash, identityHash),
 				isNull(otpChallenges.deletedAt),
@@ -71,7 +73,8 @@ export class AuthController {
 				}, resp.codes.ACCEPTED, undefined, 202);
 			}
 			const candidates = await db.select().from(users).where(and(
-				eq(users.localMobileNumber, input.localMobileNumber),
+				eq(users.mobile, input.mobile),
+				...(countryCode ? [eq(users.countryCode, countryCode)] : []),
 				eq(users.status, 'active'),
 				isNull(users.deletedAt)
 			)).limit(2);
@@ -81,7 +84,7 @@ export class AuthController {
 			let generatedCode = createOtpSalt();
 			if (user) {
 				try {
-					const delivery = await provider.send(user.mobileE164);
+					const delivery = await provider.send(`${user.countryCode}${user.mobile}`);
 					generatedCode = delivery.code;
 					providerReference = delivery.providerReference;
 					deliveryStatus = 'submitted';
@@ -94,7 +97,7 @@ export class AuthController {
 			const [challenge] = await db.insert(otpChallenges).values({
 				userId: user?.id,
 				identityHash,
-				maskedDestination: maskMobile(input.localMobileNumber),
+				maskedDestination: maskMobile(identityKey),
 				otpHash: hashOtp(generatedCode, otpSalt, secret),
 				otpSalt,
 				deliveryStatus,
@@ -156,7 +159,7 @@ export class AuthController {
 			await db.update(users).set({ mobileVerifiedAt: now, updatedAt: now }).where(eq(users.id, user.id));
 			const session = await createSession(user.id, user.tokenVersion, metadata);
 			await db.insert(authenticationEvents).values({ userId: user.id, challengeId: challenge.id, type: 'login_succeeded', status: 'success', ipAddress: metadata.ipAddress, userAgent: metadata.userAgent });
-			return resp.success('Authentication successful.', { user: { id: user.id, displayName: user.displayName }, context: 'personal' }, resp.codes.OK, session);
+			return resp.success('Authentication successful.', { user: { id: user.id, displayName: user.displayName, countryCode: user.countryCode, mobile: user.mobile, mobileE164: `${user.countryCode}${user.mobile}` }, context: 'personal' }, resp.codes.OK, session);
 		} catch {
 			return resp.failure('Unable to verify OTP.', resp.codes.INTERNAL_SERVICE_ERROR, undefined, null, undefined, 500);
 		}

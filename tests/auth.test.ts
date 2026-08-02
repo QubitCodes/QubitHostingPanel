@@ -17,8 +17,9 @@ describe('WhatsApp OTP security primitives', () => {
 	});
 
 	it('strictly validates OTP request, verification, and supported contexts', () => {
-		expect(requestOtpSchema.safeParse({ localMobileNumber: '9876543210' }).success).toBe(true);
-		expect(requestOtpSchema.safeParse({ localMobileNumber: '+919876543210' }).success).toBe(false);
+		expect(requestOtpSchema.safeParse({ mobile: '9876543210' }).success).toBe(true);
+		expect(requestOtpSchema.safeParse({ countryCode: '+91', mobile: '9876543210' }).success).toBe(true);
+		expect(requestOtpSchema.safeParse({ mobile: '+919876543210' }).success).toBe(false);
 		expect(verifyOtpSchema.safeParse({ challengeId: crypto.randomUUID(), otp: '123456' }).success).toBe(true);
 		expect(verifyOtpSchema.safeParse({ challengeId: crypto.randomUUID(), otp: '12345' }).success).toBe(false);
 		expect(switchContextSchema.safeParse({ context: 'organisation' }).success).toBe(false);

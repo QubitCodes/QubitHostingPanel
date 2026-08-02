@@ -29,9 +29,8 @@ export const authenticationEventStatusEnum = pgEnum('authentication_event_status
 
 export const users = pgTable('users', {
 	id: uuid('id').primaryKey().defaultRandom(),
-	localMobileNumber: varchar('local_mobile_number', { length: 32 }).notNull(),
-	countryCallingCode: varchar('country_calling_code', { length: 8 }).notNull(),
-	mobileE164: varchar('mobile_e164', { length: 20 }).notNull(),
+	mobile: varchar('mobile', { length: 32 }).notNull(),
+	countryCode: varchar('country_code', { length: 8 }).notNull(),
 	displayName: varchar('display_name', { length: 160 }),
 	status: userStatusEnum('status').notNull().default('active'),
 	mobileVerifiedAt: timestamp('mobile_verified_at', { withTimezone: true }),
@@ -41,8 +40,8 @@ export const users = pgTable('users', {
 	deletedAt: timestamp('deleted_at', { withTimezone: true }),
 	deleteReason: varchar('delete_reason', { length: 500 })
 }, (table) => [
-	index('users_local_mobile_idx').on(table.localMobileNumber),
-	uniqueIndex('users_mobile_e164_unique').on(table.mobileE164).where(sql`${table.deletedAt} IS NULL`)
+	index('users_mobile_idx').on(table.mobile),
+	uniqueIndex('users_country_mobile_unique').on(table.countryCode, table.mobile).where(sql`${table.deletedAt} IS NULL`)
 ]);
 
 export const externalIdentities = pgTable('external_identities', {

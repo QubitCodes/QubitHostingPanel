@@ -2,9 +2,9 @@ import { z } from 'zod';
 
 export const adminIdSchema = z.uuid();
 export const createAdminSchema = z.object({
-	countryCallingCode: z.string().trim().regex(/^\+?\d{1,4}$/),
+	countryCode: z.string().trim().regex(/^\+?\d{1,4}$/),
 	displayName: z.string().trim().min(1).max(160),
-	localMobileNumber: z.string().trim().regex(/^\d{4,20}$/),
+	mobile: z.string().trim().regex(/^\d{4,20}$/),
 	roleIds: z.array(z.uuid()).min(1).max(10)
 }).strict();
 export const updateAdminSchema = z.object({

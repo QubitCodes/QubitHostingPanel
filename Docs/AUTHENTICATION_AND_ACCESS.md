@@ -11,7 +11,7 @@
 
 ## 2. Phone-number login experience
 
-The login form requests only the local mobile number. It does not normally request a country code.
+The login form accepts a registered mobile number with or without its calling code. When an international number is entered, the interface extracts the calling code into a country selector and submits the normalized `countryCode` and `mobile` values.
 
 Flow:
 
@@ -31,7 +31,7 @@ Do not reveal whether a number is an administrator or whether a matching record 
 
 Store both:
 
-- Normalized local mobile number for lookup.
+- Normalized mobile number and optional country calling code for lookup.
 - Country calling code.
 - Canonical E.164 number as the unique phone identity.
 - External provider subject identifiers when assigned later.

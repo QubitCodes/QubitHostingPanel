@@ -43,7 +43,8 @@ export class AdminController {
 			const actor = await authorizeAdmin(request, 'admins.view', metadata);
 			const hiddenSuperAdmin = db.select({ userId: platformUserRoles.userId }).from(platformUserRoles).innerJoin(platformRoles, eq(platformRoles.id, platformUserRoles.roleId)).where(and(eq(platformUserRoles.userId, users.id), eq(platformRoles.isSuperAdmin, true), isNull(platformUserRoles.deletedAt), isNull(platformRoles.deletedAt), or(isNull(platformUserRoles.expiresAt), gt(platformUserRoles.expiresAt, new Date()))));
 			const visibility = actor.isSuperAdmin ? sql`true` : notExists(hiddenSuperAdmin);
-			const admins = await db.selectDistinct({ id: users.id, displayName: users.displayName, mobileE164: users.mobileE164, status: users.status, mobileVerifiedAt: users.mobileVerifiedAt, createdAt: users.createdAt }).from(users).innerJoin(platformUserRoles, eq(platformUserRoles.userId, users.id)).innerJoin(platformRoles, eq(platformRoles.id, platformUserRoles.roleId)).where(and(isNull(users.deletedAt), isNull(platformUserRoles.deletedAt), isNull(platformRoles.deletedAt), or(isNull(platformUserRoles.expiresAt), gt(platformUserRoles.expiresAt, new Date())), visibility)).orderBy(desc(users.createdAt)).limit(100);
+			const records = await db.selectDistinct({ id: users.id, displayName: users.displayName, countryCode: users.countryCode, mobile: users.mobile, status: users.status, mobileVerifiedAt: users.mobileVerifiedAt, createdAt: users.createdAt }).from(users).innerJoin(platformUserRoles, eq(platformUserRoles.userId, users.id)).innerJoin(platformRoles, eq(platformRoles.id, platformUserRoles.roleId)).where(and(isNull(users.deletedAt), isNull(platformUserRoles.deletedAt), isNull(platformRoles.deletedAt), or(isNull(platformUserRoles.expiresAt), gt(platformUserRoles.expiresAt, new Date())), visibility)).orderBy(desc(users.createdAt)).limit(100);
+			const admins = records.map((admin) => ({ ...admin, mobileE164: `${admin.countryCode}${admin.mobile}` }));
 			return resp.success('Administrators retrieved.', admins);
 		} catch {
 			return authorizationFailure();
@@ -55,7 +56,8 @@ export class AdminController {
 		try {
 			const actor = await authorizeAdmin(request, 'admins.view', metadata);
 			if (!(await ensureVisibleTarget(actor, userId))) return resp.failure('Administrator not found.', resp.codes.RESOURCE_NOT_FOUND, undefined, null, undefined, 404);
-			const [admin] = await db.select({ id: users.id, displayName: users.displayName, mobileE164: users.mobileE164, status: users.status, mobileVerifiedAt: users.mobileVerifiedAt, createdAt: users.createdAt }).from(users).innerJoin(platformUserRoles, eq(platformUserRoles.userId, users.id)).where(and(eq(users.id, userId), isNull(users.deletedAt), isNull(platformUserRoles.deletedAt), or(isNull(platformUserRoles.expiresAt), gt(platformUserRoles.expiresAt, new Date())))).limit(1);
+			const [adminRecord] = await db.select({ id: users.id, displayName: users.displayName, countryCode: users.countryCode, mobile: users.mobile, status: users.status, mobileVerifiedAt: users.mobileVerifiedAt, createdAt: users.createdAt }).from(users).innerJoin(platformUserRoles, eq(platformUserRoles.userId, users.id)).where(and(eq(users.id, userId), isNull(users.deletedAt), isNull(platformUserRoles.deletedAt), or(isNull(platformUserRoles.expiresAt), gt(platformUserRoles.expiresAt, new Date())))).limit(1);
+			const admin = adminRecord ? { ...adminRecord, mobileE164: `${adminRecord.countryCode}${adminRecord.mobile}` } : undefined;
 			if (!admin) return resp.failure('Administrator not found.', resp.codes.RESOURCE_NOT_FOUND, undefined, null, undefined, 404);
 			const [roles, overrides, sessions, events, audits] = await Promise.all([
 				db.select({ id: platformRoles.id, code: platformRoles.code, name: platformRoles.name, expiresAt: platformUserRoles.expiresAt }).from(platformUserRoles).innerJoin(platformRoles, eq(platformRoles.id, platformUserRoles.roleId)).where(and(eq(platformUserRoles.userId, userId), isNull(platformUserRoles.deletedAt), isNull(platformRoles.deletedAt))),
@@ -75,11 +77,12 @@ export class AdminController {
 		try {
 			const actor = await authorizeAdmin(request, 'admins.create', metadata);
 			await assertAssignableRoles(actor, input.roleIds);
-			const callingCode = input.countryCallingCode.replace(/\D/g, '');
-			const mobileE164 = `+${callingCode}${input.localMobileNumber}`;
-			const [existing] = await db.select({ id: users.id }).from(users).where(and(eq(users.mobileE164, mobileE164), isNull(users.deletedAt))).limit(1);
+			const countryCode = `+${input.countryCode.replace(/\D/g, '')}`;
+			const mobileE164 = `${countryCode}${input.mobile}`;
+			const [existing] = await db.select({ id: users.id }).from(users).where(and(eq(users.countryCode, countryCode), eq(users.mobile, input.mobile), isNull(users.deletedAt))).limit(1);
 			if (existing) return resp.failure('An identity already uses this mobile number.', resp.codes.RESOURCE_ALREADY_EXISTS, undefined, null, undefined, 400);
-			const [admin] = await db.insert(users).values({ localMobileNumber: input.localMobileNumber, countryCallingCode: `+${callingCode}`, mobileE164, displayName: input.displayName }).returning({ id: users.id, displayName: users.displayName, mobileE164: users.mobileE164, status: users.status });
+			const [record] = await db.insert(users).values({ mobile: input.mobile, countryCode, displayName: input.displayName }).returning({ id: users.id, displayName: users.displayName, countryCode: users.countryCode, mobile: users.mobile, status: users.status });
+			const admin = record ? { ...record, mobileE164 } : undefined;
 			if (!admin) throw new Error('Unable to create administrator.');
 			await db.insert(platformUserRoles).values(input.roleIds.map((roleId) => ({ userId: admin.id, roleId, assignedByUserId: actor.userId })));
 			await recordAuditLog({ actorUserId: actor.userId, action: 'admin.created', resourceType: 'user', resourceId: admin.id, metadata: { roleIds: input.roleIds }, ipAddress: metadata.ipAddress, userAgent: metadata.userAgent });

@@ -4,8 +4,8 @@ import { createAdminSchema, deleteAdminSchema, replaceAdminOverridesSchema, upda
 
 describe('admin management validation', () => {
 	it('accepts a strict passwordless administrator payload', () => {
-		expect(createAdminSchema.safeParse({ countryCallingCode: '+91', displayName: 'Support Admin', localMobileNumber: '9876543210', roleIds: [crypto.randomUUID()] }).success).toBe(true);
-		expect(createAdminSchema.safeParse({ countryCallingCode: '+91', displayName: 'Support Admin', localMobileNumber: '9876543210', roleIds: [crypto.randomUUID()], password: 'prohibited' }).success).toBe(false);
+		expect(createAdminSchema.safeParse({ countryCode: '+91', displayName: 'Support Admin', mobile: '9876543210', roleIds: [crypto.randomUUID()] }).success).toBe(true);
+		expect(createAdminSchema.safeParse({ countryCode: '+91', displayName: 'Support Admin', mobile: '9876543210', roleIds: [crypto.randomUUID()], password: 'prohibited' }).success).toBe(false);
 	});
 
 	it('requires meaningful updates, delete reasons, and override reasons', () => {
