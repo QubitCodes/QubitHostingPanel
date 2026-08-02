@@ -48,9 +48,13 @@ Gate: completed with clean install, migration, seed, schema verification, typech
 - [x] Confirm handset delivery and complete the application OTP verification/session flow.
 - [x] Admin management APIs and URL-driven views for lifecycle, roles, overrides, sessions, authentication events, and audit history.
 - [x] Full-width administrator create/view/update workspace with URL-addressable Basic details, Roles, and Permissions tabs; searchable bulk role/permission controls; inherited permission visibility; explicit allow/deny notes; and override reset.
-- [x] Six-digit public user IDs for human-readable administrator URLs, database-backed permission labels, and Super Admin permission fallback with explicit-deny precedence.
+- [x] Six-digit public user IDs for human-readable administrator URLs, database-backed permission labels, and immediate Super Admin authorization before granular permission evaluation.
+- [x] Locked, fully enabled Super Admin permission workspace with server-side override protection.
 - [x] Reusable E.164-aware phone input with compact country-code display, searchable country picker, paste detection, and light/dark theme support.
+- [x] Centralized semantic light/dark theme tokens using the Qubit green, teal, sage, and muted-green system palette.
+- [x] Separate URL-addressable administrator view/edit workspaces and role/permission-aware administrator list summaries.
 - [x] Server-authorized personal/admin context switching.
+- [x] Permission-gated Scalar API documentation, hidden JSON 404 fallback, account dropdown, and Qubit Codes product credit.
 
 Gate status:
 

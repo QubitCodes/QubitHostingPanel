@@ -72,16 +72,16 @@ export default function VerifyLoginPage() {
 		}
 	}
 	return (
-		<main className="flex min-h-screen items-center justify-center bg-[#f4f2ec] px-5 py-12 text-stone-950 dark:bg-[#111513] dark:text-white">
-			<section className="w-full max-w-md rounded-[2rem] border border-stone-200 bg-white p-6 shadow-[0_24px_80px_-40px_rgba(18,60,50,.45)] dark:border-stone-700 dark:bg-[#1b211e] sm:p-9">
+		<main className="flex min-h-screen items-center justify-center bg-app-canvas px-5 py-12 text-app-text">
+			<section className="w-full max-w-md rounded-[2rem] border border-stone-200 bg-app-surface p-6 shadow-[0_24px_80px_-40px_rgba(43,87,72,.45)] dark:border-stone-700 sm:p-9">
 				<Link
-					className="inline-flex items-center gap-2 text-sm text-stone-600 hover:text-teal-800 dark:text-stone-300"
+					className="inline-flex items-center gap-2 text-sm text-stone-600 hover:text-brand-primary dark:text-stone-300"
 					to="/login"
 				>
 					<ArrowLeft className="size-4" />
 					Back
 				</Link>
-				<p className="mt-8 text-sm font-semibold text-teal-700 dark:text-[#e0ff71]">
+				<p className="mt-8 text-sm font-semibold text-brand-primary dark:text-brand-action">
 					Check WhatsApp
 				</p>
 				<h1 className="mt-2 text-3xl font-semibold tracking-[-.03em]">
@@ -101,7 +101,7 @@ export default function VerifyLoginPage() {
 									{...field}
 									autoComplete="one-time-code"
 									autoFocus
-									className="w-full rounded-2xl border border-stone-300 bg-stone-50 px-4 py-4 text-center font-mono text-3xl tracking-[.35em] text-stone-950 outline-none focus:border-teal-700 dark:border-stone-700 dark:bg-[#111513] dark:text-white"
+									className="w-full rounded-2xl border border-stone-300 bg-stone-50 px-4 py-4 text-center font-mono text-3xl tracking-[.35em] text-stone-950 outline-none focus:border-brand-action dark:border-stone-700 dark:bg-app-canvas dark:text-white"
 									inputMode="numeric"
 									maxLength={6}
 									placeholder="000000"
@@ -115,7 +115,7 @@ export default function VerifyLoginPage() {
 						)}
 					/>
 					<button
-						className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#123c32] px-4 py-3.5 font-semibold text-white dark:bg-[#e0ff71] dark:text-[#123c32]"
+						className="flex w-full items-center justify-center gap-2 rounded-2xl bg-brand-action px-4 py-3.5 font-semibold text-brand-ink"
 						disabled={form.formState.isSubmitting}
 						type="submit"
 					>

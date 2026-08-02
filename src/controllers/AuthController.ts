@@ -8,6 +8,8 @@ import type { RequestOtpInput, VerifyOtpInput } from '@schemas/auth';
 import { Msg91OtpProvider, type OtpDeliveryProvider } from '@services/auth/Msg91OtpProvider';
 import { createOtpSalt, hashOtp, hashSensitiveValue, verifyOtpHash } from '@services/auth/otpCryptoService';
 import { createRefreshToken, hashRefreshToken, issueAccessToken, verifyAccessToken, type SessionContext } from '@services/auth/tokenService';
+import { authorizeAdmin } from '@services/authorization/adminAuthorizationService';
+import { API_DOCS_COOKIE, API_DOCS_PERMISSION } from '@services/authorization/apiDocsAuthorizationService';
 import type { RequestMetadata } from '@utils/request';
 
 function maskMobile(value: string): string {
@@ -23,6 +25,12 @@ function requireOtpSecret(): string {
 function getBearerToken(request: Request): string | undefined {
 	const [scheme, token] = request.headers.get('authorization')?.split(' ') ?? [];
 	return scheme?.toLowerCase() === 'bearer' ? token : undefined;
+}
+
+/** Builds the short-lived, API-scoped cookie used only for documentation GET requests. */
+function apiDocsCookie(value: string, maximumAgeSeconds: number): string {
+	const secure = getEnvironment().APP_ENV === 'production' ? '; Secure' : '';
+	return `${API_DOCS_COOKIE}=${encodeURIComponent(value)}; HttpOnly; SameSite=Strict; Path=/api; Max-Age=${maximumAgeSeconds}${secure}`;
 }
 
 async function createSession(userId: string, tokenVersion: number, metadata: RequestMetadata) {
@@ -189,7 +197,9 @@ export class AuthController {
 			if (!token) throw new Error('Missing token.');
 			const claims = await verifyAccessToken(token);
 			await db.update(userSessions).set({ revokedAt: new Date(), revokeReason: 'user_logout', updatedAt: new Date() }).where(and(eq(userSessions.id, claims.sessionId), eq(userSessions.userId, claims.userId), isNull(userSessions.revokedAt)));
-			return resp.success('Session revoked.');
+			const response = resp.success('Session revoked.');
+			response.headers.append('set-cookie', apiDocsCookie('', 0));
+			return response;
 		} catch {
 			return resp.failure('Authentication required.', resp.codes.AUTHENTICATION_ERROR, undefined, null, undefined, 401);
 		}
@@ -209,7 +219,28 @@ export class AuthController {
 			}
 			await db.update(userSessions).set({ activeContextType: context, updatedAt: new Date(), lastActiveAt: new Date() }).where(eq(userSessions.id, session.id));
 			const accessToken = await issueAccessToken({ context, sessionId: session.id, tokenVersion: session.tokenVersion, userId: claims.userId });
-			return resp.success('Context switched.', { context }, resp.codes.OK, { accessToken });
+			let canViewApiDocs = false;
+			if (context === 'admin') {
+				const headers = new Headers(request.headers);
+				headers.set('authorization', `Bearer ${accessToken}`);
+				try {
+					await authorizeAdmin(new Request(request.url, { headers }), API_DOCS_PERMISSION, {
+						sessionClient: { clientHints: {} },
+					});
+					canViewApiDocs = true;
+				} catch {
+					canViewApiDocs = false;
+				}
+			}
+			const response = resp.success('Context switched.', { canViewApiDocs, context }, resp.codes.OK, { accessToken });
+			response.headers.append(
+				'set-cookie',
+				apiDocsCookie(
+					canViewApiDocs ? accessToken : '',
+					canViewApiDocs ? getEnvironment().ACCESS_TOKEN_TTL_MINUTES * 60 : 0,
+				),
+			);
+			return response;
 		} catch {
 			return resp.failure('Authentication required.', resp.codes.AUTHENTICATION_ERROR, undefined, null, undefined, 401);
 		}

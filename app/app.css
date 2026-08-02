@@ -2,19 +2,44 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+@theme inline {
+	--color-app-canvas: var(--theme-canvas);
+	--color-app-surface: var(--theme-surface);
+	--color-app-text: var(--theme-text);
+	--color-app-muted: var(--theme-text-muted);
+	--color-brand-primary: var(--theme-brand-primary);
+	--color-brand-action: var(--theme-brand-action);
+	--color-brand-secondary: var(--theme-brand-secondary);
+	--color-brand-muted: var(--theme-brand-muted);
+	--color-brand-ink: var(--theme-brand-ink);
+}
+
 :root {
+	--theme-brand-primary: #2b5748;
+	--theme-brand-action: #36ada3;
+	--theme-brand-secondary: #618764;
+	--theme-brand-muted: #9cb080;
+	--theme-brand-ink: #102d29;
+	--theme-canvas: #f3f5f1;
+	--theme-surface: #ffffff;
+	--theme-text: #17211d;
+	--theme-text-muted: #66736c;
 	color-scheme: light dark;
 	font-family: Inter, ui-sans-serif, system-ui, sans-serif;
 }
 
 html {
-	background: #f8fafc;
-	color: #0f172a;
+	background: var(--theme-canvas);
+	color: var(--theme-text);
 }
 
 html.dark {
-	background: #020617;
-	color: #f8fafc;
+	--theme-canvas: #0d1411;
+	--theme-surface: #141c18;
+	--theme-text: #eff6f1;
+	--theme-text-muted: #9caaa2;
+	background: var(--theme-canvas);
+	color: var(--theme-text);
 }
 
 body {

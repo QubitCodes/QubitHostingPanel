@@ -44,6 +44,14 @@ export async function authorizeAdmin(
 			),
 		)
 		.limit(1);
+	if (superAssignment) {
+		return {
+			isSuperAdmin: true,
+			permissionCodes: new Set(),
+			sessionId: authenticated.sessionId,
+			userId: authenticated.userId,
+		};
+	}
 	const permissionCodes = await getEffectivePermissionCodes(
 		authenticated.userId,
 	);
@@ -68,13 +76,10 @@ export async function authorizeAdmin(
 			),
 		)
 		.limit(1);
-	if (
-		explicitDeny ||
-		(!superAssignment && !permissionCodes.has(permissionCode))
-	)
+	if (explicitDeny || !permissionCodes.has(permissionCode))
 		throw new Error('Permission denied.');
 	return {
-		isSuperAdmin: Boolean(superAssignment),
+		isSuperAdmin: false,
 		permissionCodes,
 		sessionId: authenticated.sessionId,
 		userId: authenticated.userId,

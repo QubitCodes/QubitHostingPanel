@@ -29,6 +29,10 @@ export default [
 			'admin/administrators/:adminId/:section',
 			'pages/admin/administrator-section.tsx',
 		),
+		route(
+			'admin/administrators/:adminId/edit/:section',
+			'pages/admin/administrator-edit-section.tsx',
+		),
 		layout('layouts/settings.tsx', [
 			route('settings/profile', 'pages/account/profile.tsx'),
 			route('settings/security', 'pages/account/security.tsx'),

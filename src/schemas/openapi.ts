@@ -8,6 +8,19 @@ export const OPENAPI_DOCUMENT = {
 	},
 	servers: [{ url: '/api/v1' }],
 	paths: {
+		'/openapi.json': {
+			get: {
+				description:
+					'Requires Super Admin access or the api_docs.view permission. Unauthorized callers receive an indistinguishable JSON 404.',
+				operationId: 'showOpenApiContract',
+				responses: {
+					'200': { description: 'Protected OpenAPI contract.' },
+					'404': { description: 'Resource not found.' },
+				},
+				security: [{ bearerAuth: [] }],
+				summary: 'View the protected OpenAPI contract',
+			},
+		},
 		'/auth/otp/request': {
 			post: {
 				summary: 'Request a WhatsApp login OTP',
@@ -71,7 +84,10 @@ export const OPENAPI_DOCUMENT = {
 				operationId: 'switchContext',
 				security: [{ bearerAuth: [] }],
 				responses: {
-					'200': { description: 'Context switched.' },
+					'200': {
+						description:
+							'Context switched with caller capabilities, including API documentation visibility.',
+					},
 					'403': { description: 'Context is not permitted.' },
 				},
 			},
@@ -144,7 +160,10 @@ export const OPENAPI_DOCUMENT = {
 				operationId: 'listAdmins',
 				security: [{ bearerAuth: [] }],
 				responses: {
-					'200': { description: 'Permission-scoped administrator list.' },
+					'200': {
+						description:
+							'Permission-scoped administrator list with public IDs, role summaries, and active permission-override indicators.',
+					},
 					'403': { description: 'Admin permission required.' },
 				},
 			},

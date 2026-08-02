@@ -116,6 +116,6 @@ The `/admin/admins` workspace and `/api/v1/admins` API require an active admin c
 
 Non-Super-Admin callers cannot query, view, update, delete, or assign the Super Admin identity/role. Concealment occurs in database predicates rather than after result retrieval. A caller cannot assign a role or explicit allow containing permissions they do not already hold. The final active Super Admin cannot be suspended, deactivated, deleted, or stripped of the Super Admin role.
 
-Status changes and deletion revoke active sessions. Role changes and permission overrides are audited with actor, target, reason/count metadata, IP, and user agent. Explicit permission denies continue to override role grants and explicit allows.
+Status changes and deletion revoke active sessions. Role changes and permission overrides are audited with actor, target, reason/count metadata, IP, and user agent. Explicit permission denies override role grants and explicit allows for standard administrators. An active Super Admin role authorizes immediately before granular permissions or overrides are evaluated; Super Admin permissions are always enabled and cannot be overridden.
 - Record successful and failed authentication events without recording secrets.
 - Consider stricter risk rules for entering an admin context.

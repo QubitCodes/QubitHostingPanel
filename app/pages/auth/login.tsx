@@ -46,33 +46,33 @@ export default function LoginPage() {
 	}
 
 	return (
-		<main className="grid min-h-screen bg-[#f4f2ec] text-stone-950 dark:bg-[#111513] dark:text-stone-50 lg:grid-cols-[1.05fr_.95fr]">
-			<section className="hidden overflow-hidden bg-[#123c32] p-12 text-[#effbf5] lg:flex lg:flex-col lg:justify-between">
+		<main className="grid min-h-screen bg-app-canvas text-app-text lg:grid-cols-[1.05fr_.95fr]">
+			<section className="hidden overflow-hidden bg-brand-primary p-12 text-white lg:flex lg:flex-col lg:justify-between">
 				<div className="flex items-center gap-3 font-semibold">
-					<span className="grid size-10 place-items-center rounded-2xl bg-[#e0ff71] text-[#123c32]">
+					<span className="grid size-10 place-items-center rounded-2xl bg-brand-action text-brand-ink">
 						Q
 					</span>
 					Qubit Hosting
 				</div>
 				<div className="max-w-xl">
-					<p className="text-sm font-semibold uppercase tracking-[.24em] text-[#e0ff71]">
+					<p className="text-sm font-semibold uppercase tracking-[.24em] text-brand-action">
 						One secure identity
 					</p>
 					<h1 className="mt-5 text-6xl font-semibold leading-[1.02] tracking-[-.045em]">
 						Your hosting operation, without another password.
 					</h1>
-					<p className="mt-6 max-w-lg text-lg leading-8 text-emerald-100/80">
+					<p className="mt-6 max-w-lg text-lg leading-8 text-white/80">
 						Authenticate through your verified WhatsApp number, then move
 						between personal, company, and platform contexts safely.
 					</p>
 				</div>
-				<div className="flex gap-6 text-sm text-emerald-100/75">
+				<div className="flex gap-6 text-sm text-white/75">
 					<span className="flex items-center gap-2">
-						<ShieldCheck className="size-4 text-[#e0ff71]" />
+						<ShieldCheck className="size-4 text-brand-action" />
 						Short-lived access
 					</span>
 					<span className="flex items-center gap-2">
-						<MessageCircle className="size-4 text-[#e0ff71]" />
+						<MessageCircle className="size-4 text-brand-action" />
 						WhatsApp OTP
 					</span>
 				</div>
@@ -80,11 +80,11 @@ export default function LoginPage() {
 			<section className="flex items-center justify-center px-5 py-12 sm:px-10">
 				<div className="w-full max-w-md">
 					<div className="lg:hidden">
-						<span className="grid size-11 place-items-center rounded-2xl bg-[#123c32] font-semibold text-[#e0ff71]">
+						<span className="grid size-11 place-items-center rounded-2xl bg-brand-primary font-semibold text-brand-action">
 							Q
 						</span>
 					</div>
-					<p className="mt-10 text-sm font-semibold text-teal-700 dark:text-[#e0ff71]">
+					<p className="mt-10 text-sm font-semibold text-brand-primary dark:text-brand-action">
 						Welcome back
 					</p>
 					<h2 className="mt-2 text-4xl font-semibold tracking-[-.035em]">
@@ -118,7 +118,7 @@ export default function LoginPage() {
 							)}
 						/>
 						<button
-							className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#123c32] px-4 py-3.5 font-semibold text-white hover:bg-[#174d40] disabled:opacity-50 dark:bg-[#e0ff71] dark:text-[#123c32]"
+							className="flex w-full items-center justify-center gap-2 rounded-2xl bg-brand-action px-4 py-3.5 font-semibold text-brand-ink transition hover:brightness-105 disabled:opacity-50"
 							disabled={form.formState.isSubmitting}
 							type="submit"
 						>

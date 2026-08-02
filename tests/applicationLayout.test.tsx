@@ -32,6 +32,20 @@ describe('application layout SSR', () => {
 				</MemoryRouter>,
 			),
 		).not.toThrow();
+		expect(() =>
+			renderToString(
+				<MemoryRouter
+					initialEntries={['/admin/administrators/123456/edit/basic']}
+				>
+					<Routes>
+						<Route
+							element={<AdminsPage />}
+							path="/admin/administrators/:adminId/edit/:section"
+						/>
+					</Routes>
+				</MemoryRouter>,
+			),
+		).not.toThrow();
 	});
 
 	it('server-renders authentication and profile views without session storage', () => {

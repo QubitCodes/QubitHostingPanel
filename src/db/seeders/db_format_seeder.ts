@@ -59,6 +59,13 @@ const RESOURCES = [
 	'audit_logs',
 ] as const;
 const ACTIONS = ['view', 'create', 'update', 'delete'] as const;
+const SPECIAL_PERMISSIONS = [
+	{
+		code: 'api_docs.view',
+		description: 'Access the protected Scalar API reference and OpenAPI contract.',
+		name: 'View API documentation',
+	},
+] as const;
 const ROLE_PERMISSION_RULES: Record<string, (code: string) => boolean> = {
 	administrator: () => true,
 	billing_manager: (code) =>
@@ -98,6 +105,19 @@ export async function seedEssentialData(): Promise<void> {
 					set: { name, updatedAt: new Date() },
 				});
 		}
+	}
+	for (const permission of SPECIAL_PERMISSIONS) {
+		await db
+			.insert(platformPermissions)
+			.values(permission)
+			.onConflictDoUpdate({
+				set: {
+					description: permission.description,
+					name: permission.name,
+					updatedAt: new Date(),
+				},
+				target: platformPermissions.code,
+			});
 	}
 	const [superAdminRole] = await db
 		.select()

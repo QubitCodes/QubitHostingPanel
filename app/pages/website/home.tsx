@@ -11,5 +11,5 @@ export default function HomePage() {
 		navigate(destination, { replace: true });
 	}, [navigate]);
 
-	return <main className="grid min-h-screen place-items-center bg-[#f4f2ec] text-[#123c32] dark:bg-[#111513] dark:text-[#e0ff71]"><div className="text-center"><LoaderCircle className="mx-auto size-7 animate-spin" /><p className="mt-3 text-sm font-medium">Opening Qubit Hosting…</p></div></main>;
+	return <main className="grid min-h-screen place-items-center bg-app-canvas text-brand-primary dark:text-brand-action"><div className="text-center"><LoaderCircle className="mx-auto size-7 animate-spin" /><p className="mt-3 text-sm font-medium">Opening Qubit Hosting…</p></div></main>;
 }

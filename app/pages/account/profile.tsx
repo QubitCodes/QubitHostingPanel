@@ -8,8 +8,8 @@ export default function ProfilePage() {
 		/* Empty profile fallback. */
 	}
 	return (
-		<div className="rounded-3xl border border-stone-200 bg-white p-6 dark:border-stone-800 dark:bg-[#1b211e] sm:p-8">
-			<p className="text-sm font-semibold text-teal-700 dark:text-[#e0ff71]">
+		<div className="rounded-3xl border border-stone-200 bg-app-surface p-6 dark:border-stone-800 sm:p-8">
+			<p className="text-sm font-semibold text-brand-primary dark:text-brand-action">
 				Verified identity
 			</p>
 			<h2 className="mt-2 text-2xl font-semibold">Personal details</h2>

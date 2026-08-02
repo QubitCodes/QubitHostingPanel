@@ -106,7 +106,7 @@ export function PhoneNumberInput({
 		<div className="block text-sm font-medium">
 			<label htmlFor={id}>{label}</label>
 			<div
-				className={`relative mt-2 grid rounded-2xl border bg-white transition focus-within:border-teal-700 focus-within:ring-2 focus-within:ring-teal-700/15 dark:bg-[#1b211e] ${error ? 'border-rose-500' : 'border-stone-300 dark:border-stone-700'} ${countryCode ? 'grid-cols-[auto_1fr]' : 'grid-cols-1'}`}
+				className={`relative mt-2 grid rounded-2xl border bg-app-surface transition focus-within:border-brand-action focus-within:ring-2 focus-within:ring-brand-action/15 ${error ? 'border-rose-500' : 'border-stone-300 dark:border-stone-700'} ${countryCode ? 'grid-cols-[auto_1fr]' : 'grid-cols-1'}`}
 				ref={containerRef}
 			>
 				{countryCode && (
@@ -115,16 +115,16 @@ export function PhoneNumberInput({
 							aria-expanded={open}
 							aria-haspopup="listbox"
 							aria-label="Choose country code"
-							className="flex h-full min-w-24 items-center gap-1.5 rounded-l-2xl border-r border-stone-200 bg-stone-50 px-2 text-sm font-semibold text-stone-900 outline-none hover:bg-stone-100 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-100 dark:hover:bg-stone-800"
+							className="flex h-full items-center gap-1 rounded-l-2xl border-r border-stone-200 bg-stone-50 px-1.5 text-sm font-semibold text-stone-900 outline-none hover:bg-stone-100 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-100 dark:hover:bg-stone-800"
 							onClick={() => setOpen((value) => !value)}
 							type="button"
 						>
 							<span>{activeCountry?.country ?? '—'}</span>
 							<span>{countryCode}</span>
-							<ChevronDown className="ml-auto size-4 text-stone-500" />
+							<ChevronDown className="size-4 text-stone-500" />
 						</button>
 						{open && (
-							<div className="absolute left-0 top-[calc(100%+.5rem)] z-50 w-72 overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-2xl shadow-stone-950/15 dark:border-stone-700 dark:bg-[#1b211e]">
+							<div className="absolute left-0 top-[calc(100%+.5rem)] z-50 w-72 overflow-hidden rounded-2xl border border-stone-200 bg-app-surface shadow-2xl shadow-stone-950/15 dark:border-stone-700">
 								<div className="relative border-b border-stone-200 p-2 dark:border-stone-700">
 									<Search className="absolute left-5 top-1/2 size-4 -translate-y-1/2 text-stone-400" />
 									<input
@@ -162,7 +162,7 @@ export function PhoneNumberInput({
 												{option.name}
 											</span>
 											{option.country === activeCountry?.country && (
-												<Check className="size-4 text-teal-700 dark:text-[#e0ff71]" />
+												<Check className="size-4 text-brand-primary dark:text-brand-action" />
 											)}
 										</button>
 									))}

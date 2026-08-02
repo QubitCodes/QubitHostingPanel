@@ -206,7 +206,58 @@ export class AdminController {
 			const admins = records.map((admin) => ({
 				...admin,
 				mobileE164: `${admin.countryCode}${admin.mobile}`,
+				roles: [] as Array<{ id: string; name: string }>,
+				hasPermissionOverrides: false,
 			}));
+			if (admins.length) {
+				const userIds = admins.map(({ id }) => id);
+				const [roleAssignments, overrideAssignments] = await Promise.all([
+					db
+						.select({
+							userId: platformUserRoles.userId,
+							id: platformRoles.id,
+							name: platformRoles.name,
+						})
+						.from(platformUserRoles)
+						.innerJoin(
+							platformRoles,
+							eq(platformRoles.id, platformUserRoles.roleId),
+						)
+						.where(
+							and(
+								inArray(platformUserRoles.userId, userIds),
+								isNull(platformUserRoles.deletedAt),
+								isNull(platformRoles.deletedAt),
+								or(
+									isNull(platformUserRoles.expiresAt),
+									gt(platformUserRoles.expiresAt, new Date()),
+								),
+							),
+						),
+					db
+						.selectDistinct({ userId: platformUserPermissionOverrides.userId })
+						.from(platformUserPermissionOverrides)
+						.where(
+							and(
+								inArray(platformUserPermissionOverrides.userId, userIds),
+								isNull(platformUserPermissionOverrides.deletedAt),
+								or(
+									isNull(platformUserPermissionOverrides.expiresAt),
+									gt(platformUserPermissionOverrides.expiresAt, new Date()),
+								),
+							),
+						),
+				]);
+				const overriddenUsers = new Set(
+					overrideAssignments.map(({ userId }) => userId),
+				);
+				for (const admin of admins) {
+					admin.roles = roleAssignments
+						.filter(({ userId }) => userId === admin.id)
+						.map(({ id, name }) => ({ id, name }));
+					admin.hasPermissionOverrides = overriddenUsers.has(admin.id);
+				}
+			}
 			return resp.success('Administrators retrieved.', admins);
 		} catch {
 			return authorizationFailure();
@@ -794,6 +845,15 @@ export class AdminController {
 					null,
 					undefined,
 					404,
+				);
+			if (await targetIsSuperAdmin(userId))
+				return resp.failure(
+					'Super Admin permissions are always enabled and cannot be overridden.',
+					resp.codes.GENERAL_BUSINESS_LOGIC_ERROR,
+					undefined,
+					null,
+					undefined,
+					422,
 				);
 			const permissionIds = input.overrides.map(
 				({ permissionId }) => permissionId,

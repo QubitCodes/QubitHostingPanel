@@ -38,4 +38,5 @@ export function clearAuthentication(): void {
 	sessionStorage.removeItem('accessToken');
 	sessionStorage.removeItem('refreshToken');
 	sessionStorage.removeItem('authUser');
+	sessionStorage.removeItem('canViewApiDocs');
 }

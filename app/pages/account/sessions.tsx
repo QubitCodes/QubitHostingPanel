@@ -141,7 +141,7 @@ export default function SessionsPage() {
 							<article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900" key={session.id}>
 								<div className="flex items-start justify-between gap-3">
 									<div className="flex min-w-0 items-center gap-3"><span className="rounded-xl bg-indigo-50 p-2.5 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300"><MonitorSmartphone className="size-5" /></span><div className="min-w-0"><h2 className="truncate font-semibold text-slate-950 dark:text-white">{sessionTitle(session)}</h2><p className="text-xs text-slate-500 dark:text-slate-400">{session.isCurrent ? 'This device' : session.isActive ? 'Active session' : 'Signed out'}</p></div></div>
-									{session.isCurrent && <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"><ShieldCheck className="size-3.5" />Current</span>}
+									{session.isCurrent && <span className="inline-flex items-center gap-1 rounded-full bg-brand-muted/20 px-2 py-1 text-xs font-medium text-brand-primary dark:text-brand-muted"><ShieldCheck className="size-3.5" />Current</span>}
 								</div>
 								<dl className="mt-5 space-y-3 text-sm text-slate-600 dark:text-slate-300">
 									<div className="flex gap-2"><Laptop className="mt-0.5 size-4 shrink-0" /><div><dt className="sr-only">Software</dt><dd>{[session.browserName, session.browserVersion].filter(Boolean).join(' ') || 'Unknown browser'} · {[session.osName, session.osVersion].filter(Boolean).join(' ') || 'Unknown OS'}</dd></div></div>
