@@ -1,13 +1,26 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Check, Plus, Search, Shield, Trash2 } from "lucide-react";
+import { Check, Eye, Plus, Search, Shield, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Controller, useForm, useWatch } from "react-hook-form";
-import { Link, useLocation, useNavigate, useParams } from "react-router";
+import {
+  Link,
+  useLocation,
+  useNavigate,
+  useParams,
+  useSearchParams,
+} from "react-router";
 import { toast } from "sonner";
 import type { z } from "zod";
 
 import { Offcanvas } from "@root/app/components/ui/offcanvas";
+import {
+  DataTable,
+  DataTableToolbar,
+  StickyActionsCell,
+  StickyActionsHeader,
+} from "@root/app/components/ui/data-table";
 import { PhoneNumberInput } from "@root/app/components/forms/phone-number-input";
+import { SearchableSelect } from "@root/app/components/forms/searchable-select";
 import { authenticatedFetch } from "@root/app/utils/authenticatedFetch";
 import { createAdminSchema } from "@schemas/admin";
 
@@ -84,6 +97,7 @@ function normalizedTab(value?: string): Tab {
 export default function AdminsPage() {
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { adminId, section } = useParams();
   const creating = location.pathname.includes("/create");
   const editing = location.pathname.includes("/edit/");
@@ -220,6 +234,42 @@ export default function AdminsPage() {
       {},
     ),
   );
+  const administratorSearch = searchParams.get("search") ?? "";
+  const roleFilter = searchParams.get("role") ?? "all";
+  const statusFilter = searchParams.get("status") ?? "all";
+  const permissionFilter = searchParams.get("permissions") ?? "all";
+  const filteredAdmins = useMemo(() => {
+    const search = administratorSearch.trim().toLowerCase();
+    return admins.filter((admin) => {
+      const matchesSearch =
+        !search ||
+        `${admin.displayName ?? ""} ${admin.publicId} ${admin.mobileE164}`
+          .toLowerCase()
+          .includes(search);
+      const matchesRole =
+        roleFilter === "all" ||
+        admin.roles.some(({ id }) => id === roleFilter);
+      const matchesStatus =
+        statusFilter === "all" || admin.status === statusFilter;
+      const matchesPermissions =
+        permissionFilter === "all" ||
+        (permissionFilter === "modified"
+          ? admin.hasPermissionOverrides
+          : !admin.hasPermissionOverrides);
+      return (
+        matchesSearch &&
+        matchesRole &&
+        matchesStatus &&
+        matchesPermissions
+      );
+    });
+  }, [
+    administratorSearch,
+    admins,
+    permissionFilter,
+    roleFilter,
+    statusFilter,
+  ]);
   const basePath = creating
     ? "/admin/administrators/create"
     : editing
@@ -236,10 +286,16 @@ export default function AdminsPage() {
     navigate(`${basePath}/${tab}`);
   }
   function close(): void {
-    navigate("/admin/administrators");
+    navigate(`/admin/administrators${location.search}`);
     setDetail(undefined);
     if (typeof sessionStorage !== "undefined")
       sessionStorage.removeItem("adminCreateDraft");
+  }
+  function updateTableParameter(key: string, value: string): void {
+    const next = new URLSearchParams(searchParams);
+    if (!value || value === "all") next.delete(key);
+    else next.set(key, value);
+    setSearchParams(next, { replace: true });
   }
   function updateRoles(next: string[]): void {
     setSelectedRoles(next);
@@ -416,25 +472,68 @@ export default function AdminsPage() {
         </div>
         <Link
           className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-action px-4 py-2.5 text-sm font-semibold text-brand-ink"
-          to="/admin/administrators/create/basic"
+          to={`/admin/administrators/create/basic${location.search}`}
         >
           <Plus className="size-4" />
           Add administrator
         </Link>
       </div>
-      <div className="mt-8 overflow-x-auto rounded-2xl border border-stone-200 bg-app-surface dark:border-stone-800">
-        <table className="min-w-[56rem] w-full text-sm">
+      <div className="mt-8">
+        <DataTableToolbar
+          onSearchChange={(value) => updateTableParameter("search", value)}
+          resultLabel={`${filteredAdmins.length} of ${admins.length} administrators`}
+          searchPlaceholder="Search name, ID, or phone"
+          searchValue={administratorSearch}
+        >
+          <SearchableSelect
+            ariaLabel="Filter by role"
+            className="w-full sm:w-44"
+            onChange={(value) => updateTableParameter("role", value)}
+            options={[
+              { label: "All roles", value: "all" },
+              ...roles.map((role) => ({ label: role.name, value: role.id })),
+            ]}
+            searchPlaceholder="Search roles"
+            value={roleFilter}
+          />
+          <SearchableSelect
+            ariaLabel="Filter by status"
+            className="w-full sm:w-40"
+            onChange={(value) => updateTableParameter("status", value)}
+            options={[
+              { label: "All statuses", value: "all" },
+              { label: "Active", value: "active" },
+              { label: "Inactive", value: "inactive" },
+              { label: "Suspended", value: "suspended" },
+            ]}
+            searchable={false}
+            value={statusFilter}
+          />
+          <SearchableSelect
+            ariaLabel="Filter permission changes"
+            className="w-full sm:w-52"
+            onChange={(value) => updateTableParameter("permissions", value)}
+            options={[
+              { label: "All permissions", value: "all" },
+              { label: "Modified permissions", value: "modified" },
+              { label: "Role defaults", value: "standard" },
+            ]}
+            searchPlaceholder="Search permission states"
+            value={permissionFilter}
+          />
+        </DataTableToolbar>
+        <DataTable>
           <thead className="bg-stone-50 text-left text-xs uppercase text-stone-500 dark:bg-stone-950/50">
             <tr>
               <th className="px-5 py-3">Name &amp; ID</th>
               <th className="px-5 py-3">Phone</th>
               <th className="px-5 py-3">Roles</th>
               <th className="px-5 py-3">Status</th>
-              <th className="px-5 py-3 text-right">Action</th>
+              <StickyActionsHeader />
             </tr>
           </thead>
           <tbody className="divide-y divide-stone-200 dark:divide-stone-800">
-            {admins.map((admin) => (
+            {filteredAdmins.map((admin) => (
               <tr key={admin.id}>
                 <td className="px-5 py-4">
                   <p className="font-semibold">
@@ -465,18 +564,27 @@ export default function AdminsPage() {
                   </div>
                 </td>
                 <td className="px-5 py-4 capitalize">{admin.status}</td>
-                <td className="px-5 py-4 text-right">
+                <StickyActionsCell>
                   <Link
-                    className="font-semibold text-brand-primary dark:text-brand-action"
-                    to={`/admin/administrators/${admin.publicId}/basic`}
+                    aria-label={`View ${admin.displayName || admin.publicId}`}
+                    className="grid size-9 place-items-center rounded-lg text-brand-primary transition hover:bg-brand-muted/20 dark:text-brand-action"
+                    title="View administrator"
+                    to={`/admin/administrators/${admin.publicId}/basic${location.search}`}
                   >
-                    View
+                    <Eye className="size-4" />
                   </Link>
-                </td>
+                </StickyActionsCell>
               </tr>
             ))}
+            {filteredAdmins.length === 0 && (
+              <tr>
+                <td className="px-5 py-10 text-center text-app-muted" colSpan={5}>
+                  No administrators match the current search and filters.
+                </td>
+              </tr>
+            )}
           </tbody>
-        </table>
+        </DataTable>
       </div>
       {(creating || adminId) && (
         <Offcanvas
@@ -502,7 +610,7 @@ export default function AdminsPage() {
                   <Link
                     className={`whitespace-nowrap border-b-2 px-4 py-3 text-sm font-semibold capitalize ${activeTab === tab ? "border-brand-action text-brand-primary dark:text-brand-action" : "border-transparent text-stone-500"}`}
                     key={tab}
-                    to={`${basePath}/${tab}`}
+                    to={`${basePath}/${tab}${location.search}`}
                   >
                     {tab === "basic"
                       ? "Basic details"
@@ -516,7 +624,7 @@ export default function AdminsPage() {
             {adminId && !editing && (
               <Link
                 className="mb-2.5 shrink-0 rounded-xl bg-brand-action px-4 py-2.5 text-sm font-semibold text-brand-ink"
-                to={`/admin/administrators/${adminId}/edit/${activeTab === "audit-logs" ? "basic" : activeTab}`}
+                to={`/admin/administrators/${adminId}/edit/${activeTab === "audit-logs" ? "basic" : activeTab}${location.search}`}
               >
                 Edit admin
               </Link>
@@ -587,23 +695,26 @@ export default function AdminsPage() {
                     value={detail.displayName ?? ""}
                   />
                 </label>
-                <label className="block text-sm font-medium">
-                  Status
-                  <select
-                    className="mt-2 w-full rounded-xl border border-stone-300 bg-white px-3 py-3 dark:border-stone-700 dark:bg-stone-900"
-                    onChange={(event) =>
+                <div className="block text-sm font-medium">
+                  <span>Status</span>
+                  <SearchableSelect
+                    ariaLabel="Administrator status"
+                    className="mt-2"
+                    onChange={(value) =>
                       setDetail({
                         ...detail,
-                        status: event.target.value as AdminSummary["status"],
+                        status: value as AdminSummary["status"],
                       })
                     }
+                    options={[
+                      { label: "Active", value: "active" },
+                      { label: "Inactive", value: "inactive" },
+                      { label: "Suspended", value: "suspended" },
+                    ]}
+                    searchable={false}
                     value={detail.status}
-                  >
-                    <option value="active">Active</option>
-                    <option value="inactive">Inactive</option>
-                    <option value="suspended">Suspended</option>
-                  </select>
-                </label>
+                  />
+                </div>
                 <div className="flex gap-3">
                   <button
                     className="rounded-xl bg-brand-action px-4 py-2.5 font-semibold text-brand-ink"

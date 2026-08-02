@@ -52,6 +52,8 @@ Gate: completed with clean install, migration, seed, schema verification, typech
 - [x] Locked, fully enabled Super Admin permission workspace with server-side override protection.
 - [x] Reusable E.164-aware phone input with compact country-code display, searchable country picker, paste detection, and light/dark theme support.
 - [x] Centralized semantic light/dark theme tokens using the Qubit green, teal, sage, and muted-green system palette.
+- [x] Reusable responsive data-table primitives with module search/filter toolbars, optional sortable headers, empty states, and sticky icon-action columns; applied to Administrators without sorting.
+- [x] Shared theme-aware custom dropdowns with optional search, keyboard selection, focus-out closing, and permission-controlled inline option creation support; native administrator selects removed and search disabled for short status lists.
 - [x] Separate URL-addressable administrator view/edit workspaces and role/permission-aware administrator list summaries.
 - [x] Server-authorized personal/admin context switching.
 - [x] Permission-gated Scalar API documentation, hidden JSON 404 fallback, account dropdown, and Qubit Codes product credit.
