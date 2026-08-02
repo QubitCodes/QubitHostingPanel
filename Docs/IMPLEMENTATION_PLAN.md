@@ -74,7 +74,7 @@ Gate: completed with live WhatsApp authentication, context isolation, session ow
 - [x] Package CRUD, human-readable slug URLs, draft/published/archived lifecycle, featured/display controls, audit history, and permission-gated publishing.
 - [x] Optional validated package trials with positive duration and day/week/month units.
 - [x] Responsive package table with URL-backed search/status/category filters, sortable columns, and sticky icon actions.
-- [ ] Complete offers, entitlements, public catalogue, and checkout tasks below.
+- [x] Complete initial offers, entitlements, public catalogue, and checkout quotation tasks below.
 - [x] Versioned INR monthly/yearly package prices with immutable history, public/private state, effective dates, and tax behaviour.
 - [x] Two initial package categories and six competitively positioned draft packages with yearly pricing equal to ten monthly payments.
 - [x] Guarded price removal with active-customer impact counts and preserved pricing through current term end.
@@ -82,10 +82,10 @@ Gate: completed with live WhatsApp authentication, context isolation, session ow
 - [x] Separate SES recipient add-on products with fixed and custom pricing options.
 - [x] Auditable AWS cost/margin reviews with a mandatory approved-review publish gate.
 - Explicit multi-year prices.
-- Offers, coupons, eligibility, limits, and dates.
-- Entitlement definitions and package assignments.
-- Public package APIs and signed checkout handoff.
-- Server-authoritative price calculation.
+- [x] Offers, coupons, package/price eligibility, redemption limits, customer restrictions, stacking, priorities, and dates.
+- [x] Editable entitlement definitions and package assignments for future subscription snapshots.
+- [x] Public package API exposing only published packages, current public prices, and customer-visible entitlements.
+- [x] Server-authoritative price, offer, discount, configurable tax, and total calculation with a signed expiring checkout quote.
 
 Gate: unpublished data is private, price tampering fails, and historical prices remain stable.
 

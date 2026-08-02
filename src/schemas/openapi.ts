@@ -220,6 +220,24 @@ export const OPENAPI_DOCUMENT = {
 		'/packages/{packageSlug}/cost-reviews': {
 			post: { summary: 'Record an AWS cost and margin review', operationId: 'createPackageCostReview', security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/PackageSlug' }], requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/PackageCostReviewInput' } } } }, responses: { '201': { description: 'Cost review recorded with server-calculated margin.' }, '403': { description: 'packages.publish permission required.' } } },
 		},
+		'/packages/{packageSlug}/entitlements': {
+			post: { summary: 'Replace package entitlements for future purchases', operationId: 'setPackageEntitlements', security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/PackageSlug' }], responses: { '200': { description: 'Entitlements updated.' }, '403': { description: 'packages.update permission required.' } } },
+		},
+		'/offers': {
+			get: { summary: 'List offers and coupons', operationId: 'listOffers', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Offers retrieved.' } } },
+			post: { summary: 'Create an offer or coupon', operationId: 'createOffer', security: [{ bearerAuth: [] }], requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/OfferInput' } } } }, responses: { '201': { description: 'Offer created.' } } },
+		},
+		'/offers/{offerSlug}': {
+			get: { summary: 'View an offer', operationId: 'showOffer', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Offer retrieved.' } } },
+			patch: { summary: 'Update an offer', operationId: 'updateOffer', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Offer updated.' } } },
+			delete: { summary: 'Soft-delete an offer', operationId: 'deleteOffer', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Offer deleted.' } } },
+		},
+		'/public/catalogue': {
+			get: { summary: 'Retrieve published packages, current public prices, and visible entitlements', operationId: 'publicCatalogue', responses: { '200': { description: 'Public catalogue retrieved.' } } },
+		},
+		'/public/checkout-quotes': {
+			post: { summary: 'Create a server-calculated signed checkout quote', operationId: 'createCheckoutQuote', requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/CheckoutQuoteInput' } } } }, responses: { '201': { description: 'Signed short-lived quote created.' }, '422': { description: 'Coupon invalid, expired, exhausted, or ineligible.' } } },
+		},
 		'/package-categories': {
 			get: {
 				summary: 'List active package categories and inline-create capability',
@@ -405,6 +423,8 @@ export const OPENAPI_DOCUMENT = {
 				type: 'object', additionalProperties: false, required: ['estimatedMonthlyCost', 'revenue', 'status', 'notes'],
 				properties: { estimatedMonthlyCost: { type: 'number', minimum: 0 }, revenue: { type: 'number', exclusiveMinimum: 0 }, status: { type: 'string', enum: ['approved', 'pending', 'rejected'] }, notes: { type: 'string', minLength: 10, maxLength: 5000 } },
 			},
+			CheckoutQuoteInput: { type: 'object', additionalProperties: false, required: ['priceId'], properties: { priceId: { type: 'string', format: 'uuid' }, couponCode: { type: ['string', 'null'] } } },
+			OfferInput: { type: 'object', description: 'Strict offer payload containing discount type/value, lifecycle dates, coupon, eligibility IDs, limits, customer restriction, stacking, and priority.' },
 			PackageInput: {
 				type: 'object',
 				additionalProperties: false,

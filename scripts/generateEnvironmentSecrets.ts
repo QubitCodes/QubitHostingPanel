@@ -2,7 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
-const SECRET_KEYS = ['OTP_HASH_SECRET', 'JWT_ACCESS_SECRET', 'JWT_REFRESH_SECRET'] as const;
+const SECRET_KEYS = ['OTP_HASH_SECRET', 'JWT_ACCESS_SECRET', 'JWT_REFRESH_SECRET', 'CHECKOUT_SIGNING_SECRET'] as const;
 const environmentPath = resolve('.env');
 
 /** Adds missing application secrets without replacing existing configured values or printing secret material. */

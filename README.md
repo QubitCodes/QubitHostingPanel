@@ -115,6 +115,9 @@ Local endpoints:
 - `/admin/packages/:packageSlug/pricing` - versioned INR monthly/yearly pricing and immutable price history.
 - `/admin/packages/:packageSlug/entitlements` - package limits and SES transactional-email allowances.
 - `/admin/packages/:packageSlug/cost-review` - AWS cost evidence, calculated margins, and publication approval.
+- `/admin/offers` - offers, coupons, eligibility, dates, and redemption policies.
+- `/api/v1/public/catalogue` - published packages with current public prices and visible entitlements.
+- `/api/v1/public/checkout-quotes` - server-calculated, signed, short-lived checkout quote.
 - `/admin/administrators/create` - URL-addressed create drawer.
 - `/admin/administrators/:adminId/:section` - URL-addressed administrator detail section.
 - `/settings/profile` - identity and context settings.

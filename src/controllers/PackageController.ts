@@ -9,6 +9,7 @@ import type {
 	CreatePackageInput,
 	UpdatePackageInput,
 	SetPackagePricesInput,
+	SetPackageEntitlementsInput,
 } from '@schemas/package';
 import { recordAuditLog } from '@services/auditLogService';
 import { authorizeAdmin } from '@services/authorization/adminAuthorizationService';
@@ -277,6 +278,26 @@ export class PackageController {
 			const [review] = await db.insert(packageCostReviews).values({ packageId: record.id, estimatedMonthlyCostMinor: costMinor, revenueMinor, marginBasisPoints, status: input.status, notes: input.notes, reviewedBy: actor.userId, reviewedAt: new Date() }).returning();
 			await recordAuditLog({ actorUserId: actor.userId, action: 'package.cost_review_created', resourceType: 'package_cost_review', resourceId: review.id, metadata: { packageSlug: slug, status: input.status, marginBasisPoints }, ipAddress: metadata.ipAddress, userAgent: metadata.userAgent });
 			return resp.success('Package cost review recorded.', review, resp.codes.CREATED, undefined, 201);
+		} catch (error) { return controllerFailure(error); }
+	}
+
+	/** Replaces package entitlement values for future subscription snapshots. */
+	public static async setEntitlements(request: Request, slug: string, input: SetPackageEntitlementsInput, metadata: RequestMetadata): Promise<Response> {
+		try {
+			const actor = await authorizeAdmin(request, 'packages.update', metadata);
+			const [record] = await db.select({ id: packages.id }).from(packages).where(and(eq(packages.slug, slug), isNull(packages.deletedAt))).limit(1);
+			if (!record) return resp.failure('Package not found.', resp.codes.RESOURCE_NOT_FOUND, undefined, null, undefined, 404);
+			const definitions = await db.select({ id: entitlementDefinitions.id, valueType: entitlementDefinitions.valueType }).from(entitlementDefinitions).where(isNull(entitlementDefinitions.deletedAt));
+			const definitionMap = new Map(definitions.map((definition) => [definition.id, definition]));
+			for (const item of input.items) {
+				const definition = definitionMap.get(item.entitlementId);
+				if (!definition || (!item.isUnlimited && definition.valueType === 'number' && item.numericValue === null) || (!item.isUnlimited && definition.valueType === 'boolean' && item.booleanValue === null)) return resp.failure('Entitlement value does not match its definition.', resp.codes.INVALID_INPUT_DATA, undefined, null, undefined, 400);
+			}
+			await db.transaction(async (transaction) => {
+				for (const item of input.items) await transaction.insert(packageEntitlements).values({ packageId: record.id, entitlementId: item.entitlementId, numericValue: item.numericValue, booleanValue: item.booleanValue, isUnlimited: item.isUnlimited }).onConflictDoUpdate({ target: [packageEntitlements.packageId, packageEntitlements.entitlementId], targetWhere: sql`${packageEntitlements.deletedAt} IS NULL`, set: { numericValue: item.numericValue, booleanValue: item.booleanValue, isUnlimited: item.isUnlimited, updatedAt: new Date() } });
+			});
+			await recordAuditLog({ actorUserId: actor.userId, action: 'package.entitlements_updated', resourceType: 'package', resourceId: record.id, metadata: { count: input.items.length }, ipAddress: metadata.ipAddress, userAgent: metadata.userAgent });
+			return resp.success('Package entitlements updated.', undefined, resp.codes.UPDATED);
 		} catch (error) { return controllerFailure(error); }
 	}
 

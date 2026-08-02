@@ -126,3 +126,11 @@ Measured usage contains source, measured value, observation time, and freshness 
 - Removing a price stops future purchases only. Active assignments retain it through `term_ends_at`.
 - Publishing requires an approved cost review covering Mumbai-region compute, EBS, S3, transfer, SES, support, payment fees, and tax assumptions.
 - Cost reviews store server-calculated margin basis points and their evidence notes; a later review does not rewrite prior reviews.
+
+## 9. Public catalogue and checkout quotes
+
+- Public catalogue reads are database-filtered to published packages, active public prices, and customer-visible entitlements.
+- Checkout clients submit a price identifier and optional coupon only; submitted totals are never accepted.
+- The server checks offer dates, eligibility, global limits, stacking, and coupon state before calculating the discount.
+- New-customer-only offers are not applied by the anonymous quotation endpoint; they require verified customer context later in checkout.
+- Quotes contain server-owned subtotal, discount, tax, and total amounts and are signed with a separate secret for a short expiry window.

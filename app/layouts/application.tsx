@@ -8,6 +8,7 @@ import {
 	Menu,
 	Moon,
 	PackageOpen,
+	BadgePercent,
 	Search,
 	Server,
 	Settings,
@@ -32,6 +33,7 @@ import {
 const navigation = [
 	{ label: 'Overview', path: '/admin/overview', icon: Server },
 	{ label: 'Packages', path: '/admin/packages', icon: PackageOpen },
+	{ label: 'Offers', path: '/admin/offers', icon: BadgePercent },
 	{ label: 'Administrators', path: '/admin/administrators', icon: Shield },
 	{ label: 'Settings', path: '/settings/profile', icon: Settings },
 ];
@@ -39,6 +41,7 @@ const navigation = [
 const titles: Record<string, string> = {
 	'/admin/overview': 'Overview',
 	'/admin/packages': 'Packages',
+	'/admin/offers': 'Offers',
 	'/admin/administrators': 'Administrators',
 	'/settings/profile': 'Profile settings',
 	'/settings/security': 'Security settings',

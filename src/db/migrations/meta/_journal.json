@@ -78,6 +78,20 @@
       "when": 1785680994003,
       "tag": "0010_hard_leo",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1785683548245,
+      "tag": "0011_windy_red_skull",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1785684279558,
+      "tag": "0012_broken_tomorrow_man",
+      "breakpoints": true
     }
   ]
 }

@@ -101,6 +101,20 @@ export const createPackageCostReviewSchema = z.object({
 	notes: z.string().trim().min(10).max(5000),
 }).strict();
 
+export const setPackageEntitlementsSchema = z.object({
+	items: z.array(z.object({
+		entitlementId: z.uuid(),
+		numericValue: z.number().int().nonnegative().nullable(),
+		booleanValue: z.boolean().nullable(),
+		isUnlimited: z.boolean(),
+	}).strict()).max(100),
+}).strict().superRefine((value, context) => {
+	for (const [index, item] of value.items.entries()) {
+		const count = Number(item.numericValue !== null) + Number(item.booleanValue !== null);
+		if ((item.isUnlimited && count !== 0) || (!item.isUnlimited && count !== 1)) context.addIssue({ code: 'custom', message: 'Choose one value or unlimited.', path: ['items', index] });
+	}
+});
+
 export type CreatePackageInput = z.infer<typeof createPackageSchema>;
 export type UpdatePackageInput = z.infer<typeof updatePackageSchema>;
 export type CreatePackageCategoryInput = z.infer<
@@ -108,3 +122,4 @@ export type CreatePackageCategoryInput = z.infer<
 >;
 export type SetPackagePricesInput = z.infer<typeof setPackagePricesSchema>;
 export type CreatePackageCostReviewInput = z.infer<typeof createPackageCostReviewSchema>;
+export type SetPackageEntitlementsInput = z.infer<typeof setPackageEntitlementsSchema>;
