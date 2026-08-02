@@ -1,11 +1,12 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { ArrowLeft, ArrowRight } from 'lucide-react';
 import { Controller, useForm } from 'react-hook-form';
-import { Link, useNavigate, useParams } from 'react-router';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import { toast } from 'sonner';
 import { z } from 'zod';
 
 import { getDeviceIdentifier } from '@root/app/utils/authenticatedFetch';
+import { safeAuthenticationReturn } from '@root/app/utils/authReturn';
 
 const codeSchema = z.object({
 	otp: z.string().regex(/^\d{6}$/, 'Enter the six-digit code.'),
@@ -16,6 +17,8 @@ type CodeForm = z.infer<typeof codeSchema>;
 export default function VerifyLoginPage() {
 	const { challengeId } = useParams();
 	const navigate = useNavigate();
+	const [searchParams] = useSearchParams();
+	const returnTo = safeAuthenticationReturn(searchParams.get('returnTo'));
 	const pendingMobileSuffix = typeof sessionStorage === 'undefined' ? '••••' : sessionStorage.getItem('pendingMobile')?.slice(-4) || '••••';
 	const form = useForm<CodeForm>({
 		resolver: zodResolver(codeSchema),
@@ -32,7 +35,7 @@ export default function VerifyLoginPage() {
 				body: JSON.stringify({ challengeId, otp: values.otp }),
 			});
 			const body = (await response.json()) as {
-				data?: { user?: { displayName?: string; id: string } };
+				data?: { user?: { displayName?: string; hasAdminAccess?: boolean; id: string } };
 				message: string;
 				misc?: { accessToken?: string; refreshToken?: string };
 				status: boolean;
@@ -47,24 +50,7 @@ export default function VerifyLoginPage() {
 			sessionStorage.setItem('accessToken', body.misc.accessToken);
 			sessionStorage.setItem('refreshToken', body.misc.refreshToken);
 			sessionStorage.setItem('authUser', JSON.stringify(body.data?.user ?? {}));
-			const contextResponse = await fetch('/api/v1/auth/context', {
-				method: 'POST',
-				headers: {
-					authorization: `Bearer ${body.misc.accessToken}`,
-					'content-type': 'application/json',
-				},
-				body: JSON.stringify({ context: 'admin' }),
-			});
-			const context = (await contextResponse.json()) as {
-				misc?: { accessToken?: string };
-				status: boolean;
-			};
-			if (contextResponse.ok && context.status && context.misc?.accessToken) {
-				sessionStorage.setItem('accessToken', context.misc.accessToken);
-				navigate('/admin/administrators');
-				return;
-			}
-			navigate('/settings/profile');
+			navigate(returnTo ?? '/workspaces');
 		} catch (error) {
 			toast.error(
 				error instanceof Error ? error.message : 'Unable to verify OTP.',

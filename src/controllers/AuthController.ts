@@ -1,4 +1,4 @@
-import { and, eq, gt, isNotNull, isNull, or } from 'drizzle-orm';
+import { and, eq, gt, isNotNull, isNull, or, sql } from 'drizzle-orm';
 import { resp } from '@qubitcodes/qcresp';
 
 import { getEnvironment } from '@config/env';
@@ -11,10 +11,20 @@ import { createOtpSalt, hashOtp, hashSensitiveValue, verifyOtpHash } from '@serv
 import { createRefreshToken, hashRefreshToken, issueAccessToken, verifyAccessToken, type SessionContext } from '@services/auth/tokenService';
 import { authorizeAdmin } from '@services/authorization/adminAuthorizationService';
 import { API_DOCS_COOKIE, API_DOCS_PERMISSION } from '@services/authorization/apiDocsAuthorizationService';
+import { ensureCustomerWorkspace, ensureCustomerWorkspaceForUser } from '@services/customerWorkspaceService';
 import type { RequestMetadata } from '@utils/request';
 
 function maskMobile(value: string): string {
 	return value.length <= 4 ? '*'.repeat(value.length) : `${'*'.repeat(value.length - 4)}${value.slice(-4)}`;
+}
+
+async function hasActiveAdminRole(userId: string): Promise<boolean> {
+	const [assignment] = await db.select({ id: platformUserRoles.id }).from(platformUserRoles).where(and(
+		eq(platformUserRoles.userId, userId),
+		isNull(platformUserRoles.deletedAt),
+		or(isNull(platformUserRoles.expiresAt), gt(platformUserRoles.expiresAt, new Date())),
+	)).limit(1);
+	return Boolean(assignment);
 }
 
 function requireOtpSecret(): string {
@@ -81,6 +91,7 @@ export class AuthController {
 				)).limit(2);
 				const user = candidates.length === 1 ? candidates[0] : undefined;
 				if (!user) return resp.failure('Development authentication is unavailable.', resp.codes.AUTHENTICATION_ERROR, undefined, null, undefined, 401);
+				await ensureCustomerWorkspaceForUser(user.id);
 				const session = await createSession(user.id, user.tokenVersion, metadata);
 				await db.insert(authenticationEvents).values({
 					userId: user.id,
@@ -92,7 +103,8 @@ export class AuthController {
 					userAgent: metadata.userAgent,
 					metadata: { authenticationMethod: 'development_bypass' },
 				});
-				return resp.success('Authentication successful.', { user: { id: user.id, displayName: user.displayName, countryCode: user.countryCode, mobile: user.mobile, mobileE164: `${user.countryCode}${user.mobile}` }, context: 'personal' }, resp.codes.OK, session);
+				const hasAdminAccess = await hasActiveAdminRole(user.id);
+				return resp.success('Authentication successful.', { user: { id: user.id, displayName: user.displayName, countryCode: user.countryCode, mobile: user.mobile, mobileE164: `${user.countryCode}${user.mobile}`, hasAdminAccess }, context: 'personal' }, resp.codes.OK, session);
 			}
 			const [cooldownChallenge] = await db.select().from(otpChallenges).where(and(
 				eq(otpChallenges.identityHash, identityHash),
@@ -116,9 +128,10 @@ export class AuthController {
 			let deliveryStatus: 'submitted' | 'failed' = 'failed';
 			let providerReference: string | undefined;
 			let generatedCode = createOtpSalt();
-			if (user) {
+			const deliveryTarget = user ? `${user.countryCode}${user.mobile}` : countryCode ? identityKey : undefined;
+			if (deliveryTarget) {
 				try {
-					const delivery = await provider.send(`${user.countryCode}${user.mobile}`);
+					const delivery = await provider.send(deliveryTarget);
 					generatedCode = delivery.code;
 					providerReference = delivery.providerReference;
 					deliveryStatus = 'submitted';
@@ -132,6 +145,8 @@ export class AuthController {
 				userId: user?.id,
 				identityHash,
 				maskedDestination: maskMobile(identityKey),
+				countryCode,
+				mobile: parsedMobile.mobile,
 				otpHash: hashOtp(generatedCode, otpSalt, secret),
 				otpSalt,
 				deliveryStatus,
@@ -174,7 +189,7 @@ export class AuthController {
 				isNull(otpChallenges.deletedAt),
 				gt(otpChallenges.expiresAt, now)
 			)).limit(1);
-			if (!challenge?.userId || challenge.attemptCount >= challenge.maxAttempts) {
+			if (!challenge || challenge.attemptCount >= challenge.maxAttempts) {
 				return resp.failure('OTP is invalid or expired.', resp.codes.AUTHENTICATION_ERROR, undefined, null, undefined, 401);
 			}
 			const valid = verifyOtpHash(input.otp, challenge.otpSalt, challenge.otpHash, requireOtpSecret());
@@ -183,17 +198,34 @@ export class AuthController {
 				await db.insert(authenticationEvents).values({ userId: challenge.userId, challengeId: challenge.id, type: 'otp_verification_failed', status: 'failure', reason: 'invalid_otp', ipAddress: metadata.ipAddress, userAgent: metadata.userAgent });
 				return resp.failure('OTP is invalid or expired.', resp.codes.AUTHENTICATION_ERROR, undefined, null, undefined, 401);
 			}
-			const [user] = await db.select().from(users).where(and(eq(users.id, challenge.userId), eq(users.status, 'active'), isNull(users.deletedAt))).limit(1);
-			if (!user) return resp.failure('Account is inactive.', resp.codes.ACCOUNT_INACTIVE, undefined, null, undefined, 422);
-			const [consumedChallenge] = await db.update(otpChallenges)
-				.set({ consumedAt: now, updatedAt: now })
-				.where(and(eq(otpChallenges.id, challenge.id), isNull(otpChallenges.consumedAt)))
-				.returning({ id: otpChallenges.id });
-			if (!consumedChallenge) return resp.failure('OTP is invalid or expired.', resp.codes.AUTHENTICATION_ERROR, undefined, null, undefined, 401);
-			await db.update(users).set({ mobileVerifiedAt: now, updatedAt: now }).where(eq(users.id, user.id));
+			if (challenge.userId) {
+				const [activeUser] = await db.select({ id: users.id }).from(users).where(and(eq(users.id, challenge.userId), eq(users.status, 'active'), isNull(users.deletedAt))).limit(1);
+				if (!activeUser) return resp.failure('Account is inactive.', resp.codes.ACCOUNT_INACTIVE, undefined, null, undefined, 422);
+			}
+			const user = await db.transaction(async (transaction) => {
+				const [consumedChallenge] = await transaction.update(otpChallenges)
+					.set({ consumedAt: now, updatedAt: now })
+					.where(and(eq(otpChallenges.id, challenge.id), isNull(otpChallenges.consumedAt)))
+					.returning({ id: otpChallenges.id });
+				if (!consumedChallenge) throw new Error('OTP challenge was already consumed.');
+				let [authenticatedUser] = challenge.userId
+					? await transaction.select().from(users).where(and(eq(users.id, challenge.userId), eq(users.status, 'active'), isNull(users.deletedAt))).limit(1)
+					: [];
+				if (!authenticatedUser) {
+					if (!challenge.countryCode || !challenge.mobile) throw new Error('Registration identity is incomplete.');
+					await transaction.execute(sql`select pg_advisory_xact_lock(hashtextextended(${challenge.identityHash}, 0))`);
+					[authenticatedUser] = await transaction.select().from(users).where(and(eq(users.countryCode, challenge.countryCode), eq(users.mobile, challenge.mobile), isNull(users.deletedAt))).limit(1);
+					if (!authenticatedUser) [authenticatedUser] = await transaction.insert(users).values({ countryCode: challenge.countryCode, mobile: challenge.mobile, mobileVerifiedAt: now }).returning();
+				}
+				if (!authenticatedUser || authenticatedUser.status !== 'active') throw new Error('Account is inactive.');
+				await transaction.update(users).set({ mobileVerifiedAt: now, updatedAt: now }).where(eq(users.id, authenticatedUser.id));
+				await ensureCustomerWorkspace(transaction, authenticatedUser.id);
+				return authenticatedUser;
+			});
 			const session = await createSession(user.id, user.tokenVersion, metadata);
 			await db.insert(authenticationEvents).values({ userId: user.id, challengeId: challenge.id, type: 'login_succeeded', status: 'success', ipAddress: metadata.ipAddress, userAgent: metadata.userAgent });
-			return resp.success('Authentication successful.', { user: { id: user.id, displayName: user.displayName, countryCode: user.countryCode, mobile: user.mobile, mobileE164: `${user.countryCode}${user.mobile}` }, context: 'personal' }, resp.codes.OK, session);
+			const hasAdminAccess = await hasActiveAdminRole(user.id);
+			return resp.success('Authentication successful.', { user: { id: user.id, displayName: user.displayName, countryCode: user.countryCode, mobile: user.mobile, mobileE164: `${user.countryCode}${user.mobile}`, hasAdminAccess }, context: 'personal' }, resp.codes.OK, session);
 		} catch {
 			return resp.failure('Unable to verify OTP.', resp.codes.INTERNAL_SERVICE_ERROR, undefined, null, undefined, 500);
 		}

@@ -1,0 +1,7 @@
+import { CreditCard, Server, ShieldCheck } from 'lucide-react';
+import { useOutletContext } from 'react-router';
+
+export default function CustomerOverviewPage() {
+	const { active } = useOutletContext<{ active?: { name: string; publicId: number } }>();
+	return <div className="mx-auto max-w-6xl"><section className="rounded-[2rem] bg-brand-primary p-7 text-white sm:p-10"><p className="text-sm font-semibold text-brand-action">Workspace overview</p><h2 className="mt-3 text-4xl font-black">Welcome to {active?.name ?? 'your workspace'}.</h2><p className="mt-4 max-w-2xl text-white/70">Your subscription, billing history, limits, and hosting resources will live here independently from your platform-admin access.</p></section><div className="mt-6 grid gap-4 md:grid-cols-3">{[[Server, 'Hosting resources', 'Available after plan activation'], [CreditCard, 'Subscription', 'No active plan yet'], [ShieldCheck, 'Workspace security', 'Owner access is active']].map(([Icon, title, text]) => { const CardIcon = Icon as typeof Server; return <article className="rounded-3xl border border-brand-primary/10 bg-app-surface p-6" key={String(title)}><CardIcon className="size-6 text-brand-primary dark:text-brand-action" /><h3 className="mt-8 font-bold">{String(title)}</h3><p className="mt-2 text-sm text-app-muted">{String(text)}</p></article>; })}</div></div>;
+}

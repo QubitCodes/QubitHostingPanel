@@ -139,6 +139,8 @@ Initial publication policy: Launch, Growth, and Business may be public after the
 - `/api/docs` - Scalar API reference.
 - `/api/v1/auth/otp/request` - request an enumeration-safe WhatsApp OTP challenge.
 - `/api/v1/auth/otp/verify` - verify a challenge and create a session.
+- `/api/v1/workspaces` - list the authenticated customer's workspace memberships.
+- `/api/v1/workspaces/:workspaceId` - view an authorized workspace by six-digit public ID.
 - `/api/v1/auth/refresh` - rotate a refresh token.
 - `/api/v1/auth/logout` - revoke the bearer session.
 - `/api/v1/auth/context` - switch between personal and authorized admin context.

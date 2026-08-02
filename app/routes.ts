@@ -10,6 +10,14 @@ export default [
 	index('pages/website/home.tsx'),
 	route('login', 'pages/auth/login.tsx'),
 	route('login/verify/:challengeId', 'pages/auth/verify.tsx'),
+	route('checkout/:packageSlug/:priceId', 'pages/customer/checkout.tsx'),
+	layout('layouts/customer.tsx', [
+		route('workspaces', 'pages/customer/workspaces.tsx'),
+		route('workspace/:workspaceId/overview', 'pages/customer/overview.tsx'),
+		route('workspace/:workspaceId/subscription', 'pages/customer/subscription.tsx'),
+		route('workspace/:workspaceId/billing', 'pages/customer/billing.tsx'),
+		route('workspace/:workspaceId/security', 'pages/customer/security.tsx'),
+	]),
 	layout('layouts/application.tsx', [
 		route('admin/overview', 'pages/admin/overview.tsx'),
 		route('admin/packages', 'pages/admin/packages.tsx'),
@@ -64,6 +72,8 @@ export default [
 		route('auth/sessions', 'api/v1/auth/sessions.ts'),
 		route('auth/sessions/others', 'api/v1/auth/sessions-others.ts'),
 		route('auth/sessions/:sessionId', 'api/v1/auth/session.ts'),
+		route('workspaces', 'api/v1/workspaces/index.ts'),
+		route('workspaces/:workspaceId', 'api/v1/workspaces/detail.ts'),
 		route('admins', 'api/v1/admins/index.ts'),
 		route('admins/options', 'api/v1/admins/options.ts'),
 		route('admins/:adminId', 'api/v1/admins/detail.ts'),

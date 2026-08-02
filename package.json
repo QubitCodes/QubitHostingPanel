@@ -23,7 +23,8 @@
 		"db:seed": "tsx src/db/seeders/index.ts",
 		"db:seed:format": "tsx src/db/seeders/db_format_seeder.ts",
 		"db:seed:super-admin": "tsx src/db/seeders/super_admin_seeder.ts",
-		"db:seed:dummy": "tsx src/db/seeders/dummy_data_seeder.ts"
+		"db:seed:dummy": "tsx src/db/seeders/dummy_data_seeder.ts",
+		"db:backfill:customers": "tsx src/db/seeders/customer_workspace_backfill.ts"
 	},
 	"dependencies": {
 		"@hookform/resolvers": "^5.2.2",

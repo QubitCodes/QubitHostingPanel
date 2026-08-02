@@ -125,6 +125,8 @@ export const otpChallenges = pgTable(
 		}),
 		identityHash: varchar('identity_hash', { length: 64 }).notNull(),
 		maskedDestination: varchar('masked_destination', { length: 32 }).notNull(),
+		countryCode: varchar('country_code', { length: 8 }),
+		mobile: varchar('mobile', { length: 32 }),
 		channel: otpChannelEnum('channel').notNull().default('whatsapp'),
 		purpose: otpPurposeEnum('purpose').notNull().default('login'),
 		otpHash: varchar('otp_hash', { length: 128 }).notNull(),

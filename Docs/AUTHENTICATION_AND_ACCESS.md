@@ -40,7 +40,7 @@ Store both:
 
 Local numbers are not globally unique. If the same local number matches more than one country, the application must not guess. It may request country disambiguation or use a trusted signed onboarding context.
 
-A new customer has no stored country code. Registration must establish it through checkout/onboarding, an invitation, or a signed handoff from the public website. Country-code-free input is primarily an existing-user login convenience.
+A new customer registers by supplying a country code and mobile number. Successful OTP verification creates the user, customer profile, Personal Workspace, and Owner membership transactionally. Country-code-free input remains an existing-user login convenience.
 
 ## 4. OTP service abstraction
 

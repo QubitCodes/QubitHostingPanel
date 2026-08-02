@@ -23,7 +23,7 @@ export const OPENAPI_DOCUMENT = {
 		},
 		'/auth/otp/request': {
 			post: {
-				description: 'Normally creates a WhatsApp OTP challenge. An explicitly enabled local development runtime may authenticate an existing verified user through the guarded leading development marker.',
+				description: 'Creates a WhatsApp OTP challenge for an existing user or a new registration when countryCode is supplied. An explicitly enabled local development runtime may authenticate an existing verified user through the guarded leading development marker.',
 				summary: 'Request a WhatsApp login OTP',
 				operationId: 'requestWhatsAppOtp',
 				requestBody: {
@@ -233,6 +233,23 @@ export const OPENAPI_DOCUMENT = {
 			get: { summary: 'View an offer', operationId: 'showOffer', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Offer retrieved.' } } },
 			patch: { summary: 'Update an offer', operationId: 'updateOffer', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Offer updated.' } } },
 			delete: { summary: 'Soft-delete an offer', operationId: 'deleteOffer', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Offer deleted.' } } },
+		},
+		'/workspaces': {
+			get: {
+				summary: 'List workspaces available to the authenticated customer',
+				operationId: 'listWorkspaces',
+				security: [{ bearerAuth: [] }],
+				responses: { '200': { description: 'Workspace memberships retrieved.' }, '401': { description: 'Authentication required.' } },
+			},
+		},
+		'/workspaces/{workspaceId}': {
+			get: {
+				summary: 'View an authorized workspace by its six-digit public ID',
+				operationId: 'showWorkspace',
+				security: [{ bearerAuth: [] }],
+				parameters: [{ in: 'path', name: 'workspaceId', required: true, schema: { type: 'integer', minimum: 100000, maximum: 999999 } }],
+				responses: { '200': { description: 'Workspace retrieved.' }, '401': { description: 'Authentication required.' }, '404': { description: 'Workspace not found or inaccessible.' } },
+			},
 		},
 		'/public/catalogue': {
 			get: { summary: 'Retrieve published packages, current public prices, and visible entitlements', operationId: 'publicCatalogue', responses: { '200': { description: 'Public catalogue retrieved.' } } },

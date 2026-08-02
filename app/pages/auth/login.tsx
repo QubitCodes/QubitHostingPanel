@@ -1,12 +1,13 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { ArrowRight, MessageCircle, ShieldCheck } from 'lucide-react';
 import { Controller, useForm, useWatch } from 'react-hook-form';
-import { useNavigate } from 'react-router';
+import { useNavigate, useSearchParams } from 'react-router';
 import { toast } from 'sonner';
 import type { z } from 'zod';
 
 import { PhoneNumberInput } from '@root/app/components/forms/phone-number-input';
 import { getDeviceIdentifier } from '@root/app/utils/authenticatedFetch';
+import { safeAuthenticationReturn } from '@root/app/utils/authReturn';
 import { requestOtpSchema } from '@schemas/auth';
 
 type LoginForm = z.infer<typeof requestOtpSchema>;
@@ -14,6 +15,8 @@ type LoginForm = z.infer<typeof requestOtpSchema>;
 /** Passwordless WhatsApp entry screen with reusable international phone input. */
 export default function LoginPage() {
 	const navigate = useNavigate();
+	const [searchParams] = useSearchParams();
+	const returnTo = safeAuthenticationReturn(searchParams.get('returnTo'));
 	const form = useForm<LoginForm>({
 		resolver: zodResolver(requestOtpSchema),
 		defaultValues: { countryCode: undefined, mobile: '' },
@@ -28,7 +31,7 @@ export default function LoginPage() {
 				body: JSON.stringify(values),
 			});
 			const body = (await response.json()) as {
-				data?: { challengeId?: string; user?: { displayName?: string; id: string } };
+				data?: { challengeId?: string; user?: { displayName?: string; hasAdminAccess?: boolean; id: string } };
 				message: string;
 				misc?: { accessToken?: string; refreshToken?: string };
 				status: boolean;
@@ -39,18 +42,7 @@ export default function LoginPage() {
 				sessionStorage.setItem('accessToken', body.misc.accessToken);
 				sessionStorage.setItem('refreshToken', body.misc.refreshToken);
 				sessionStorage.setItem('authUser', JSON.stringify(body.data?.user ?? {}));
-				const contextResponse = await fetch('/api/v1/auth/context', {
-					method: 'POST',
-					headers: { authorization: `Bearer ${body.misc.accessToken}`, 'content-type': 'application/json' },
-					body: JSON.stringify({ context: 'admin' }),
-				});
-				const context = await contextResponse.json() as { misc?: { accessToken?: string }; status: boolean };
-				if (contextResponse.ok && context.status && context.misc?.accessToken) {
-					sessionStorage.setItem('accessToken', context.misc.accessToken);
-					navigate('/admin/administrators');
-					return;
-				}
-				navigate('/settings/profile');
+				navigate(returnTo ?? '/workspaces');
 				return;
 			}
 			if (!body.data?.challengeId) throw new Error(body.message);
@@ -58,7 +50,7 @@ export default function LoginPage() {
 				'pendingMobile',
 				`${values.countryCode ?? ''}${values.mobile}`,
 			);
-			navigate(`/login/verify/${body.data.challengeId}`);
+			navigate(`/login/verify/${body.data.challengeId}${returnTo ? `?returnTo=${encodeURIComponent(returnTo)}` : ''}`);
 		} catch (error) {
 			toast.error(
 				error instanceof Error ? error.message : 'Unable to request OTP.',
