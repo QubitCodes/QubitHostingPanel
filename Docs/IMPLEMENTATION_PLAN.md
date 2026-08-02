@@ -91,9 +91,11 @@ Gate: unpublished data is private, price tampering fails, and historical prices 
 
 Deployment status:
 
-- [ ] Supabase applies migrations `0011` and `0012` from the production branch.
-- [ ] Live database verification confirms offers, explicit multi-year prices, approved shared-tier reviews, and three published shared tiers.
-- [ ] Live public catalogue, coupon eligibility, signed quote, unpublished privacy, and tampered-total checks pass.
+- [x] Supabase production database has migrations `0011` through `0013` applied; `0013` safely carries publication data added after `0012` had already run.
+- [x] Live database verification confirms offers, explicit multi-year prices, approved shared-tier reviews, and three published shared tiers.
+- [x] Live public catalogue, coupon eligibility rejection, signed quote, unpublished privacy, and tampered-total checks pass.
+
+Gate: completed with live Supabase schema/catalogue evidence, four active billing terms per package, approved cost reviews for all public tiers, three private Cloud drafts, a three-package public catalogue, signed server-authoritative quotes, and rejection of client totals and ineligible coupons.
 
 ## Phase 3 - Customer and organisation onboarding
 
