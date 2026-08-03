@@ -158,7 +158,7 @@ Gate: imported state is accurate/team-scoped and provider outages cannot corrupt
 - [x] GitHub Actions runtime-image build, smoke-test, security-scan, provenance, SBOM, and GHCR publication workflow.
 - [x] First GHCR runtime publication verified for all seven approved images with successful build, smoke-test, and security-scan jobs.
 - [x] Shared-platform migrations `0020` and `0021` applied to Supabase and seven runtime catalogue entries seeded with verified versions and default ports.
-- [ ] Immutable GHCR digests recorded in the runtime catalogue; anonymous registry and package API reads currently return `401` after package visibility was changed to public.
+- [x] Public anonymous GHCR pulls verified and immutable manifests recorded for all seven exact-version runtime catalogue entries.
 - [ ] Admin runtime catalogue and shared database cluster management.
 - [ ] PostgreSQL/MySQL logical database creation, restricted users, encrypted credential reveal/rotation, quotas, and reconciliation.
 - [ ] Customer application runtime selection and database management UI/API.
@@ -192,4 +192,4 @@ Gate: production checklist is accepted with evidence.
 
 ## Next implementation approval
 
-Next task: confirm anonymous GHCR pull access and record immutable image digests, then register shared PostgreSQL 18.4 and MySQL 8.0.46 staging clusters before implementing logical database provisioning.
+Next task: register shared PostgreSQL 18.4 and MySQL 8.0.46 staging clusters before implementing logical database provisioning.
