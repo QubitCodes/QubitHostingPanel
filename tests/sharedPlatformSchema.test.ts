@@ -10,7 +10,10 @@ describe('shared platform schema', () => {
 		expect(runtimeConfig.columns.some((column) => column.name === 'default_port' && column.notNull)).toBe(true);
 		expect(runtimeConfig.checks.some((constraint) => constraint.name === 'runtime_images_default_port_check')).toBe(true);
 		expect(getTableConfig(applicationBuilds).foreignKeys).toHaveLength(3);
-		expect(getTableConfig(databaseClusters).name).toBe('database_clusters');
+		const clusterConfig = getTableConfig(databaseClusters);
+		expect(clusterConfig.name).toBe('database_clusters');
+		expect(clusterConfig.columns.some((column) => column.name === 'management_host')).toBe(true);
+		expect(clusterConfig.checks.some((constraint) => constraint.name === 'database_clusters_management_endpoint_check')).toBe(true);
 		expect(getTableConfig(logicalDatabases).foreignKeys).toHaveLength(3);
 	});
 });

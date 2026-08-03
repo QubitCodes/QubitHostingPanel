@@ -10,6 +10,7 @@ export interface CreateLogicalDatabaseInput {
 	host: string;
 	port: number;
 	password: string;
+	tlsMode: 'disabled' | 'require' | 'verify-full';
 	username: string;
 	workspaceId: string;
 }
@@ -20,6 +21,7 @@ export interface CreatedLogicalDatabase {
 	host: string;
 	password: string;
 	port: number;
+	tlsMode: 'disabled' | 'require' | 'verify-full';
 	username: string;
 }
 

@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { resetEnvironmentForTests } from '@config/env';
 import { createClusterBackupSchema, createDatabaseClusterSchema } from '@schemas/databaseCluster';
+import { databaseClusterEndpoint } from '@services/databases/databaseClusterEndpointService';
 import { decryptCredential, encryptCredential } from '@services/encryption/credentialEncryptionService';
 
 describe('database cluster validation', () => {
@@ -16,6 +17,16 @@ describe('database cluster validation', () => {
 
 	it('accepts cron backup expressions', () => {
 		expect(createClusterBackupSchema.parse({ frequency: '0 2 * * *' }).frequency).toBe('0 2 * * *');
+	});
+
+	it('keeps internal and staging management endpoints separate', () => {
+		process.env.DATABASE_URL = 'postgresql://test:test@localhost:5432/test';
+		process.env.DATABASE_CLUSTER_CONNECTION_MODE = 'management';
+		resetEnvironmentForTests();
+		const endpoint = databaseClusterEndpoint({ code: 'postgres-primary', internalHost: 'internal-postgres', port: 5432, managementHost: '3.6.77.89', managementPort: 15432, managementTlsMode: 'disabled' } as never);
+		expect(endpoint).toEqual({ host: '3.6.77.89', port: 15432, tlsMode: 'disabled' });
+		delete process.env.DATABASE_CLUSTER_CONNECTION_MODE;
+		resetEnvironmentForTests();
 	});
 });
 

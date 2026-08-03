@@ -12,6 +12,7 @@ const environmentSchema = z.object({
 	ENABLE_DEV_AUTH_BYPASS: z.enum(['true', 'false']).default('false'),
 	DATABASE_URL: z.url({ protocol: /^postgres(?:ql)?$/ }),
 	CREDENTIAL_ENCRYPTION_KEY: z.string().optional(),
+	DATABASE_CLUSTER_CONNECTION_MODE: z.enum(['internal', 'management']).default('internal'),
 	FIREBASE_PROJECT_ID: z.string().optional(),
 	FIREBASE_CLIENT_EMAIL: z.string().optional(),
 	FIREBASE_PRIVATE_KEY: z.string().optional(),

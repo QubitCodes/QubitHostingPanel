@@ -9,6 +9,7 @@ export const runtimeImageStatusEnum = pgEnum('runtime_image_status', ['active', 
 export const applicationBuildStatusEnum = pgEnum('application_build_status', ['queued', 'building', 'succeeded', 'failed', 'cancelled']);
 export const databaseEngineEnum = pgEnum('database_engine', ['postgresql', 'mysql']);
 export const databaseClusterStatusEnum = pgEnum('database_cluster_status', ['provisioning', 'active', 'maintenance', 'unavailable', 'retired']);
+export const databaseTlsModeEnum = pgEnum('database_tls_mode', ['disabled', 'require', 'verify-full']);
 export const logicalDatabaseStatusEnum = pgEnum('logical_database_status', ['provisioning', 'active', 'suspended', 'failed']);
 
 /** Shared, immutable base images reused across customer application containers. */
@@ -78,6 +79,9 @@ export const databaseClusters = pgTable('database_clusters', {
 	environmentName: varchar('environment_name', { length: 120 }).notNull(),
 	internalHost: varchar('internal_host', { length: 255 }).notNull(),
 	port: integer('port').notNull(),
+	managementHost: varchar('management_host', { length: 255 }),
+	managementPort: integer('management_port'),
+	managementTlsMode: databaseTlsModeEnum('management_tls_mode').notNull().default('disabled'),
 	adminCredentialCiphertext: text('admin_credential_ciphertext').notNull(),
 	maximumDatabases: integer('maximum_databases'),
 	limitsMemory: varchar('limits_memory', { length: 40 }),
@@ -98,6 +102,8 @@ export const databaseClusters = pgTable('database_clusters', {
 	uniqueIndex('database_clusters_provider_resource_active_unique').on(table.providerResourceId).where(sql`${table.deletedAt} IS NULL`),
 	index('database_clusters_engine_status_idx').on(table.engine, table.status),
 	check('database_clusters_port_check', sql`${table.port} BETWEEN 1 AND 65535`),
+	check('database_clusters_management_port_check', sql`${table.managementPort} IS NULL OR ${table.managementPort} BETWEEN 1 AND 65535`),
+	check('database_clusters_management_endpoint_check', sql`(${table.managementHost} IS NULL AND ${table.managementPort} IS NULL) OR (${table.managementHost} IS NOT NULL AND ${table.managementPort} IS NOT NULL)`),
 	check('database_clusters_capacity_check', sql`${table.maximumDatabases} IS NULL OR ${table.maximumDatabases} > 0`),
 ]);
 

@@ -74,6 +74,9 @@ Administrators manage cluster infrastructure at `/admin/operations/database-clus
 ## Credential and network rules
 
 - Cluster administrator credentials are encrypted with `CREDENTIAL_ENCRYPTION_KEY` and never returned to customers.
+- Each cluster retains its private Coolify hostname and may separately define a management host, port, and TLS mode for local staging administration.
+- `DATABASE_CLUSTER_CONNECTION_MODE=internal` is the production default. Local development may use `management` only with an IP-restricted endpoint.
+- A management endpoint is an operator connection path, not customer-level public database isolation. Customer remote access requires a later per-database gateway and allowlist workflow.
 - Workspace credentials are unique per logical database and encrypted at rest.
 - Plaintext passwords may exist only during creation, controlled reveal/rotation, and connection delivery.
 - Database ports remain private by default.

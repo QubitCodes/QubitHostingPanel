@@ -163,6 +163,7 @@ Gate: imported state is accurate/team-scoped and provider outages cannot corrupt
 - [ ] Admin runtime catalogue editing and lifecycle management.
 - [x] PostgreSQL/MySQL logical database allocation, restricted users, encrypted credential reveal/rotation, entitlement quotas, and audited lifecycle API.
 - [x] Customer database management UI/API with URL-backed list, create, detail, reveal, and rotation views.
+- [x] Separate private Coolify and optional IP-restricted management endpoints with explicit runtime selection and TLS-ready client configuration; migration `0023` applied to Supabase.
 - [ ] Customer application runtime/source selection and deployment management UI/API.
 - [ ] Per-database backup/restore and live cross-workspace isolation verification after cluster health is confirmed.
 
@@ -194,4 +195,4 @@ Gate: production checklist is accepted with evidence.
 
 ## Next implementation approval
 
-Next task: register shared PostgreSQL 18.4 and MySQL 8.0.46 staging clusters before implementing logical database provisioning.
+Next task: diagnose staging TCP reachability, configure the registered PostgreSQL/MySQL management endpoints, and complete live logical-database creation, rotation, and cross-workspace isolation verification.
