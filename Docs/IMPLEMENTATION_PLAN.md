@@ -167,7 +167,7 @@ Gate: imported state is accurate/team-scoped and provider outages cannot corrupt
 - [x] Live PostgreSQL/MySQL logical database creation, credential rotation, quota enforcement, and cross-workspace/platform isolation verified against staging management endpoints.
 - [ ] Customer application runtime/source selection and deployment management UI/API.
 - [x] Per-database encrypted backup/restore lifecycle, entitlement retention, audited download/delete controls, and URL-backed recovery UI.
-- [ ] Live PostgreSQL/MySQL backup and destructive restore recovery verification.
+- [x] Live PostgreSQL/MySQL encrypted backup, audited download, destructive restore recovery, cross-workspace rejection, artifact deletion, and soft-deletion verification.
 
 Gate: retries and duplicate webhooks cannot create duplicate resources.
 
@@ -197,4 +197,4 @@ Gate: production checklist is accepted with evidence.
 
 ## Next implementation approval
 
-Next task: apply migration `0024`, verify PostgreSQL/MySQL backup and destructive restore recovery on staging, then begin customer application runtime/source selection and deployment management.
+Next task: begin customer application runtime/source selection and deployment management.
