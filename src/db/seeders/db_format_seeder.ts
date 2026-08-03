@@ -16,8 +16,8 @@ import {
 const RUNTIME_SEEDS = [
 	{ code: 'node-22', language: 'node', version: '22.23.1', repository: 'qubitcodes/runtime-node', tag: '22.23.1', defaultPort: 3000, isDefault: false },
 	{ code: 'node-24', language: 'node', version: '24.18.0', repository: 'qubitcodes/runtime-node', tag: '24.18.0', defaultPort: 3000, isDefault: true },
-	{ code: 'php-8.3', language: 'php', version: '8.3.30', repository: 'qubitcodes/runtime-php', tag: '8.3.30', defaultPort: 80, isDefault: false },
-	{ code: 'php-8.5', language: 'php', version: '8.5.6', repository: 'qubitcodes/runtime-php', tag: '8.5.6', defaultPort: 80, isDefault: true },
+	{ code: 'php-8.3', language: 'php', version: '8.3.32', repository: 'qubitcodes/runtime-php', tag: '8.3.32', defaultPort: 80, isDefault: false },
+	{ code: 'php-8.5', language: 'php', version: '8.5.8', repository: 'qubitcodes/runtime-php', tag: '8.5.8', defaultPort: 80, isDefault: true },
 	{ code: 'python-3.12', language: 'python', version: '3.12.13', repository: 'qubitcodes/runtime-python', tag: '3.12.13', defaultPort: 8000, isDefault: false },
 	{ code: 'python-3.13', language: 'python', version: '3.13.14', repository: 'qubitcodes/runtime-python', tag: '3.13.14', defaultPort: 8000, isDefault: true },
 	{ code: 'static-nginx', language: 'static', version: '1.30.4', repository: 'qubitcodes/runtime-static', tag: '1.30.4', defaultPort: 80, isDefault: true },

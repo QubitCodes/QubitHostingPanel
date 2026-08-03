@@ -35,7 +35,7 @@ Applications remain isolated containers. Customers sharing a runtime version reu
 - Active, deprecated, or disabled lifecycle state.
 - Default selection per product policy.
 
-Initial target images are maintained in GitHub Container Registry as `ghcr.io/qubitcodes/runtime-{node,php,python,static}`. The approved versions are Node.js 22.23.1 and 24.18.0, PHP 8.3.30 and 8.5.6, Python 3.12.13 and 3.13.14, and nginx 1.30.4. Node.js 22.23.1 replaces the requested 22.23.2 because the latter is not an upstream release.
+Initial target images are maintained in GitHub Container Registry as `ghcr.io/qubitcodes/runtime-{node,php,python,static}`. The approved versions are Node.js 22.23.1 and 24.18.0, PHP 8.3.32 and 8.5.8, Python 3.12.13 and 3.13.14, and nginx 1.30.4. Node.js 22.23.1 replaces the requested 22.23.2 because the latter is not an upstream release.
 
 The runtime workflow builds `linux/amd64` images for the current EC2 architecture, performs version smoke checks and fixable-critical vulnerability scanning, and publishes exact, channel, and source-revision tags only from `main` or manual dispatch. GitHub Actions dependencies are pinned to immutable commits. Published artifacts include provenance and an SBOM. Customer deployments should pin an approved digest when reproducibility is required. Runtime removal is a staged lifecycle: stop new selections, mark deprecated, notify affected workspaces, rebuild or migrate applications, then disable.
 

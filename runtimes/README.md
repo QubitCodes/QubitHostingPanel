@@ -8,8 +8,8 @@ Qubit Hosting publishes reusable `linux/amd64` application runtime images to Git
 | --- | --- | --- | --- |
 | Node.js | 22.23.1 | `ghcr.io/qubitcodes/runtime-node:22.23.1` | 3000 |
 | Node.js | 24.18.0 | `ghcr.io/qubitcodes/runtime-node:24.18.0` | 3000 |
-| PHP | 8.3.30 | `ghcr.io/qubitcodes/runtime-php:8.3.30` | 80 |
-| PHP | 8.5.6 | `ghcr.io/qubitcodes/runtime-php:8.5.6` | 80 |
+| PHP | 8.3.32 | `ghcr.io/qubitcodes/runtime-php:8.3.32` | 80 |
+| PHP | 8.5.8 | `ghcr.io/qubitcodes/runtime-php:8.5.8` | 80 |
 | Python | 3.12.13 | `ghcr.io/qubitcodes/runtime-python:3.12.13` | 8000 |
 | Python | 3.13.14 | `ghcr.io/qubitcodes/runtime-python:3.13.14` | 8000 |
 | Static/nginx | 1.30.4 | `ghcr.io/qubitcodes/runtime-static:1.30.4` | 80 |
