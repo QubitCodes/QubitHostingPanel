@@ -2,6 +2,8 @@ import { getEnvironment } from '@config/env';
 import type { HostingProvider, ProviderConnectionResult, ProviderJob, ProviderJobStatus, ProviderResource, ProviderUsage, ProvisionApplicationInput } from '@services/hosting/HostingProvider';
 
 interface CoolifyApplication { fqdn?: string | null; name?: string; status?: string; uuid?: string }
+interface CoolifyDatabase { name?: string; status?: string; uuid?: string }
+export interface CreateCoolifyDatabaseInput { engine: 'postgresql' | 'mysql'; name: string; password: string; username: string; databaseName: string; image: string; limitsMemory: string; limitsCpus: string }
 
 /** Converts a configured wildcard URL or hostname into a bare DNS suffix. */
 export function normalizeCoolifyWildcardDomain(domain: string): string {
@@ -33,6 +35,19 @@ export class CoolifyHostingProvider implements HostingProvider {
 	}
 
 	public async getUsage(): Promise<readonly ProviderUsage[]> { return []; }
+
+	public async createSharedDatabase(input: CreateCoolifyDatabaseInput): Promise<{ uuid: string }> {
+		if (!this.environment.COOLIFY_DEFAULT_PROJECT_UUID || !this.environment.COOLIFY_SERVER_UUID) throw new Error('Coolify placement is incomplete.');
+		const common = { server_uuid: this.environment.COOLIFY_SERVER_UUID, project_uuid: this.environment.COOLIFY_DEFAULT_PROJECT_UUID, environment_name: this.environment.COOLIFY_DEFAULT_ENVIRONMENT_NAME, destination_uuid: this.environment.COOLIFY_DESTINATION_UUID, name: input.name, description: 'Qubit shared database cluster', image: input.image, is_public: false, limits_memory: input.limitsMemory, limits_cpus: input.limitsCpus, instant_deploy: true };
+		const credentials = input.engine === 'postgresql' ? { postgres_user: input.username, postgres_password: input.password, postgres_db: input.databaseName } : { mysql_root_password: input.password, mysql_user: 'qubit_admin', mysql_password: input.password, mysql_database: input.databaseName };
+		return this.request<{ uuid: string }>(`/databases/${input.engine}`, { method: 'POST', body: JSON.stringify({ ...common, ...credentials }) });
+	}
+
+	public async getSharedDatabase(uuid: string): Promise<CoolifyDatabase> { return this.request<CoolifyDatabase>(`/databases/${encodeURIComponent(uuid)}`); }
+
+	public async createDatabaseBackup(uuid: string, input: { frequency: string; s3StorageUuid?: string }): Promise<{ uuid: string }> {
+		return this.request<{ uuid: string }>(`/databases/${encodeURIComponent(uuid)}/backups`, { method: 'POST', body: JSON.stringify({ frequency: input.frequency, enabled: true, save_s3: Boolean(input.s3StorageUuid), s3_storage_uuid: input.s3StorageUuid, dump_all: true, backup_now: true, database_backup_retention_amount_locally: 7, database_backup_retention_days_locally: 7, database_backup_retention_amount_s3: 30, database_backup_retention_days_s3: 30 }) });
+	}
 
 	public async provisionApplication(input: ProvisionApplicationInput): Promise<ProviderJob> {
 		if (!this.environment.COOLIFY_DEFAULT_PROJECT_UUID || !this.environment.COOLIFY_SERVER_UUID) throw new Error('Coolify placement is incomplete.');

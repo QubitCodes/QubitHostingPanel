@@ -67,6 +67,8 @@ The runtime workflow builds `linux/amd64` images for the current EC2 architectur
 
 The Coolify hosting provider does not create a new database container for this operation. A dedicated `SharedDatabaseProvisioner` executes engine-specific SQL against an existing registered cluster.
 
+Administrators manage cluster infrastructure at `/admin/operations/database-clusters`. Creating a cluster provisions an exact-version private Coolify database, generates the administrator password inside the panel, encrypts it before persistence, and records only non-sensitive provider metadata in API responses and audit logs. Detail URLs expose health reconciliation, capacity/lifecycle settings, and backup policy configuration without exposing cluster credentials.
+
 ## Credential and network rules
 
 - Cluster administrator credentials are encrypted with `CREDENTIAL_ENCRYPTION_KEY` and never returned to customers.
@@ -95,8 +97,8 @@ Shared-volume snapshots protect the cluster but are not sufficient for customer-
 
 1. Apply migration `0021` and seed the approved runtime catalogue.
 2. Publish the first signed/versioned Qubit runtime images through GitHub Actions and record their verified digests.
-3. Add admin runtime-catalogue and database-cluster management.
-4. Provision one shared PostgreSQL and one shared MySQL staging service.
+3. Add admin runtime-catalogue and database-cluster management. Database cluster management is complete; runtime catalogue editing remains pending.
+4. Provision one shared PostgreSQL 18.4 and one shared MySQL 8.0.46 staging service after migration `0022` is applied and the deployed Coolify token has read/write scope.
 5. Implement encrypted cluster registration and engine-specific logical database provisioners.
 6. Add customer application/runtime selection and database management UI/API.
 7. Add quotas, backups, credential rotation, audit logs, and reconciliation.

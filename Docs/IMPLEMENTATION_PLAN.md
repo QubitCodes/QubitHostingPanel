@@ -159,7 +159,8 @@ Gate: imported state is accurate/team-scoped and provider outages cannot corrupt
 - [x] First GHCR runtime publication verified for all seven approved images with successful build, smoke-test, and security-scan jobs.
 - [x] Shared-platform migrations `0020` and `0021` applied to Supabase and seven runtime catalogue entries seeded with verified versions and default ports.
 - [x] Public anonymous GHCR pulls verified and immutable manifests recorded for all seven exact-version runtime catalogue entries.
-- [ ] Admin runtime catalogue and shared database cluster management.
+- [x] Admin shared database cluster creation, capacity/lifecycle settings, provider health validation, and scheduled backup management with URL-backed views.
+- [ ] Admin runtime catalogue editing and lifecycle management.
 - [ ] PostgreSQL/MySQL logical database creation, restricted users, encrypted credential reveal/rotation, quotas, and reconciliation.
 - [ ] Customer application runtime selection and database management UI/API.
 - [ ] Per-database backup, restore, and cross-workspace isolation verification.

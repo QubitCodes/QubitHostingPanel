@@ -1,0 +1,6 @@
+import { resp } from '@qubitcodes/qcresp';
+import { DatabaseClusterController } from '@controllers/DatabaseClusterController';
+import { clusterCodeSchema, updateDatabaseClusterSchema } from '@schemas/databaseCluster';
+import { getRequestMetadata, parseJson } from '@utils/request';
+export async function loader({ request, params }: { request: Request; params: { clusterCode?: string } }): Promise<Response> { const code = clusterCodeSchema.safeParse(params.clusterCode); return code.success ? DatabaseClusterController.show(request, code.data, getRequestMetadata(request)) : resp.failure('Invalid cluster code.', resp.codes.VALIDATION_ERROR, code.error.issues, null, undefined, 400); }
+export async function action({ request, params }: { request: Request; params: { clusterCode?: string } }): Promise<Response> { const code = clusterCodeSchema.safeParse(params.clusterCode); if (!code.success) return resp.failure('Invalid cluster code.', resp.codes.VALIDATION_ERROR, code.error.issues, null, undefined, 400); const input = await parseJson(request, updateDatabaseClusterSchema); return input instanceof Response ? input : DatabaseClusterController.update(request, code.data, input, getRequestMetadata(request)); }

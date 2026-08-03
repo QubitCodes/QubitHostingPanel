@@ -430,9 +430,20 @@ export const OPENAPI_DOCUMENT = {
 				},
 			},
 		},
+		'/operations/database-clusters': {
+			get: { summary: 'List shared database clusters', operationId: 'listDatabaseClusters', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Cluster list without encrypted credentials.' }, '403': { description: 'Permission denied.' } } },
+			post: { summary: 'Provision a private shared database cluster', operationId: 'createDatabaseCluster', security: [{ bearerAuth: [] }], requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['code', 'engine', 'name', 'maximumDatabases', 'limitsMemory', 'limitsCpus'], properties: { code: { type: 'string', pattern: '^[a-z0-9]+(?:-[a-z0-9]+)*$' }, engine: { type: 'string', enum: ['postgresql', 'mysql'] }, name: { type: 'string' }, maximumDatabases: { type: 'integer', minimum: 1 }, limitsMemory: { type: 'string', example: '1g' }, limitsCpus: { type: 'string', example: '1' } } } } } }, responses: { '201': { description: 'Coolify cluster creation started.' }, '400': { description: 'Validation or duplicate code error.' }, '403': { description: 'Permission denied.' }, '502': { description: 'Coolify provisioning failed.' } } },
+		},
+		'/operations/database-clusters/{clusterCode}': {
+			get: { summary: 'View a shared database cluster', operationId: 'showDatabaseCluster', security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/ClusterCode' }], responses: { '200': { description: 'Cluster detail without encrypted credentials.' }, '404': { description: 'Cluster not found.' } } },
+			patch: { summary: 'Update cluster capacity or lifecycle state', operationId: 'updateDatabaseCluster', security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/ClusterCode' }], responses: { '200': { description: 'Cluster updated.' }, '400': { description: 'Validation error.' }, '404': { description: 'Cluster not found.' } } },
+		},
+		'/operations/database-clusters/{clusterCode}/validate': { post: { summary: 'Reconcile cluster health with Coolify', operationId: 'validateDatabaseCluster', security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/ClusterCode' }], responses: { '200': { description: 'Provider health recorded.' }, '502': { description: 'Provider validation failed.' } } } },
+		'/operations/database-clusters/{clusterCode}/backups': { post: { summary: 'Configure scheduled Coolify database backups', operationId: 'configureDatabaseClusterBackup', security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/ClusterCode' }], responses: { '201': { description: 'Backup policy configured.' }, '502': { description: 'Provider backup configuration failed.' } } } },
 	},
 	components: {
 		parameters: {
+			ClusterCode: { name: 'clusterCode', in: 'path', required: true, description: 'Human-readable database cluster code.', schema: { type: 'string', pattern: '^[a-z0-9]+(?:-[a-z0-9]+)*$' } },
 			PackageSlug: {
 				name: 'packageSlug',
 				in: 'path',

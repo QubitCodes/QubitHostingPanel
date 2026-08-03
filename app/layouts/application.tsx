@@ -12,6 +12,7 @@ import {
 	PackageOpen,
 	BadgePercent,
 	CloudCog,
+	Database,
 	Search,
 	Server,
 	Settings,
@@ -39,6 +40,7 @@ const navigation = [
 	{ label: 'Offers', path: '/admin/offers', icon: BadgePercent },
 	{ label: 'Administrators', path: '/admin/administrators', icon: Shield },
 	{ label: 'Operations', path: '/admin/operations/payments', icon: CloudCog },
+	{ label: 'Database clusters', path: '/admin/operations/database-clusters', icon: Database },
 	{ label: 'Settings', path: '/settings/profile', icon: Settings },
 ];
 
@@ -50,6 +52,7 @@ const titles: Record<string, string> = {
 	'/admin/operations/payments': 'Payment operations',
 	'/admin/operations/provisioning': 'Provisioning operations',
 	'/admin/operations/providers': 'Provider health',
+	'/admin/operations/database-clusters': 'Database clusters',
 	'/settings/profile': 'Profile settings',
 	'/settings/security': 'Security settings',
 	'/settings/sessions': 'Active sessions',
@@ -60,6 +63,8 @@ function pageTitle(pathname: string): string {
 		titles[pathname] ??
 		(pathname.startsWith('/admin/packages/')
 			? 'Package details'
+			: pathname.startsWith('/admin/operations/database-clusters/')
+				? 'Database cluster'
 			: pathname.startsWith('/admin/administrators/')
 			? 'Administrator details'
 			: pathname.startsWith('/settings/sessions/')

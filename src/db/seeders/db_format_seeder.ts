@@ -133,10 +133,13 @@ const RESOURCES = [
 	'servers',
 	'payments',
 	'provisioning',
+	'database_clusters',
 	'audit_logs',
 ] as const;
 const ACTIONS = ['view', 'create', 'update', 'delete'] as const;
 const SPECIAL_PERMISSIONS = [
+	{ code: 'database_clusters.rotate_credentials', description: 'Rotate encrypted shared database administrator credentials.', name: 'Rotate database cluster credentials' },
+	{ code: 'database_clusters.manage_backups', description: 'Configure and trigger shared database backups.', name: 'Manage database cluster backups' },
 	{
 		code: 'packages.publish',
 		description: 'Publish or archive commercial packages.',
