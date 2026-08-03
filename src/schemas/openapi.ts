@@ -440,9 +440,17 @@ export const OPENAPI_DOCUMENT = {
 		},
 		'/operations/database-clusters/{clusterCode}/validate': { post: { summary: 'Reconcile cluster health with Coolify', operationId: 'validateDatabaseCluster', security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/ClusterCode' }], responses: { '200': { description: 'Provider health recorded.' }, '502': { description: 'Provider validation failed.' } } } },
 		'/operations/database-clusters/{clusterCode}/backups': { post: { summary: 'Configure scheduled Coolify database backups', operationId: 'configureDatabaseClusterBackup', security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/ClusterCode' }], responses: { '201': { description: 'Backup policy configured.' }, '502': { description: 'Provider backup configuration failed.' } } } },
+		'/workspaces/{workspaceId}/databases': {
+			get: { summary: 'List workspace databases', operationId: 'listWorkspaceDatabases', security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/WorkspaceId' }], responses: { '200': { description: 'Workspace database list without credentials.' }, '404': { description: 'Workspace not found.' } } },
+			post: { summary: 'Create a restricted logical database', operationId: 'createWorkspaceDatabase', security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/WorkspaceId' }], requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['engine', 'name'], properties: { engine: { type: 'string', enum: ['postgresql', 'mysql'] }, name: { type: 'string' }, connectionLimit: { type: 'integer', minimum: 1, maximum: 100 }, storageQuotaMb: { type: 'integer', minimum: 128, maximum: 102400 } } } } } }, responses: { '201': { description: 'Database created; credential returned for controlled display.' }, '422': { description: 'Workspace entitlement limit reached.' }, '503': { description: 'No healthy cluster has capacity.' } } },
+		},
+		'/workspaces/{workspaceId}/databases/{databaseId}/credentials': { post: { summary: 'Reveal an encrypted workspace database credential', operationId: 'revealWorkspaceDatabaseCredential', security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/WorkspaceId' }, { $ref: '#/components/parameters/DatabaseId' }], responses: { '200': { description: 'Credential revealed and audited.' }, '404': { description: 'Database not found in the workspace.' } } } },
+		'/workspaces/{workspaceId}/databases/{databaseId}/rotate': { post: { summary: 'Rotate a workspace database password', operationId: 'rotateWorkspaceDatabaseCredential', security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/WorkspaceId' }, { $ref: '#/components/parameters/DatabaseId' }], responses: { '200': { description: 'Password rotated, encrypted, and returned for controlled display.' }, '404': { description: 'Database not found in the workspace.' } } } },
 	},
 	components: {
 		parameters: {
+			WorkspaceId: { name: 'workspaceId', in: 'path', required: true, description: 'Six-digit workspace identifier.', schema: { type: 'integer', minimum: 100000, maximum: 999999 } },
+			DatabaseId: { name: 'databaseId', in: 'path', required: true, description: 'Logical database UUID.', schema: { type: 'string', format: 'uuid' } },
 			ClusterCode: { name: 'clusterCode', in: 'path', required: true, description: 'Human-readable database cluster code.', schema: { type: 'string', pattern: '^[a-z0-9]+(?:-[a-z0-9]+)*$' } },
 			PackageSlug: {
 				name: 'packageSlug',

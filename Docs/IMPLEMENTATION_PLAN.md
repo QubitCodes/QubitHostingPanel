@@ -161,9 +161,10 @@ Gate: imported state is accurate/team-scoped and provider outages cannot corrupt
 - [x] Public anonymous GHCR pulls verified and immutable manifests recorded for all seven exact-version runtime catalogue entries.
 - [x] Admin shared database cluster creation, capacity/lifecycle settings, provider health validation, and scheduled backup management with URL-backed views.
 - [ ] Admin runtime catalogue editing and lifecycle management.
-- [ ] PostgreSQL/MySQL logical database creation, restricted users, encrypted credential reveal/rotation, quotas, and reconciliation.
-- [ ] Customer application runtime selection and database management UI/API.
-- [ ] Per-database backup, restore, and cross-workspace isolation verification.
+- [x] PostgreSQL/MySQL logical database allocation, restricted users, encrypted credential reveal/rotation, entitlement quotas, and audited lifecycle API.
+- [x] Customer database management UI/API with URL-backed list, create, detail, reveal, and rotation views.
+- [ ] Customer application runtime/source selection and deployment management UI/API.
+- [ ] Per-database backup/restore and live cross-workspace isolation verification after cluster health is confirmed.
 
 Gate: retries and duplicate webhooks cannot create duplicate resources.
 

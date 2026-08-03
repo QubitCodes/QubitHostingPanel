@@ -67,6 +67,8 @@ The runtime workflow builds `linux/amd64` images for the current EC2 architectur
 
 The Coolify hosting provider does not create a new database container for this operation. A dedicated `SharedDatabaseProvisioner` executes engine-specific SQL against an existing registered cluster.
 
+Customer database management is available under `/dashboard/databases`. Creation checks the workspace subscription snapshot for `databases.count`, chooses the least-used active cluster with remaining capacity, creates a collision-resistant database/login pair, and returns its credential only after encrypted persistence. Reveal and rotation are workspace-authorized, audited actions. PostgreSQL roles own only their logical database; MySQL users receive privileges only on their logical database namespace.
+
 Administrators manage cluster infrastructure at `/admin/operations/database-clusters`. Creating a cluster provisions an exact-version private Coolify database, generates the administrator password inside the panel, encrypts it before persistence, and records only non-sensitive provider metadata in API responses and audit logs. Detail URLs expose health reconciliation, capacity/lifecycle settings, and backup policy configuration without exposing cluster credentials.
 
 ## Credential and network rules
