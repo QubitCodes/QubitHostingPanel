@@ -132,11 +132,12 @@ Gate: concurrent requests cannot exceed hard limits and stale observations are v
 
 ## Phase 5 - Coolify read-only integration
 
-Prerequisite: dedicated staging Linux server.
+Prerequisite: dedicated staging Linux server. Completed on AWS EC2 with Coolify v4, a healthy Traefik proxy, and `*.apps-staging.qubit.codes` routing.
 
 - [x] Environment-secret single-connection configuration and least-privilege token contract.
 - [ ] Database-managed encrypted multi-connection records and token rotation workflow.
 - [x] Connection validation and protected admin provider-health view.
+- [x] Real staging API authentication and team-scoped placement discovery verified against `coolify.qubit.codes`.
 - Import servers, applications, databases, services, and deployments.
 - Scheduled reconciliation and usage snapshots.
 - [x] Provider retry and error isolation in durable provisioning jobs.
@@ -147,9 +148,17 @@ Gate: imported state is accurate/team-scoped and provider outages cannot corrupt
 
 - [x] Idempotent provisioning job queue with CLI/internal worker execution, optimistic claims, retry, and reconciliation.
 - [x] Starter Docker-image application creation after verified payment/trial and subscription snapshot; customer source and database selection remain later resource workflows.
+- [x] Direct provider smoke deployment verified with `nginx:alpine`, a healthy container, and a public HTTPS `apps-staging.qubit.codes` response.
 - Deployment status and domain conflict validation.
 - [x] Admin payment/provisioning visibility, provider health, failure detail, and manual retry.
 - [x] Partial-failure reconciliation prevents repeat workers from recreating an existing provider resource.
+- [x] Shared-platform schema foundation for reusable runtime images, build artifacts, database clusters, and workspace logical databases.
+- [x] Separate shared logical-database provisioning contract from Coolify application provisioning.
+- [ ] GitHub Actions runtime-image build and GHCR publication workflow.
+- [ ] Admin runtime catalogue and shared database cluster management.
+- [ ] PostgreSQL/MySQL logical database creation, restricted users, encrypted credential reveal/rotation, quotas, and reconciliation.
+- [ ] Customer application runtime selection and database management UI/API.
+- [ ] Per-database backup, restore, and cross-workspace isolation verification.
 
 Gate: retries and duplicate webhooks cannot create duplicate resources.
 
@@ -174,8 +183,9 @@ Gate: production checklist is accepted with evidence.
 - Customer-facing Organisation-to-Personal reversion.
 - Google Sign-In and other Firebase providers.
 - Multiple Coolify servers and placement policies.
+- Dedicated database clusters/RDS placement for high-load tenants.
 - Proration, overage charging, and additional hosting providers.
 
 ## Next implementation approval
 
-Next task: apply migration `0018`, seed new operational permissions, verify a complete mock purchase locally, then provide a public staging `APP_URL` and Coolify credentials for PayU-to-Coolify staging evidence.
+Next task: apply migration `0020`, publish the first approved runtime images, register shared PostgreSQL/MySQL staging clusters, then implement logical database provisioning before the complete customer purchase/deployment test.

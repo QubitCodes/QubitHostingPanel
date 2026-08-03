@@ -5,8 +5,7 @@ import type {
 	ProviderJobStatus,
 	ProviderResource,
 	ProviderUsage,
-	ProvisionApplicationInput,
-	ProvisionDatabaseInput
+	ProvisionApplicationInput
 } from '@services/hosting/HostingProvider';
 
 /** Deterministic local provider used until the read-only Coolify staging phase. */
@@ -25,10 +24,6 @@ export class MockHostingProvider implements HostingProvider {
 
 	public async provisionApplication(input: ProvisionApplicationInput): Promise<ProviderJob> {
 		return Promise.resolve({ id: `mock-app-${input.workspaceId}`, publicUrl: `https://${input.name}.mock.invalid`, status: 'succeeded' });
-	}
-
-	public async provisionDatabase(input: ProvisionDatabaseInput): Promise<ProviderJob> {
-		return Promise.resolve({ id: `mock-db-${input.workspaceId}`, status: 'succeeded' });
 	}
 
 	public async getDeployment(jobId: string): Promise<ProviderJobStatus> {

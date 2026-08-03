@@ -17,7 +17,7 @@ panel.qubit.codes
         | Private provider adapter
         v
 Coolify API
-  Servers, applications, databases, services, deployments
+  Servers, application containers, shared database services, deployments
 ```
 
 The public website must never hold Coolify credentials, calculate authoritative prices, or provision infrastructure directly.
@@ -42,6 +42,8 @@ The public website must never hold Coolify credentials, calculate authoritative 
 - Enforce package restrictions before provisioning.
 - Integrate with payments and verify payment webhooks.
 - Integrate with Coolify through a provider abstraction.
+- Maintain approved shared runtime images and customer build artifacts.
+- Allocate restricted logical databases inside shared PostgreSQL/MySQL clusters.
 - Record usage, reconciliation results, operational jobs, and audit events.
 
 ### Coolify
@@ -68,10 +70,11 @@ interface HostingProvider {
 	listResources(): Promise<ProviderResource[]>;
 	getUsage(): Promise<ProviderUsage[]>;
 	provisionApplication(input: ProvisionApplicationInput): Promise<ProviderJob>;
-	provisionDatabase(input: ProvisionDatabaseInput): Promise<ProviderJob>;
 	getDeployment(jobId: string): Promise<ProviderJobStatus>;
 }
 ```
+
+Logical databases use a separate `SharedDatabaseProvisioner`. Coolify creates and operates each shared engine service once; the panel creates workspace databases and restricted users inside those engines. Runtime versions are shared immutable image layers, while every customer application remains an isolated container.
 
 Initial implementations:
 
@@ -97,6 +100,7 @@ All state-changing requests use JSON. Routes use native Web `Request` parsing, Z
 - Panel database: identities, permissions, customers, workspaces, organisation extensions, commercial state, entitlements, ownership, desired resource state, jobs, and audit history.
 - Payment provider: verified payment transaction state, reconciled into the panel.
 - Coolify: actual infrastructure state, reconciled into the panel.
+- Shared PostgreSQL/MySQL clusters: actual logical database/user state, reconciled into workspace resource ownership.
 - Usage snapshots: timestamped observations; they do not silently rewrite subscription entitlements.
 
 ## 6. Workspace tenancy
@@ -111,6 +115,8 @@ Customers and organisations are separate entities. A customer is the service pro
 - Organisation multi-user membership is schema-ready but deferred until after the MVA.
 
 See `WORKSPACES_CUSTOMERS_AND_ORGANISATIONS.md` for invariants and lifecycle rules.
+
+See `SHARED_PLATFORM_ARCHITECTURE.md` for runtime images, application isolation, shared database clusters, credentials, quotas, and backups.
 
 ## 7. Security boundaries
 

@@ -19,6 +19,7 @@
 6. `WORKSPACES_CUSTOMERS_AND_ORGANISATIONS.md` - customer identity, workspace tenancy, organisation extensions, billing snapshots, transfers, and deferred membership features.
 6. `DATABASE_AND_PORTABILITY.md` - Supabase-first database strategy and later migration path.
 7. `INFRASTRUCTURE_REQUIREMENTS.md` - local, staging, and production infrastructure requirements.
+8. `SHARED_PLATFORM_ARCHITECTURE.md` - shared runtimes, isolated application containers, logical databases, credentials, quotas, and backup boundaries.
 8. `IMPLEMENTATION_PLAN.md` - delivery phases, verification gates, and deferred work.
 
 ## Fixed decisions

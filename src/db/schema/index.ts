@@ -6,5 +6,6 @@ export * from './offers';
 export * from './packages';
 export * from './payments';
 export * from './provisioning';
+export * from './sharedPlatform';
 export * from './tenancy';
 export * from './subscriptions';

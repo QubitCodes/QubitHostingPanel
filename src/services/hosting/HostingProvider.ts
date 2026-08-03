@@ -25,11 +25,10 @@ export type ProviderJobStatus = 'pending' | 'running' | 'succeeded' | 'failed';
 
 export interface ProvisionApplicationInput {
 	name: string;
-	workspaceId: string;
-}
-
-export interface ProvisionDatabaseInput {
-	name: string;
+	runtimeImage?: {
+		repository: string;
+		tag: string;
+	};
 	workspaceId: string;
 }
 
@@ -39,6 +38,5 @@ export interface HostingProvider {
 	listResources(): Promise<readonly ProviderResource[]>;
 	getUsage(): Promise<readonly ProviderUsage[]>;
 	provisionApplication(input: ProvisionApplicationInput): Promise<ProviderJob>;
-	provisionDatabase(input: ProvisionDatabaseInput): Promise<ProviderJob>;
 	getDeployment(jobId: string): Promise<ProviderJobStatus>;
 }

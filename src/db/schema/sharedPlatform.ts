@@ -1,0 +1,125 @@
+import { relations, sql } from 'drizzle-orm';
+import { boolean, check, index, integer, jsonb, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid, varchar } from 'drizzle-orm/pg-core';
+
+import { workspaceResources } from './provisioning';
+import { workspaces } from './tenancy';
+
+export const runtimeLanguageEnum = pgEnum('runtime_language', ['static', 'php', 'node', 'python']);
+export const runtimeImageStatusEnum = pgEnum('runtime_image_status', ['active', 'deprecated', 'disabled']);
+export const applicationBuildStatusEnum = pgEnum('application_build_status', ['queued', 'building', 'succeeded', 'failed', 'cancelled']);
+export const databaseEngineEnum = pgEnum('database_engine', ['postgresql', 'mysql']);
+export const databaseClusterStatusEnum = pgEnum('database_cluster_status', ['provisioning', 'active', 'maintenance', 'unavailable', 'retired']);
+export const logicalDatabaseStatusEnum = pgEnum('logical_database_status', ['provisioning', 'active', 'suspended', 'failed']);
+
+/** Shared, immutable base images reused across customer application containers. */
+export const runtimeImages = pgTable('runtime_images', {
+	id: uuid('id').primaryKey().defaultRandom(),
+	code: varchar('code', { length: 80 }).notNull(),
+	language: runtimeLanguageEnum('language').notNull(),
+	version: varchar('version', { length: 40 }).notNull(),
+	registry: varchar('registry', { length: 255 }).notNull().default('ghcr.io'),
+	repository: varchar('repository', { length: 255 }).notNull(),
+	tag: varchar('tag', { length: 120 }).notNull(),
+	digest: varchar('digest', { length: 255 }),
+	status: runtimeImageStatusEnum('status').notNull().default('active'),
+	isDefault: boolean('is_default').notNull().default(false),
+	metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default({}),
+	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+	updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+	deletedAt: timestamp('deleted_at', { withTimezone: true }),
+	deleteReason: varchar('delete_reason', { length: 500 }),
+}, (table) => [
+	uniqueIndex('runtime_images_code_active_unique').on(table.code).where(sql`${table.deletedAt} IS NULL`),
+	uniqueIndex('runtime_images_reference_active_unique').on(table.registry, table.repository, table.tag).where(sql`${table.deletedAt} IS NULL`),
+	index('runtime_images_language_status_idx').on(table.language, table.status),
+]);
+
+/** Build artifact history connecting customer source revisions to deployable images. */
+export const applicationBuilds = pgTable('application_builds', {
+	id: uuid('id').primaryKey().defaultRandom(),
+	workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'restrict' }),
+	resourceId: uuid('resource_id').references(() => workspaceResources.id, { onDelete: 'restrict' }),
+	runtimeImageId: uuid('runtime_image_id').notNull().references(() => runtimeImages.id, { onDelete: 'restrict' }),
+	status: applicationBuildStatusEnum('status').notNull().default('queued'),
+	sourceRepository: varchar('source_repository', { length: 500 }).notNull(),
+	sourceRef: varchar('source_ref', { length: 255 }).notNull().default('main'),
+	commitSha: varchar('commit_sha', { length: 64 }),
+	imageRepository: varchar('image_repository', { length: 500 }),
+	imageTag: varchar('image_tag', { length: 255 }),
+	imageDigest: varchar('image_digest', { length: 255 }),
+	providerBuildId: varchar('provider_build_id', { length: 255 }),
+	startedAt: timestamp('started_at', { withTimezone: true }),
+	completedAt: timestamp('completed_at', { withTimezone: true }),
+	failureReason: text('failure_reason'),
+	metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default({}),
+	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+	updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+	deletedAt: timestamp('deleted_at', { withTimezone: true }),
+	deleteReason: varchar('delete_reason', { length: 500 }),
+}, (table) => [
+	index('application_builds_workspace_status_idx').on(table.workspaceId, table.status, table.createdAt),
+	index('application_builds_resource_created_idx').on(table.resourceId, table.createdAt),
+	check('application_builds_completion_check', sql`${table.completedAt} IS NULL OR ${table.startedAt} IS NOT NULL`),
+]);
+
+/** One shared database engine instance capable of hosting many isolated logical databases. */
+export const databaseClusters = pgTable('database_clusters', {
+	id: uuid('id').primaryKey().defaultRandom(),
+	name: varchar('name', { length: 160 }).notNull(),
+	engine: databaseEngineEnum('engine').notNull(),
+	status: databaseClusterStatusEnum('status').notNull().default('provisioning'),
+	providerResourceId: varchar('provider_resource_id', { length: 255 }).notNull(),
+	destinationUuid: varchar('destination_uuid', { length: 255 }),
+	internalHost: varchar('internal_host', { length: 255 }).notNull(),
+	port: integer('port').notNull(),
+	adminCredentialCiphertext: text('admin_credential_ciphertext').notNull(),
+	maximumDatabases: integer('maximum_databases'),
+	metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default({}),
+	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+	updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+	deletedAt: timestamp('deleted_at', { withTimezone: true }),
+	deleteReason: varchar('delete_reason', { length: 500 }),
+}, (table) => [
+	uniqueIndex('database_clusters_name_active_unique').on(table.name).where(sql`${table.deletedAt} IS NULL`),
+	uniqueIndex('database_clusters_provider_resource_active_unique').on(table.providerResourceId).where(sql`${table.deletedAt} IS NULL`),
+	index('database_clusters_engine_status_idx').on(table.engine, table.status),
+	check('database_clusters_port_check', sql`${table.port} BETWEEN 1 AND 65535`),
+	check('database_clusters_capacity_check', sql`${table.maximumDatabases} IS NULL OR ${table.maximumDatabases} > 0`),
+]);
+
+/** Workspace-owned database and restricted login created inside a shared database cluster. */
+export const logicalDatabases = pgTable('logical_databases', {
+	id: uuid('id').primaryKey().defaultRandom(),
+	workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'restrict' }),
+	resourceId: uuid('resource_id').references(() => workspaceResources.id, { onDelete: 'restrict' }),
+	clusterId: uuid('cluster_id').notNull().references(() => databaseClusters.id, { onDelete: 'restrict' }),
+	status: logicalDatabaseStatusEnum('status').notNull().default('provisioning'),
+	databaseName: varchar('database_name', { length: 120 }).notNull(),
+	username: varchar('username', { length: 120 }).notNull(),
+	credentialCiphertext: text('credential_ciphertext').notNull(),
+	storageQuotaMb: integer('storage_quota_mb'),
+	connectionLimit: integer('connection_limit'),
+	lastBackedUpAt: timestamp('last_backed_up_at', { withTimezone: true }),
+	metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default({}),
+	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+	updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+	deletedAt: timestamp('deleted_at', { withTimezone: true }),
+	deleteReason: varchar('delete_reason', { length: 500 }),
+}, (table) => [
+	uniqueIndex('logical_databases_cluster_name_active_unique').on(table.clusterId, table.databaseName).where(sql`${table.deletedAt} IS NULL`),
+	uniqueIndex('logical_databases_cluster_username_active_unique').on(table.clusterId, table.username).where(sql`${table.deletedAt} IS NULL`),
+	uniqueIndex('logical_databases_resource_active_unique').on(table.resourceId).where(sql`${table.resourceId} IS NOT NULL AND ${table.deletedAt} IS NULL`),
+	index('logical_databases_workspace_status_idx').on(table.workspaceId, table.status),
+	check('logical_databases_storage_quota_check', sql`${table.storageQuotaMb} IS NULL OR ${table.storageQuotaMb} > 0`),
+	check('logical_databases_connection_limit_check', sql`${table.connectionLimit} IS NULL OR ${table.connectionLimit} > 0`),
+]);
+
+export const runtimeImageRelations = relations(runtimeImages, ({ many }) => ({ builds: many(applicationBuilds) }));
+export const applicationBuildRelations = relations(applicationBuilds, ({ one }) => ({ workspace: one(workspaces, { fields: [applicationBuilds.workspaceId], references: [workspaces.id] }), resource: one(workspaceResources, { fields: [applicationBuilds.resourceId], references: [workspaceResources.id] }), runtimeImage: one(runtimeImages, { fields: [applicationBuilds.runtimeImageId], references: [runtimeImages.id] }) }));
+export const databaseClusterRelations = relations(databaseClusters, ({ many }) => ({ databases: many(logicalDatabases) }));
+export const logicalDatabaseRelations = relations(logicalDatabases, ({ one }) => ({ workspace: one(workspaces, { fields: [logicalDatabases.workspaceId], references: [workspaces.id] }), resource: one(workspaceResources, { fields: [logicalDatabases.resourceId], references: [workspaceResources.id] }), cluster: one(databaseClusters, { fields: [logicalDatabases.clusterId], references: [databaseClusters.id] }) }));
+
+export type RuntimeImage = typeof runtimeImages.$inferSelect;
+export type ApplicationBuild = typeof applicationBuilds.$inferSelect;
+export type DatabaseCluster = typeof databaseClusters.$inferSelect;
+export type LogicalDatabase = typeof logicalDatabases.$inferSelect;

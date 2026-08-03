@@ -63,13 +63,13 @@ Use a dedicated Coolify staging server. Do not install Coolify beside aaPanel. C
 ```env
 HOSTING_PROVIDER=coolify
 COOLIFY_ENABLED=true
-COOLIFY_BASE_URL=https://coolify-staging.qubit.codes
+COOLIFY_BASE_URL=https://coolify.qubit.codes
 COOLIFY_API_TOKEN=
 COOLIFY_SERVER_UUID=
 COOLIFY_DESTINATION_UUID=
 COOLIFY_DEFAULT_PROJECT_UUID=
 COOLIFY_DEFAULT_ENVIRONMENT_NAME=production
-COOLIFY_WILDCARD_DOMAIN=apps-staging.qubit.codes
+COOLIFY_WILDCARD_DOMAIN=https://apps-staging.qubit.codes
 COOLIFY_STARTER_IMAGE=nginx
 COOLIFY_STARTER_IMAGE_TAG=alpine
 COOLIFY_STARTER_PORT=80
@@ -77,6 +77,8 @@ INTERNAL_JOB_SECRET=
 ```
 
 `COOLIFY_DESTINATION_UUID` is optional when the server has only one destination. The initial purchase test creates a prebuilt starter container through Coolify's Docker Image application endpoint. This proves placement, networking, domain, deployment, idempotency, and reconciliation without requiring a customer Git repository.
+
+The provider accepts the wildcard value as either a hostname, wildcard hostname, or `http(s)` URL and normalizes it before constructing application domains.
 
 Validate from the admin panel at `/admin/operations/providers`. Provisioning state is visible at `/admin/operations/provisioning` and in the customer dashboard.
 

@@ -66,3 +66,13 @@ coolify-staging.qubit.codes Staging Coolify
 - Secret management and rotation process.
 - Usage, cleanup, quota, and reconciliation jobs.
 - Incident, maintenance, and rollback playbooks.
+
+## Shared platform services
+
+- One shared Traefik proxy per Coolify server.
+- Approved PHP, Node.js, Python, and static base images published to GHCR and reused by isolated application containers.
+- GitHub Actions build capacity so customer image builds do not exhaust the workload host.
+- Shared PostgreSQL and MySQL services with private networking and persistent volumes.
+- Encrypted per-database S3 backups in addition to cluster/volume backups.
+- Connection, storage, CPU, memory, and process limits with noisy-neighbour monitoring.
+- A migration path to dedicated database clusters or RDS for high-load tenants.

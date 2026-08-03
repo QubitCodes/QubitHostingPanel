@@ -1,7 +1,12 @@
 import { getEnvironment } from '@config/env';
-import type { HostingProvider, ProviderConnectionResult, ProviderJob, ProviderJobStatus, ProviderResource, ProviderUsage, ProvisionApplicationInput, ProvisionDatabaseInput } from '@services/hosting/HostingProvider';
+import type { HostingProvider, ProviderConnectionResult, ProviderJob, ProviderJobStatus, ProviderResource, ProviderUsage, ProvisionApplicationInput } from '@services/hosting/HostingProvider';
 
 interface CoolifyApplication { fqdn?: string | null; name?: string; status?: string; uuid?: string }
+
+/** Converts a configured wildcard URL or hostname into a bare DNS suffix. */
+export function normalizeCoolifyWildcardDomain(domain: string): string {
+	return domain.trim().replace(/^https?:\/\//i, '').replace(/^\*\./, '').replace(/\/+$/, '');
+}
 
 /** Least-privilege Coolify v4 REST adapter for starter workload provisioning. */
 export class CoolifyHostingProvider implements HostingProvider {
@@ -31,11 +36,10 @@ export class CoolifyHostingProvider implements HostingProvider {
 
 	public async provisionApplication(input: ProvisionApplicationInput): Promise<ProviderJob> {
 		if (!this.environment.COOLIFY_DEFAULT_PROJECT_UUID || !this.environment.COOLIFY_SERVER_UUID) throw new Error('Coolify placement is incomplete.');
-		const body = await this.request<{ uuid: string }>('/applications/dockerimage', { method: 'POST', body: JSON.stringify({ project_uuid: this.environment.COOLIFY_DEFAULT_PROJECT_UUID, server_uuid: this.environment.COOLIFY_SERVER_UUID, environment_name: this.environment.COOLIFY_DEFAULT_ENVIRONMENT_NAME, destination_uuid: this.environment.COOLIFY_DESTINATION_UUID, docker_registry_image_name: this.environment.COOLIFY_STARTER_IMAGE, docker_registry_image_tag: this.environment.COOLIFY_STARTER_IMAGE_TAG, ports_exposes: this.environment.COOLIFY_STARTER_PORT, name: input.name, description: `Qubit workspace ${input.workspaceId}`, autogenerate_domain: !this.environment.COOLIFY_WILDCARD_DOMAIN, domains: this.environment.COOLIFY_WILDCARD_DOMAIN ? `https://${input.name}.${this.environment.COOLIFY_WILDCARD_DOMAIN.replace(/^\*\./, '')}` : undefined, health_check_enabled: true, health_check_path: '/', health_check_port: this.environment.COOLIFY_STARTER_PORT, instant_deploy: true }) });
+		const wildcardDomain = this.environment.COOLIFY_WILDCARD_DOMAIN ? normalizeCoolifyWildcardDomain(this.environment.COOLIFY_WILDCARD_DOMAIN) : undefined;
+		const body = await this.request<{ uuid: string }>('/applications/dockerimage', { method: 'POST', body: JSON.stringify({ project_uuid: this.environment.COOLIFY_DEFAULT_PROJECT_UUID, server_uuid: this.environment.COOLIFY_SERVER_UUID, environment_name: this.environment.COOLIFY_DEFAULT_ENVIRONMENT_NAME, destination_uuid: this.environment.COOLIFY_DESTINATION_UUID, docker_registry_image_name: input.runtimeImage?.repository ?? this.environment.COOLIFY_STARTER_IMAGE, docker_registry_image_tag: input.runtimeImage?.tag ?? this.environment.COOLIFY_STARTER_IMAGE_TAG, ports_exposes: this.environment.COOLIFY_STARTER_PORT, name: input.name, description: `Qubit workspace ${input.workspaceId}`, autogenerate_domain: !wildcardDomain, domains: wildcardDomain ? `https://${input.name}.${wildcardDomain}` : undefined, health_check_enabled: true, health_check_path: '/', health_check_port: this.environment.COOLIFY_STARTER_PORT, instant_deploy: true }) });
 		return { id: body.uuid, status: 'pending' };
 	}
-
-	public async provisionDatabase(input: ProvisionDatabaseInput): Promise<ProviderJob> { void input; throw new Error('Database provisioning requires an explicit database engine entitlement.'); }
 
 	public async getDeployment(jobId: string): Promise<ProviderJobStatus> {
 		const application = await this.request<CoolifyApplication>(`/applications/${encodeURIComponent(jobId)}`);
