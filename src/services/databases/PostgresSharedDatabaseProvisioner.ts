@@ -4,13 +4,16 @@ import type { CreateLogicalDatabaseInput, CreatedLogicalDatabase, SharedDatabase
 
 const identifier = (value: string): string => `"${value.replaceAll('"', '""')}"`;
 
+/** Escapes a PostgreSQL string literal for DDL statements that reject bind parameters. */
+export const postgresStringLiteral = (value: string): string => `'${value.replaceAll("'", "''")}'`;
+
 /** Provisions one PostgreSQL database and a login that owns only that database. */
 export class PostgresSharedDatabaseProvisioner implements SharedDatabaseProvisioner {
 	public async createLogicalDatabase(input: CreateLogicalDatabaseInput): Promise<CreatedLogicalDatabase> {
 		const admin = new pg.Client({ host: input.host, port: input.port, database: input.adminDatabase, user: input.adminUsername, password: input.adminPassword, ssl: input.tlsMode === 'disabled' ? false : { rejectUnauthorized: input.tlsMode === 'verify-full' }, connectionTimeoutMillis: 15_000 });
 		await admin.connect();
 		try {
-			await admin.query(`CREATE ROLE ${identifier(input.username)} LOGIN PASSWORD $1`, [input.password]);
+			await admin.query(`CREATE ROLE ${identifier(input.username)} LOGIN PASSWORD ${postgresStringLiteral(input.password)}`);
 			await admin.query(`CREATE DATABASE ${identifier(input.databaseName)} OWNER ${identifier(input.username)}`);
 			if (input.connectionLimit) await admin.query(`ALTER DATABASE ${identifier(input.databaseName)} CONNECTION LIMIT ${Math.max(1, Math.trunc(input.connectionLimit))}`);
 		} catch (error) {
