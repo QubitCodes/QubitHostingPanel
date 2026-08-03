@@ -16,6 +16,8 @@ Qubit Hosting publishes reusable `linux/amd64` application runtime images to Git
 
 Node.js `22.23.2` is not an upstream release, so the catalogue uses the latest verified Node.js 22 patch, `22.23.1`.
 
+Node images pin npm 12.0.2, including patched `tar` 7.5.19, instead of retaining the vulnerable npm bundle shipped by the upstream runtime image.
+
 PHP images contain nginx and PHP-FPM within the application container. Coolify's shared Traefik proxy remains the public ingress and routes traffic to port 80. Node.js and Python images intentionally provide only a runtime foundation; customer builds supply the application entrypoint.
 
 ## Publication policy

@@ -99,7 +99,11 @@ jobs:
           set -euo pipefail
           image='${{ steps.image.outputs.local_image }}'
           case '${{ matrix.runtime }}' in
-            node) docker run --rm "$image" node --version | grep -Fx 'v${{ matrix.version }}' ;;
+            node)
+              docker run --rm "$image" node --version | grep -Fx 'v${{ matrix.version }}'
+              docker run --rm "$image" npm --version | grep -Fx '12.0.2'
+              docker run --rm "$image" node -p "require('/usr/local/lib/node_modules/npm/node_modules/tar/package.json').version" | grep -Fx '7.5.19'
+              ;;
             python) docker run --rm "$image" python --version | grep -Fx 'Python ${{ matrix.version }}' ;;
             php)
               docker run --rm "$image" php -r 'echo PHP_VERSION, PHP_EOL;' | grep -Fx '${{ matrix.version }}'

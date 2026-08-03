@@ -5,8 +5,13 @@ ENV PORT=80
 WORKDIR /app
 
 RUN apt-get update \
+	&& apt-get upgrade -y \
 	&& apt-get install -y --no-install-recommends libicu-dev libicu72 libpq-dev libpq5 libzip-dev libzip4 nginx \
-	&& docker-php-ext-install -j"$(nproc)" intl opcache pdo_mysql pdo_pgsql zip \
+	&& docker-php-ext-install -j"$(nproc)" intl \
+	&& docker-php-ext-install opcache \
+	&& docker-php-ext-install -j"$(nproc)" pdo_mysql \
+	&& docker-php-ext-install -j"$(nproc)" pdo_pgsql \
+	&& docker-php-ext-install -j"$(nproc)" zip \
 	&& apt-get purge -y --auto-remove libicu-dev libpq-dev libzip-dev \
 	&& rm -rf /var/lib/apt/lists/* /var/www/html \
 	&& mkdir -p /app/public /run/nginx \
