@@ -24,12 +24,21 @@ export interface ProviderJob {
 export type ProviderJobStatus = 'pending' | 'running' | 'succeeded' | 'failed';
 
 export interface ProvisionApplicationInput {
+	baseDirectory?: string;
+	buildCommand?: string;
+	buildPack?: 'dockerfile' | 'nixpacks' | 'static';
+	databaseEnvironment?: Array<{ key: string; value: string }>;
+	domain?: string;
+	installCommand?: string;
 	name: string;
+	publishDirectory?: string;
 	runtimeImage?: {
 		port: number;
 		repository: string;
 		tag: string;
 	};
+	source?: { branch: string; repository: string };
+	startCommand?: string;
 	workspaceId: string;
 }
 
@@ -40,4 +49,5 @@ export interface HostingProvider {
 	getUsage(): Promise<readonly ProviderUsage[]>;
 	provisionApplication(input: ProvisionApplicationInput): Promise<ProviderJob>;
 	getDeployment(jobId: string): Promise<ProviderJobStatus>;
+	getApplicationLogs(applicationId: string, lines?: number): Promise<string>;
 }

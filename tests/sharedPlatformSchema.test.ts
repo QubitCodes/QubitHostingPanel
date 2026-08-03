@@ -1,7 +1,7 @@
 import { getTableConfig } from 'drizzle-orm/pg-core';
 import { describe, expect, it } from 'vitest';
 
-import { applicationBuilds, databaseBackups, databaseClusters, logicalDatabases, runtimeImages } from '@db/schema';
+import { applicationBuilds, applicationDatabaseBindings, applicationDeployments, databaseBackups, databaseClusters, logicalDatabases, runtimeImages } from '@db/schema';
 
 describe('shared platform schema', () => {
 	it('defines shared runtimes, builds, clusters, and logical databases', () => {
@@ -10,6 +10,9 @@ describe('shared platform schema', () => {
 		expect(runtimeConfig.columns.some((column) => column.name === 'default_port' && column.notNull)).toBe(true);
 		expect(runtimeConfig.checks.some((constraint) => constraint.name === 'runtime_images_default_port_check')).toBe(true);
 		expect(getTableConfig(applicationBuilds).foreignKeys).toHaveLength(3);
+		expect(getTableConfig(applicationBuilds).checks.some((constraint) => constraint.name === 'application_builds_port_check')).toBe(true);
+		expect(getTableConfig(applicationDatabaseBindings).foreignKeys).toHaveLength(2);
+		expect(getTableConfig(applicationDeployments).foreignKeys).toHaveLength(3);
 		const clusterConfig = getTableConfig(databaseClusters);
 		expect(clusterConfig.name).toBe('database_clusters');
 		expect(clusterConfig.columns.some((column) => column.name === 'management_host')).toBe(true);

@@ -153,6 +153,9 @@ Initial publication policy: Launch, Growth, and Business may be public after the
 - `/api/v1/checkouts/:checkoutId/payment` - initiate an enabled provider payment session.
 - `/api/v1/webhooks/payments/:provider` - verify and idempotently reconcile provider webhooks.
 - `/api/v1/workspaces/:workspaceId/resources` - customer-authorized provisioning/resource state.
+- `/api/v1/workspaces/:workspaceId/applications` - list and queue runtime-backed public Git deployments.
+- `/api/v1/workspaces/:workspaceId/applications/options` - workspace-authorized runtime and database choices.
+- `/api/v1/workspaces/:workspaceId/applications/:applicationId/logs` - workspace-authorized provider logs.
 - `/api/v1/workspaces/:workspaceId/databases/:databaseId/backups` - list and create encrypted logical-database recovery points.
 - `/api/v1/workspaces/:workspaceId/databases/:databaseId/backups/:backupId/restore` - exact-name-confirmed destructive restore.
 - `/api/v1/workspaces/:workspaceId/databases/:databaseId/backups/:backupId/download` - authorized, audited decrypted dump download.

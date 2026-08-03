@@ -165,7 +165,8 @@ Gate: imported state is accurate/team-scoped and provider outages cannot corrupt
 - [x] Customer database management UI/API with URL-backed list, create, detail, reveal, and rotation views.
 - [x] Separate private Coolify and optional IP-restricted management endpoints with explicit runtime selection and TLS-ready client configuration; migration `0023` applied to Supabase.
 - [x] Live PostgreSQL/MySQL logical database creation, credential rotation, quota enforcement, and cross-workspace/platform isolation verified against staging management endpoints.
-- [ ] Customer application runtime/source selection and deployment management UI/API.
+- [x] Customer application runtime/source selection, workspace database bindings, domain conflict checks, idempotent deployment management, provider logs, and URL-backed UI/API.
+- [x] Live public Git deployment verified through Coolify with a pinned Node runtime, database environment binding, partial-create recovery, healthy panel state, and public HTTPS 200.
 - [x] Per-database encrypted backup/restore lifecycle, entitlement retention, audited download/delete controls, and URL-backed recovery UI.
 - [x] Live PostgreSQL/MySQL encrypted backup, audited download, destructive restore recovery, cross-workspace rejection, artifact deletion, and soft-deletion verification.
 
@@ -197,4 +198,4 @@ Gate: production checklist is accepted with evidence.
 
 ## Next implementation approval
 
-Next task: begin customer application runtime/source selection and deployment management.
+Next task: complete Phase 3 workspace conversion, ownership transfer, billing-profile, and subscription lifecycle gaps.

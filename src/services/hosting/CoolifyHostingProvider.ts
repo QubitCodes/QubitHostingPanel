@@ -10,6 +10,9 @@ export function normalizeCoolifyWildcardDomain(domain: string): string {
 	return domain.trim().replace(/^https?:\/\//i, '').replace(/^\*\./, '').replace(/\/+$/, '');
 }
 
+/** Finds an exact-name provider application created before a panel retry could persist it. */
+export function reusableCoolifyApplication(applications: CoolifyApplication[], name: string): CoolifyApplication | undefined { return applications.find((application) => application.name === name && application.uuid); }
+
 /** Least-privilege Coolify v4 REST adapter for starter workload provisioning. */
 export class CoolifyHostingProvider implements HostingProvider {
 	private readonly environment = getEnvironment();
@@ -53,8 +56,16 @@ export class CoolifyHostingProvider implements HostingProvider {
 		if (!this.environment.COOLIFY_DEFAULT_PROJECT_UUID || !this.environment.COOLIFY_SERVER_UUID) throw new Error('Coolify placement is incomplete.');
 		const wildcardDomain = this.environment.COOLIFY_WILDCARD_DOMAIN ? normalizeCoolifyWildcardDomain(this.environment.COOLIFY_WILDCARD_DOMAIN) : undefined;
 		const runtimePort = String(input.runtimeImage?.port ?? this.environment.COOLIFY_STARTER_PORT);
-		const body = await this.request<{ uuid: string }>('/applications/dockerimage', { method: 'POST', body: JSON.stringify({ project_uuid: this.environment.COOLIFY_DEFAULT_PROJECT_UUID, server_uuid: this.environment.COOLIFY_SERVER_UUID, environment_name: this.environment.COOLIFY_DEFAULT_ENVIRONMENT_NAME, destination_uuid: this.environment.COOLIFY_DESTINATION_UUID, docker_registry_image_name: input.runtimeImage?.repository ?? this.environment.COOLIFY_STARTER_IMAGE, docker_registry_image_tag: input.runtimeImage?.tag ?? this.environment.COOLIFY_STARTER_IMAGE_TAG, ports_exposes: runtimePort, name: input.name, description: `Qubit workspace ${input.workspaceId}`, autogenerate_domain: !wildcardDomain, domains: wildcardDomain ? `https://${input.name}.${wildcardDomain}` : undefined, health_check_enabled: true, health_check_path: '/', health_check_port: runtimePort, instant_deploy: true }) });
-		return { id: body.uuid, status: 'pending' };
+		const domains = input.domain ? `https://${input.domain}` : wildcardDomain ? `https://${input.name}.${wildcardDomain}` : undefined;
+		const applications = await this.request<CoolifyApplication[]>('/applications');
+		const existing = reusableCoolifyApplication(applications, input.name);
+		if (existing?.uuid) return { id: existing.uuid, publicUrl: existing.fqdn?.split(',')[0] ?? domains?.split(',')[0], status: 'pending' };
+		const common = { project_uuid: this.environment.COOLIFY_DEFAULT_PROJECT_UUID, server_uuid: this.environment.COOLIFY_SERVER_UUID, environment_name: this.environment.COOLIFY_DEFAULT_ENVIRONMENT_NAME, destination_uuid: this.environment.COOLIFY_DESTINATION_UUID, ports_exposes: runtimePort, name: input.name, description: `Qubit workspace ${input.workspaceId}`, autogenerate_domain: !domains, domains, health_check_enabled: true, health_check_path: '/', health_check_port: runtimePort, instant_deploy: true, force_domain_override: false };
+		const body = input.source
+			? await this.request<{ uuid: string }>('/applications/public', { method: 'POST', body: JSON.stringify({ ...common, git_repository: input.source.repository, git_branch: input.source.branch, build_pack: input.buildPack ?? 'nixpacks', install_command: input.installCommand, build_command: input.buildCommand, start_command: input.startCommand, base_directory: input.baseDirectory, publish_directory: input.publishDirectory, is_static: input.buildPack === 'static' }) })
+			: await this.request<{ uuid: string }>('/applications/dockerimage', { method: 'POST', body: JSON.stringify({ ...common, docker_registry_image_name: input.runtimeImage?.repository ?? this.environment.COOLIFY_STARTER_IMAGE, docker_registry_image_tag: input.runtimeImage?.tag ?? this.environment.COOLIFY_STARTER_IMAGE_TAG }) });
+		for (const variable of input.databaseEnvironment ?? []) await this.request(`/applications/${encodeURIComponent(body.uuid)}/envs`, { method: 'POST', body: JSON.stringify({ key: variable.key, value: variable.value, is_preview: false, is_literal: true, is_multiline: false }) });
+		return { id: body.uuid, publicUrl: domains?.split(',')[0], status: 'pending' };
 	}
 
 	public async getDeployment(jobId: string): Promise<ProviderJobStatus> {
@@ -64,4 +75,6 @@ export class CoolifyHostingProvider implements HostingProvider {
 		if (status.includes('failed') || status.includes('exited')) return 'failed';
 		return status.includes('building') || status.includes('starting') ? 'running' : 'pending';
 	}
+
+	public async getApplicationLogs(applicationId: string, lines = 100): Promise<string> { const result = await this.request<{ logs?: string }>(`/applications/${encodeURIComponent(applicationId)}/logs?lines=${Math.max(1, Math.min(1000, Math.trunc(lines)))}`); return result.logs ?? ''; }
 }

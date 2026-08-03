@@ -7,6 +7,7 @@ import { workspaces } from './tenancy';
 export const runtimeLanguageEnum = pgEnum('runtime_language', ['static', 'php', 'node', 'python']);
 export const runtimeImageStatusEnum = pgEnum('runtime_image_status', ['active', 'deprecated', 'disabled']);
 export const applicationBuildStatusEnum = pgEnum('application_build_status', ['queued', 'building', 'succeeded', 'failed', 'cancelled']);
+export const applicationDeploymentStatusEnum = pgEnum('application_deployment_status', ['queued', 'deploying', 'running', 'failed', 'stopped']);
 export const databaseEngineEnum = pgEnum('database_engine', ['postgresql', 'mysql']);
 export const databaseClusterStatusEnum = pgEnum('database_cluster_status', ['provisioning', 'active', 'maintenance', 'unavailable', 'retired']);
 export const databaseTlsModeEnum = pgEnum('database_tls_mode', ['disabled', 'require', 'verify-full']);
@@ -49,6 +50,13 @@ export const applicationBuilds = pgTable('application_builds', {
 	sourceRepository: varchar('source_repository', { length: 500 }).notNull(),
 	sourceRef: varchar('source_ref', { length: 255 }).notNull().default('main'),
 	commitSha: varchar('commit_sha', { length: 64 }),
+	installCommand: varchar('install_command', { length: 500 }),
+	buildCommand: varchar('build_command', { length: 500 }),
+	startCommand: varchar('start_command', { length: 500 }),
+	baseDirectory: varchar('base_directory', { length: 500 }).notNull().default('/'),
+	publishDirectory: varchar('publish_directory', { length: 500 }),
+	applicationPort: integer('application_port').notNull(),
+	requestedDomain: varchar('requested_domain', { length: 255 }),
 	imageRepository: varchar('image_repository', { length: 500 }),
 	imageTag: varchar('image_tag', { length: 255 }),
 	imageDigest: varchar('image_digest', { length: 255 }),
@@ -65,7 +73,42 @@ export const applicationBuilds = pgTable('application_builds', {
 	index('application_builds_workspace_status_idx').on(table.workspaceId, table.status, table.createdAt),
 	index('application_builds_resource_created_idx').on(table.resourceId, table.createdAt),
 	check('application_builds_completion_check', sql`${table.completedAt} IS NULL OR ${table.startedAt} IS NOT NULL`),
+	check('application_builds_port_check', sql`${table.applicationPort} BETWEEN 1 AND 65535`),
 ]);
+
+/** One selected logical database exposed to an application through server-managed environment variables. */
+export const applicationDatabaseBindings = pgTable('application_database_bindings', {
+	id: uuid('id').primaryKey().defaultRandom(),
+	applicationBuildId: uuid('application_build_id').notNull().references(() => applicationBuilds.id, { onDelete: 'cascade' }),
+	logicalDatabaseId: uuid('logical_database_id').notNull().references(() => logicalDatabases.id, { onDelete: 'restrict' }),
+	environmentPrefix: varchar('environment_prefix', { length: 40 }).notNull(),
+	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+	updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+	deletedAt: timestamp('deleted_at', { withTimezone: true }),
+	deleteReason: varchar('delete_reason', { length: 500 }),
+}, (table) => [
+	uniqueIndex('application_database_bindings_active_unique').on(table.applicationBuildId, table.logicalDatabaseId).where(sql`${table.deletedAt} IS NULL`),
+	uniqueIndex('application_database_bindings_prefix_active_unique').on(table.applicationBuildId, table.environmentPrefix).where(sql`${table.deletedAt} IS NULL`),
+]);
+
+/** Provider deployment history for customer applications and retries. */
+export const applicationDeployments = pgTable('application_deployments', {
+	id: uuid('id').primaryKey().defaultRandom(),
+	workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'restrict' }),
+	applicationBuildId: uuid('application_build_id').notNull().references(() => applicationBuilds.id, { onDelete: 'restrict' }),
+	resourceId: uuid('resource_id').references(() => workspaceResources.id, { onDelete: 'restrict' }),
+	status: applicationDeploymentStatusEnum('status').notNull().default('queued'),
+	providerDeploymentId: varchar('provider_deployment_id', { length: 255 }),
+	publicUrl: varchar('public_url', { length: 500 }),
+	failureReason: text('failure_reason'),
+	startedAt: timestamp('started_at', { withTimezone: true }),
+	completedAt: timestamp('completed_at', { withTimezone: true }),
+	metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default({}),
+	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+	updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+	deletedAt: timestamp('deleted_at', { withTimezone: true }),
+	deleteReason: varchar('delete_reason', { length: 500 }),
+}, (table) => [index('application_deployments_workspace_status_idx').on(table.workspaceId, table.status, table.createdAt), index('application_deployments_build_created_idx').on(table.applicationBuildId, table.createdAt)]);
 
 /** One shared database engine instance capable of hosting many isolated logical databases. */
 export const databaseClusters = pgTable('database_clusters', {
@@ -166,13 +209,16 @@ export const databaseBackups = pgTable('database_backups', {
 ]);
 
 export const runtimeImageRelations = relations(runtimeImages, ({ many }) => ({ builds: many(applicationBuilds) }));
-export const applicationBuildRelations = relations(applicationBuilds, ({ one }) => ({ workspace: one(workspaces, { fields: [applicationBuilds.workspaceId], references: [workspaces.id] }), resource: one(workspaceResources, { fields: [applicationBuilds.resourceId], references: [workspaceResources.id] }), runtimeImage: one(runtimeImages, { fields: [applicationBuilds.runtimeImageId], references: [runtimeImages.id] }) }));
+export const applicationBuildRelations = relations(applicationBuilds, ({ one, many }) => ({ workspace: one(workspaces, { fields: [applicationBuilds.workspaceId], references: [workspaces.id] }), resource: one(workspaceResources, { fields: [applicationBuilds.resourceId], references: [workspaceResources.id] }), runtimeImage: one(runtimeImages, { fields: [applicationBuilds.runtimeImageId], references: [runtimeImages.id] }), databaseBindings: many(applicationDatabaseBindings), deployments: many(applicationDeployments) }));
+export const applicationDatabaseBindingRelations = relations(applicationDatabaseBindings, ({ one }) => ({ applicationBuild: one(applicationBuilds, { fields: [applicationDatabaseBindings.applicationBuildId], references: [applicationBuilds.id] }), logicalDatabase: one(logicalDatabases, { fields: [applicationDatabaseBindings.logicalDatabaseId], references: [logicalDatabases.id] }) }));
+export const applicationDeploymentRelations = relations(applicationDeployments, ({ one }) => ({ workspace: one(workspaces, { fields: [applicationDeployments.workspaceId], references: [workspaces.id] }), applicationBuild: one(applicationBuilds, { fields: [applicationDeployments.applicationBuildId], references: [applicationBuilds.id] }), resource: one(workspaceResources, { fields: [applicationDeployments.resourceId], references: [workspaceResources.id] }) }));
 export const databaseClusterRelations = relations(databaseClusters, ({ many }) => ({ databases: many(logicalDatabases) }));
 export const logicalDatabaseRelations = relations(logicalDatabases, ({ one, many }) => ({ workspace: one(workspaces, { fields: [logicalDatabases.workspaceId], references: [workspaces.id] }), resource: one(workspaceResources, { fields: [logicalDatabases.resourceId], references: [workspaceResources.id] }), cluster: one(databaseClusters, { fields: [logicalDatabases.clusterId], references: [databaseClusters.id] }), backups: many(databaseBackups) }));
 export const databaseBackupRelations = relations(databaseBackups, ({ one }) => ({ workspace: one(workspaces, { fields: [databaseBackups.workspaceId], references: [workspaces.id] }), logicalDatabase: one(logicalDatabases, { fields: [databaseBackups.logicalDatabaseId], references: [logicalDatabases.id] }) }));
 
 export type RuntimeImage = typeof runtimeImages.$inferSelect;
 export type ApplicationBuild = typeof applicationBuilds.$inferSelect;
+export type ApplicationDeployment = typeof applicationDeployments.$inferSelect;
 export type DatabaseCluster = typeof databaseClusters.$inferSelect;
 export type LogicalDatabase = typeof logicalDatabases.$inferSelect;
 export type DatabaseBackup = typeof databaseBackups.$inferSelect;
