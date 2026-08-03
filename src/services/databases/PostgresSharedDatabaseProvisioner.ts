@@ -26,7 +26,7 @@ export class PostgresSharedDatabaseProvisioner implements SharedDatabaseProvisio
 	public async rotateCredential(input: CreateLogicalDatabaseInput & { password: string }): Promise<void> {
 		const admin = new pg.Client({ host: input.host, port: input.port, database: input.adminDatabase, user: input.adminUsername, password: input.adminPassword, ssl: input.tlsMode === 'disabled' ? false : { rejectUnauthorized: input.tlsMode === 'verify-full' }, connectionTimeoutMillis: 15_000 });
 		await admin.connect();
-		try { await admin.query(`ALTER ROLE ${identifier(input.username)} PASSWORD $1`, [input.password]); }
+		try { await admin.query(`ALTER ROLE ${identifier(input.username)} PASSWORD ${postgresStringLiteral(input.password)}`); }
 		finally { await admin.end(); }
 	}
 }
