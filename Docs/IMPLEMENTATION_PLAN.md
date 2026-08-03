@@ -154,7 +154,9 @@ Gate: imported state is accurate/team-scoped and provider outages cannot corrupt
 - [x] Partial-failure reconciliation prevents repeat workers from recreating an existing provider resource.
 - [x] Shared-platform schema foundation for reusable runtime images, build artifacts, database clusters, and workspace logical databases.
 - [x] Separate shared logical-database provisioning contract from Coolify application provisioning.
-- [ ] GitHub Actions runtime-image build and GHCR publication workflow.
+- [x] Version-pinned Node.js, PHP/nginx, Python, and static/nginx runtime definitions with default-port catalogue seeding.
+- [x] GitHub Actions runtime-image build, smoke-test, security-scan, provenance, SBOM, and GHCR publication workflow.
+- [ ] First GHCR runtime publication verified and immutable digests recorded in the runtime catalogue.
 - [ ] Admin runtime catalogue and shared database cluster management.
 - [ ] PostgreSQL/MySQL logical database creation, restricted users, encrypted credential reveal/rotation, quotas, and reconciliation.
 - [ ] Customer application runtime selection and database management UI/API.
@@ -188,4 +190,4 @@ Gate: production checklist is accepted with evidence.
 
 ## Next implementation approval
 
-Next task: apply migration `0020`, publish the first approved runtime images, register shared PostgreSQL/MySQL staging clusters, then implement logical database provisioning before the complete customer purchase/deployment test.
+Next task: push migration `0021` and the runtime workflow, verify the first GHCR publication, record immutable image digests, then register shared PostgreSQL 18.4 and MySQL 8.0.46 staging clusters before implementing logical database provisioning.

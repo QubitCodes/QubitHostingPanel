@@ -31,10 +31,13 @@ Applications remain isolated containers. Customers sharing a runtime version reu
 - Stable code presented to APIs and UI.
 - Language and supported version.
 - Registry, repository, tag, and optional immutable digest.
+- Default internal HTTP port used by Coolify exposure and health checks.
 - Active, deprecated, or disabled lifecycle state.
 - Default selection per product policy.
 
-Initial target images are maintained in GitHub Container Registry under `ghcr.io/qubitcodes/runtimes`. Customer builds should pin an approved digest when reproducibility is required. Runtime removal is a staged lifecycle: stop new selections, mark deprecated, notify affected workspaces, rebuild or migrate applications, then disable.
+Initial target images are maintained in GitHub Container Registry as `ghcr.io/qubitcodes/runtime-{node,php,python,static}`. The approved versions are Node.js 22.23.1 and 24.18.0, PHP 8.3.30 and 8.5.6, Python 3.12.13 and 3.13.14, and nginx 1.30.4. Node.js 22.23.1 replaces the requested 22.23.2 because the latter is not an upstream release.
+
+The runtime workflow builds `linux/amd64` images for the current EC2 architecture, performs version smoke checks and fixable-critical vulnerability scanning, and publishes exact, channel, and source-revision tags only from `main` or manual dispatch. GitHub Actions dependencies are pinned to immutable commits. Published artifacts include provenance and an SBOM. Customer deployments should pin an approved digest when reproducibility is required. Runtime removal is a staged lifecycle: stop new selections, mark deprecated, notify affected workspaces, rebuild or migrate applications, then disable.
 
 `application_builds` records source repository/ref, commit, selected runtime, build status, generated image reference, provider build identifier, and failure state. GitHub Actions should build and publish customer images so the Coolify host spends its capacity running workloads rather than compiling them.
 
@@ -90,8 +93,8 @@ Shared-volume snapshots protect the cluster but are not sufficient for customer-
 
 ## Delivery sequence
 
-1. Apply migration `0020` and verify the new schema.
-2. Build and publish signed/versioned Qubit runtime images through GitHub Actions.
+1. Apply migration `0021` and seed the approved runtime catalogue.
+2. Publish the first signed/versioned Qubit runtime images through GitHub Actions and record their verified digests.
 3. Add admin runtime-catalogue and database-cluster management.
 4. Provision one shared PostgreSQL and one shared MySQL staging service.
 5. Implement encrypted cluster registration and engine-specific logical database provisioners.

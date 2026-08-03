@@ -26,6 +26,7 @@ export type ProviderJobStatus = 'pending' | 'running' | 'succeeded' | 'failed';
 export interface ProvisionApplicationInput {
 	name: string;
 	runtimeImage?: {
+		port: number;
 		repository: string;
 		tag: string;
 	};

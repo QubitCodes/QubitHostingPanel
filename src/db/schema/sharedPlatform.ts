@@ -20,6 +20,7 @@ export const runtimeImages = pgTable('runtime_images', {
 	registry: varchar('registry', { length: 255 }).notNull().default('ghcr.io'),
 	repository: varchar('repository', { length: 255 }).notNull(),
 	tag: varchar('tag', { length: 120 }).notNull(),
+	defaultPort: integer('default_port').notNull(),
 	digest: varchar('digest', { length: 255 }),
 	status: runtimeImageStatusEnum('status').notNull().default('active'),
 	isDefault: boolean('is_default').notNull().default(false),
@@ -32,6 +33,7 @@ export const runtimeImages = pgTable('runtime_images', {
 	uniqueIndex('runtime_images_code_active_unique').on(table.code).where(sql`${table.deletedAt} IS NULL`),
 	uniqueIndex('runtime_images_reference_active_unique').on(table.registry, table.repository, table.tag).where(sql`${table.deletedAt} IS NULL`),
 	index('runtime_images_language_status_idx').on(table.language, table.status),
+	check('runtime_images_default_port_check', sql`${table.defaultPort} BETWEEN 1 AND 65535`),
 ]);
 
 /** Build artifact history connecting customer source revisions to deployable images. */

@@ -1,0 +1,147 @@
+name: Runtime images
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/runtime-images.yml'
+      - 'runtimes/**'
+  pull_request:
+    paths:
+      - '.github/workflows/runtime-images.yml'
+      - 'runtimes/**'
+  workflow_dispatch:
+
+concurrency:
+  group: runtime-images-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: ${{ matrix.runtime }} ${{ matrix.version }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runtime: node
+            version: 22.23.1
+            channel: '22'
+            context: runtimes/node
+          - runtime: node
+            version: 24.18.0
+            channel: '24'
+            context: runtimes/node
+          - runtime: php
+            version: 8.3.30
+            channel: '8.3'
+            context: runtimes/php
+          - runtime: php
+            version: 8.5.6
+            channel: '8.5'
+            context: runtimes/php
+          - runtime: python
+            version: 3.12.13
+            channel: '3.12'
+            context: runtimes/python
+          - runtime: python
+            version: 3.13.14
+            channel: '3.13'
+            context: runtimes/python
+          - runtime: static
+            version: 1.30.4
+            channel: stable
+            context: runtimes/static
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
+
+      - name: Prepare image references
+        id: image
+        shell: bash
+        run: |
+          image="ghcr.io/qubitcodes/runtime-${{ matrix.runtime }}"
+          local_image="qubit-runtime-${{ matrix.runtime }}:${{ matrix.version }}"
+          {
+            echo "image=${image}"
+            echo "local_image=${local_image}"
+            echo 'tags<<EOF'
+            echo "${image}:${{ matrix.version }}"
+            echo "${image}:${{ matrix.channel }}"
+            echo "${image}:${{ matrix.channel }}-sha-${GITHUB_SHA::12}"
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Build local verification image
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
+        with:
+          context: ${{ matrix.context }}
+          build-args: RUNTIME_VERSION=${{ matrix.version }}
+          load: true
+          platforms: linux/amd64
+          push: false
+          tags: ${{ steps.image.outputs.local_image }}
+          cache-from: type=gha,scope=${{ matrix.runtime }}-${{ matrix.channel }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.runtime }}-${{ matrix.channel }}
+
+      - name: Smoke-test runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          image='${{ steps.image.outputs.local_image }}'
+          case '${{ matrix.runtime }}' in
+            node) docker run --rm "$image" node --version | grep -Fx 'v${{ matrix.version }}' ;;
+            python) docker run --rm "$image" python --version | grep -Fx 'Python ${{ matrix.version }}' ;;
+            php)
+              docker run --rm "$image" php -r 'echo PHP_VERSION, PHP_EOL;' | grep -Fx '${{ matrix.version }}'
+              docker run --rm "$image" php -m | grep -Fx 'intl'
+              docker run --rm "$image" php -m | grep -Fx 'pdo_mysql'
+              docker run --rm "$image" php -m | grep -Fx 'pdo_pgsql'
+              ;;
+            static) docker run --rm "$image" nginx -v 2>&1 | grep -F 'nginx/${{ matrix.version }}' ;;
+          esac
+
+      - name: Scan image for fixable vulnerabilities
+        uses: anchore/scan-action@3c9a191a0fbab285ca6b8530b5de5a642cba332f # v7.2.2
+        with:
+          image: ${{ steps.image.outputs.local_image }}
+          fail-build: true
+          output-format: table
+          only-fixed: true
+          severity-cutoff: critical
+
+      - name: Log in to GHCR
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1 # v3.5.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish verified runtime image
+        if: github.event_name != 'pull_request'
+        id: publish
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
+        with:
+          context: ${{ matrix.context }}
+          build-args: RUNTIME_VERSION=${{ matrix.version }}
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.image.outputs.tags }}
+          cache-from: type=gha,scope=${{ matrix.runtime }}-${{ matrix.channel }}
+          provenance: mode=max
+          sbom: true
+
+      - name: Record published digest
+        if: github.event_name != 'pull_request'
+        shell: bash
+        run: echo '${{ steps.image.outputs.image }}:${{ matrix.version }}@${{ steps.publish.outputs.digest }}' >> "$GITHUB_STEP_SUMMARY"

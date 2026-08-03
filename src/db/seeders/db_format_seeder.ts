@@ -10,7 +10,38 @@ import {
 	packageCategories,
 	packagePrices,
 	packages,
+	runtimeImages,
 } from '@db/schema';
+
+const RUNTIME_SEEDS = [
+	{ code: 'node-22', language: 'node', version: '22.23.1', repository: 'qubitcodes/runtime-node', tag: '22.23.1', defaultPort: 3000, isDefault: false },
+	{ code: 'node-24', language: 'node', version: '24.18.0', repository: 'qubitcodes/runtime-node', tag: '24.18.0', defaultPort: 3000, isDefault: true },
+	{ code: 'php-8.3', language: 'php', version: '8.3.30', repository: 'qubitcodes/runtime-php', tag: '8.3.30', defaultPort: 80, isDefault: false },
+	{ code: 'php-8.5', language: 'php', version: '8.5.6', repository: 'qubitcodes/runtime-php', tag: '8.5.6', defaultPort: 80, isDefault: true },
+	{ code: 'python-3.12', language: 'python', version: '3.12.13', repository: 'qubitcodes/runtime-python', tag: '3.12.13', defaultPort: 8000, isDefault: false },
+	{ code: 'python-3.13', language: 'python', version: '3.13.14', repository: 'qubitcodes/runtime-python', tag: '3.13.14', defaultPort: 8000, isDefault: true },
+	{ code: 'static-nginx', language: 'static', version: '1.30.4', repository: 'qubitcodes/runtime-static', tag: '1.30.4', defaultPort: 80, isDefault: true },
+] as const;
+
+/** Seeds approved runtime references after their corresponding workflow definitions exist. */
+async function seedRuntimeCatalogue(): Promise<void> {
+	for (const runtime of RUNTIME_SEEDS) {
+		await db.insert(runtimeImages).values(runtime).onConflictDoUpdate({
+			target: runtimeImages.code,
+			targetWhere: sql`${runtimeImages.deletedAt} IS NULL`,
+			set: {
+				defaultPort: runtime.defaultPort,
+				isDefault: runtime.isDefault,
+				language: runtime.language,
+				repository: runtime.repository,
+				status: 'active',
+				tag: runtime.tag,
+				updatedAt: new Date(),
+				version: runtime.version,
+			},
+		});
+	}
+}
 
 const PACKAGE_SEEDS = [
 	{ name: 'Launch', slug: 'launch', categorySlug: 'cloud-app-hosting', description: 'A focused starter plan for one production application.', monthly: 399, trialDuration: 7, displayOrder: 10 },
@@ -213,8 +244,9 @@ export async function seedEssentialData(): Promise<void> {
 		}
 	}
 	await seedPackageCatalogue();
+	await seedRuntimeCatalogue();
 	console.info(
-		`Seeded ${ROLE_SEEDS.length} roles, ${permissions.length} permissions, and ${PACKAGE_SEEDS.length} draft packages.`,
+		`Seeded ${ROLE_SEEDS.length} roles, ${permissions.length} permissions, ${PACKAGE_SEEDS.length} draft packages, and ${RUNTIME_SEEDS.length} runtimes.`,
 	);
 }
 
