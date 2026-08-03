@@ -1,5 +1,5 @@
 import { relations, sql } from 'drizzle-orm';
-import { boolean, check, index, integer, jsonb, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid, varchar } from 'drizzle-orm/pg-core';
+import { bigint, boolean, check, index, integer, jsonb, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid, varchar } from 'drizzle-orm/pg-core';
 
 import { workspaceResources } from './provisioning';
 import { workspaces } from './tenancy';
@@ -11,6 +11,8 @@ export const databaseEngineEnum = pgEnum('database_engine', ['postgresql', 'mysq
 export const databaseClusterStatusEnum = pgEnum('database_cluster_status', ['provisioning', 'active', 'maintenance', 'unavailable', 'retired']);
 export const databaseTlsModeEnum = pgEnum('database_tls_mode', ['disabled', 'require', 'verify-full']);
 export const logicalDatabaseStatusEnum = pgEnum('logical_database_status', ['provisioning', 'active', 'suspended', 'failed']);
+export const databaseBackupStatusEnum = pgEnum('database_backup_status', ['queued', 'running', 'completed', 'failed', 'deleted']);
+export const databaseRestoreStatusEnum = pgEnum('database_restore_status', ['not_started', 'running', 'completed', 'failed']);
 
 /** Shared, immutable base images reused across customer application containers. */
 export const runtimeImages = pgTable('runtime_images', {
@@ -134,12 +136,43 @@ export const logicalDatabases = pgTable('logical_databases', {
 	check('logical_databases_connection_limit_check', sql`${table.connectionLimit} IS NULL OR ${table.connectionLimit} > 0`),
 ]);
 
+/** Encrypted, workspace-owned dump of one logical database and its restore evidence. */
+export const databaseBackups = pgTable('database_backups', {
+	id: uuid('id').primaryKey().defaultRandom(),
+	workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'restrict' }),
+	logicalDatabaseId: uuid('logical_database_id').notNull().references(() => logicalDatabases.id, { onDelete: 'restrict' }),
+	status: databaseBackupStatusEnum('status').notNull().default('queued'),
+	restoreStatus: databaseRestoreStatusEnum('restore_status').notNull().default('not_started'),
+	storageKey: varchar('storage_key', { length: 500 }),
+	checksumSha256: varchar('checksum_sha256', { length: 64 }),
+	sizeBytes: bigint('size_bytes', { mode: 'number' }),
+	failureReason: text('failure_reason'),
+	restoreFailureReason: text('restore_failure_reason'),
+	startedAt: timestamp('started_at', { withTimezone: true }),
+	completedAt: timestamp('completed_at', { withTimezone: true }),
+	lastRestoreStartedAt: timestamp('last_restore_started_at', { withTimezone: true }),
+	lastRestoredAt: timestamp('last_restored_at', { withTimezone: true }),
+	expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+	metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default({}),
+	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+	updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+	deletedAt: timestamp('deleted_at', { withTimezone: true }),
+	deleteReason: varchar('delete_reason', { length: 500 }),
+}, (table) => [
+	index('database_backups_workspace_database_created_idx').on(table.workspaceId, table.logicalDatabaseId, table.createdAt),
+	index('database_backups_status_expires_idx').on(table.status, table.expiresAt),
+	check('database_backups_size_check', sql`${table.sizeBytes} IS NULL OR ${table.sizeBytes} >= 0`),
+	check('database_backups_completion_check', sql`${table.completedAt} IS NULL OR ${table.startedAt} IS NOT NULL`),
+]);
+
 export const runtimeImageRelations = relations(runtimeImages, ({ many }) => ({ builds: many(applicationBuilds) }));
 export const applicationBuildRelations = relations(applicationBuilds, ({ one }) => ({ workspace: one(workspaces, { fields: [applicationBuilds.workspaceId], references: [workspaces.id] }), resource: one(workspaceResources, { fields: [applicationBuilds.resourceId], references: [workspaceResources.id] }), runtimeImage: one(runtimeImages, { fields: [applicationBuilds.runtimeImageId], references: [runtimeImages.id] }) }));
 export const databaseClusterRelations = relations(databaseClusters, ({ many }) => ({ databases: many(logicalDatabases) }));
-export const logicalDatabaseRelations = relations(logicalDatabases, ({ one }) => ({ workspace: one(workspaces, { fields: [logicalDatabases.workspaceId], references: [workspaces.id] }), resource: one(workspaceResources, { fields: [logicalDatabases.resourceId], references: [workspaceResources.id] }), cluster: one(databaseClusters, { fields: [logicalDatabases.clusterId], references: [databaseClusters.id] }) }));
+export const logicalDatabaseRelations = relations(logicalDatabases, ({ one, many }) => ({ workspace: one(workspaces, { fields: [logicalDatabases.workspaceId], references: [workspaces.id] }), resource: one(workspaceResources, { fields: [logicalDatabases.resourceId], references: [workspaceResources.id] }), cluster: one(databaseClusters, { fields: [logicalDatabases.clusterId], references: [databaseClusters.id] }), backups: many(databaseBackups) }));
+export const databaseBackupRelations = relations(databaseBackups, ({ one }) => ({ workspace: one(workspaces, { fields: [databaseBackups.workspaceId], references: [workspaces.id] }), logicalDatabase: one(logicalDatabases, { fields: [databaseBackups.logicalDatabaseId], references: [logicalDatabases.id] }) }));
 
 export type RuntimeImage = typeof runtimeImages.$inferSelect;
 export type ApplicationBuild = typeof applicationBuilds.$inferSelect;
 export type DatabaseCluster = typeof databaseClusters.$inferSelect;
 export type LogicalDatabase = typeof logicalDatabases.$inferSelect;
+export type DatabaseBackup = typeof databaseBackups.$inferSelect;

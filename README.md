@@ -70,6 +70,7 @@ Requirements:
 - npm.
 - PostgreSQL or a Supabase development database for migration verification.
 - Published `@qubitcodes/msg91` package from the npm registry.
+- PostgreSQL `pg_dump`/`pg_restore` and MySQL `mysqldump`/`mysql` clients when exercising logical-database backup and restore.
 
 ```powershell
 Copy-Item .env.example .env
@@ -106,6 +107,8 @@ Generate any missing application-owned secrets without replacing existing values
 ```powershell
 npm.cmd run env:generate-secrets
 ```
+
+Per-database recovery artifacts default to `storage/database-backups`, which is runtime-only and Git-ignored. Set `DATABASE_BACKUP_STORAGE_PATH` to durable mounted storage in shared environments and configure the four native client path variables when the binaries are not available on `PATH`. Artifacts remain AES-256-GCM encrypted at rest; downloading or restoring requires workspace authorization and checksum verification.
 
 For Supabase direct connections in environments with a private/self-signed intermediary certificate chain, use encrypted libpq-compatible SSL parameters: `sslmode=require&uselibpqcompat=true`. Do not commit the resulting connection string.
 
@@ -150,6 +153,9 @@ Initial publication policy: Launch, Growth, and Business may be public after the
 - `/api/v1/checkouts/:checkoutId/payment` - initiate an enabled provider payment session.
 - `/api/v1/webhooks/payments/:provider` - verify and idempotently reconcile provider webhooks.
 - `/api/v1/workspaces/:workspaceId/resources` - customer-authorized provisioning/resource state.
+- `/api/v1/workspaces/:workspaceId/databases/:databaseId/backups` - list and create encrypted logical-database recovery points.
+- `/api/v1/workspaces/:workspaceId/databases/:databaseId/backups/:backupId/restore` - exact-name-confirmed destructive restore.
+- `/api/v1/workspaces/:workspaceId/databases/:databaseId/backups/:backupId/download` - authorized, audited decrypted dump download.
 - `/api/v1/auth/refresh` - rotate a refresh token.
 - `/api/v1/auth/logout` - revoke the bearer session.
 - `/api/v1/auth/context` - switch between personal and authorized admin context.

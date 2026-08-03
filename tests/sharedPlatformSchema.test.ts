@@ -1,7 +1,7 @@
 import { getTableConfig } from 'drizzle-orm/pg-core';
 import { describe, expect, it } from 'vitest';
 
-import { applicationBuilds, databaseClusters, logicalDatabases, runtimeImages } from '@db/schema';
+import { applicationBuilds, databaseBackups, databaseClusters, logicalDatabases, runtimeImages } from '@db/schema';
 
 describe('shared platform schema', () => {
 	it('defines shared runtimes, builds, clusters, and logical databases', () => {
@@ -15,5 +15,8 @@ describe('shared platform schema', () => {
 		expect(clusterConfig.columns.some((column) => column.name === 'management_host')).toBe(true);
 		expect(clusterConfig.checks.some((constraint) => constraint.name === 'database_clusters_management_endpoint_check')).toBe(true);
 		expect(getTableConfig(logicalDatabases).foreignKeys).toHaveLength(3);
+		const backupConfig = getTableConfig(databaseBackups);
+		expect(backupConfig.foreignKeys).toHaveLength(2);
+		expect(backupConfig.checks.some((constraint) => constraint.name === 'database_backups_completion_check')).toBe(true);
 	});
 });
