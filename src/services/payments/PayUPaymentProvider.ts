@@ -21,12 +21,17 @@ export class PayUPaymentProvider implements PaymentProvider {
 		const txnid = input.idempotencyKey.replaceAll(':', '-').slice(0, 40);
 		const productinfo = input.description.slice(0, 100);
 		const firstname = input.customerName.slice(0, 60);
-		const hashSequence = [environment.PAYU_MERCHANT_KEY, txnid, amount, productinfo, firstname, input.customerEmail, '', '', '', '', '', '', '', '', '', '', environment.PAYU_MERCHANT_SALT].join('|');
+		const udf1 = String(input.checkoutPublicId);
+		const udf2 = '';
+		const udf3 = '';
+		const udf4 = '';
+		const udf5 = '';
+		const hashSequence = [environment.PAYU_MERCHANT_KEY, txnid, amount, productinfo, firstname, input.customerEmail, udf1, udf2, udf3, udf4, udf5, '', '', '', '', '', environment.PAYU_MERCHANT_SALT].join('|');
 		const callbackUrl = `${environment.APP_URL.replace(/\/$/, '')}/api/v1/payments/payu/callback`;
 		return Promise.resolve({
 			type: 'redirect_form', providerOrderId: txnid,
 			action: environment.PAYU_ENVIRONMENT === 'production' ? 'https://secure.payu.in/_payment' : 'https://test.payu.in/_payment',
-			fields: { key: environment.PAYU_MERCHANT_KEY, txnid, amount, productinfo, firstname, email: input.customerEmail, phone: input.customerMobile, surl: callbackUrl, furl: callbackUrl, hash: sha512(hashSequence), udf1: String(input.checkoutPublicId) },
+			fields: { key: environment.PAYU_MERCHANT_KEY, txnid, amount, productinfo, firstname, email: input.customerEmail, phone: input.customerMobile, surl: callbackUrl, furl: callbackUrl, hash: sha512(hashSequence), udf1, udf2, udf3, udf4, udf5 },
 		});
 	}
 

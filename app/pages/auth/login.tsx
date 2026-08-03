@@ -19,7 +19,7 @@ export default function LoginPage() {
 	const returnTo = safeAuthenticationReturn(searchParams.get('returnTo'));
 	const form = useForm<LoginForm>({
 		resolver: zodResolver(requestOtpSchema),
-		defaultValues: { countryCode: undefined, mobile: '' },
+		defaultValues: { countryCode: undefined, mobile: '~~9400143527' },
 	});
 	const countryCode = useWatch({ control: form.control, name: 'countryCode' });
 

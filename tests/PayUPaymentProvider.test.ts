@@ -16,8 +16,9 @@ describe('PayUPaymentProvider', () => {
 
 	it('creates a test hosted-checkout form without exposing the salt', async () => {
 		const session = await new PayUPaymentProvider().createPayment({ amountMinor: 11782, checkoutPublicId: 123456, currency: 'INR', customerEmail: 'buyer@example.test', customerMobile: '919876543210', customerName: 'Test Buyer', description: 'Launch', idempotencyKey: 'checkout:123456:payu:1' });
+		const expectedHash = sha512(['merchant-key', 'checkout-123456-payu-1', '117.82', 'Launch', 'Test Buyer', 'buyer@example.test', '123456', '', '', '', '', '', '', '', '', '', 'merchant-salt'].join('|'));
 		expect(session.action).toBe('https://test.payu.in/_payment');
-		expect(session.fields).toMatchObject({ amount: '117.82', key: 'merchant-key', udf1: '123456' });
+		expect(session.fields).toMatchObject({ amount: '117.82', hash: expectedHash, key: 'merchant-key', udf1: '123456', udf2: '', udf3: '', udf4: '', udf5: '' });
 		expect(JSON.stringify(session)).not.toContain('merchant-salt');
 	});
 
