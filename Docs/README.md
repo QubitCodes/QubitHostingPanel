@@ -11,6 +11,7 @@
 ## Document map
 
 1. `COOLIFY_INTEGRATION_DOCS.md` - preserved original Coolify/AWS deployment reference.
+2. `PAYMENTS_AND_PROVISIONING.md` - payment gateway, webhook, worker, and Coolify purchase-test runbook.
 2. `PRODUCT_ARCHITECTURE.md` - system boundaries, ownership, and integration architecture.
 3. `MVA_REQUIREMENTS.md` - approved first-release functional requirements.
 4. `AUTHENTICATION_AND_ACCESS.md` - passwordless identity, permissions, organisations, and context switching.

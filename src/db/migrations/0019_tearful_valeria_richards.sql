@@ -1,0 +1,2 @@
+ALTER TABLE "customer_checkouts" ADD COLUMN "quote_id" uuid;--> statement-breakpoint
+CREATE UNIQUE INDEX "customer_checkouts_quote_id_unique" ON "customer_checkouts" USING btree ("quote_id") WHERE "customer_checkouts"."quote_id" IS NOT NULL AND "customer_checkouts"."deleted_at" IS NULL;

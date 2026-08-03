@@ -4,5 +4,7 @@ export * from './commercial';
 export * from './identity';
 export * from './offers';
 export * from './packages';
+export * from './payments';
+export * from './provisioning';
 export * from './tenancy';
 export * from './subscriptions';

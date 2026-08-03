@@ -255,6 +255,30 @@ export const OPENAPI_DOCUMENT = {
 			get: { summary: 'Retrieve an owned purchase checkout', operationId: 'showCheckout', security: [{ bearerAuth: [] }], parameters: [{ in: 'path', name: 'checkoutId', required: true, schema: { type: 'integer', minimum: 100000, maximum: 999999 } }], responses: { '200': { description: 'Checkout retrieved.' }, '404': { description: 'Checkout not found.' } } },
 			post: { summary: 'Create and configure the purchased workspace', operationId: 'configureCheckoutWorkspace', security: [{ bearerAuth: [] }], parameters: [{ in: 'path', name: 'checkoutId', required: true, schema: { type: 'integer', minimum: 100000, maximum: 999999 } }], responses: { '201': { description: 'Workspace and subscription created from purchase snapshots.' }, '422': { description: 'Checkout already configured or input invalid.' } } },
 		},
+		'/checkouts/{checkoutId}/payment': {
+			post: { summary: 'Create a payment-provider session for an owned checkout', operationId: 'initiateCheckoutPayment', security: [{ bearerAuth: [] }], responses: { '201': { description: 'PayU redirect form, Razorpay order, or development mock session created.' }, '422': { description: 'Checkout cannot accept payment.' }, '502': { description: 'Payment provider unavailable.' } } },
+		},
+		'/payments/providers': {
+			get: { summary: 'List payment providers enabled for this environment', operationId: 'listPaymentProviders', responses: { '200': { description: 'Enabled provider codes.' } } },
+		},
+		'/payments/payu/callback': {
+			post: { summary: 'Validate PayU Hosted Checkout browser response', operationId: 'payuPaymentCallback', responses: { '303': { description: 'Verified redirect to setup or failure page.' }, '400': { description: 'Hash verification failed.' } } },
+		},
+		'/payments/{provider}/callback': {
+			post: { summary: 'Verify Razorpay or development mock browser completion', operationId: 'paymentProviderCallback', responses: { '200': { description: 'Payment verified.' }, '400': { description: 'Signature verification failed.' } } },
+		},
+		'/webhooks/payments/{provider}': {
+			post: { summary: 'Receive an idempotent verified payment webhook', operationId: 'paymentWebhook', responses: { '200': { description: 'Webhook accepted or already processed.' }, '400': { description: 'Webhook verification failed.' } } },
+		},
+		'/workspaces/{workspaceId}/resources': {
+			get: { summary: 'List owned workspace provisioning jobs and resources', operationId: 'listWorkspaceResources', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Provisioning and resource state.' }, '404': { description: 'Workspace not found.' } } },
+		},
+		'/internal/jobs/process': {
+			post: { summary: 'Process a bounded provisioning-job batch', operationId: 'processProvisioningJobs', responses: { '200': { description: 'Batch result.' }, '404': { description: 'Hidden when worker secret is invalid.' } } },
+		},
+		'/internal/provider/health': {
+			get: { summary: 'Validate the configured hosting provider', operationId: 'hostingProviderHealth', responses: { '200': { description: 'Provider connected.' }, '502': { description: 'Provider unavailable.' } } },
+		},
 		'/workspaces/{workspaceId}': {
 			get: {
 				summary: 'View an authorized workspace by its six-digit public ID',

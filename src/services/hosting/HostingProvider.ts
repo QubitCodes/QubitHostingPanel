@@ -17,6 +17,7 @@ export interface ProviderUsage {
 
 export interface ProviderJob {
 	id: string;
+	publicUrl?: string;
 	status: ProviderJobStatus;
 }
 
@@ -24,12 +25,12 @@ export type ProviderJobStatus = 'pending' | 'running' | 'succeeded' | 'failed';
 
 export interface ProvisionApplicationInput {
 	name: string;
-	organisationId: string;
+	workspaceId: string;
 }
 
 export interface ProvisionDatabaseInput {
 	name: string;
-	organisationId: string;
+	workspaceId: string;
 }
 
 /** Provider boundary keeping Coolify-specific contracts out of commercial logic. */

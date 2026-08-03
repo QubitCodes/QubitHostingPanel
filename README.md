@@ -4,7 +4,7 @@ Standalone hosting commerce and management application for Qubit Codes.
 
 ## Status
 
-Phases 0 through 2 are complete. Phase 3 now includes the public landing page and the customer/workspace tenancy schema foundation; transactional OTP onboarding and existing-user backfill come next. The application includes verified WhatsApp OTP authentication, access/refresh sessions, user-owned device management, platform authorization, secure context switching, package/offer commerce, and the responsive light/dark panel interface.
+Phases 0 through 2 are complete. Phase 3 includes purchase-first customer/workspace onboarding, persistent subscriptions, mock/PayU/Razorpay payment boundaries, verified webhook processing, and customer/admin dashboards. Coolify staging support includes connection validation, idempotent starter-workload provisioning, reconciliation, retries, and operational visibility. See `Docs/PAYMENTS_AND_PROVISIONING.md` for the staging purchase runbook.
 
 ## Product boundary
 
@@ -88,12 +88,13 @@ npm.cmd run db:generate
 npm.cmd run db:migrate
 npm.cmd run db:seed
 npm.cmd run db:verify
+npm.cmd run jobs:process
 ```
 
 Create the first Super Admin explicitly, without persisting identity details in environment configuration:
 
 ```powershell
-npm.cmd run db:seed:super-admin -- --country-code=91 --local-mobile=9400143527 --display-name="Super Admin"
+npm.cmd run db:seed:super-admin -- --country-code=91 --mobile=9000000000 --display-name="Super Admin"
 ```
 
 Authentication requires server-only `MSG91_AUTH_KEY`, `MSG91_WHATSAPP_NUMBER`, `OTP_HASH_SECRET`, `JWT_ACCESS_SECRET`, and `JWT_REFRESH_SECRET` values. The MSG91 authentication template and language use the SDK's code-owned `common_otp` and `en` defaults. Each application secret must be independently generated with at least 32 characters. Never expose them through Vite-prefixed variables or commit them.
@@ -126,6 +127,9 @@ Local endpoints:
 - `/admin/packages/:packageSlug/entitlements` - package limits and SES transactional-email allowances.
 - `/admin/packages/:packageSlug/cost-review` - AWS cost evidence, calculated margins, and publication approval.
 - `/admin/offers` - offers, coupons, eligibility, dates, and redemption policies.
+- `/admin/operations/payments` - payment attempts and verification state.
+- `/admin/operations/provisioning` - provisioning jobs, failures, and manual retries.
+- `/admin/operations/providers` - configured hosting-provider health.
 - `/api/v1/public/catalogue` - published packages with current public prices and visible entitlements.
 - `/api/v1/public/checkout-quotes` - server-calculated, signed, short-lived checkout quote.
 
@@ -141,8 +145,11 @@ Initial publication policy: Launch, Growth, and Business may be public after the
 - `/api/v1/auth/otp/verify` - verify a challenge and create a session.
 - `/api/v1/workspaces` - list the authenticated customer's workspace memberships.
 - `/api/v1/workspaces/:workspaceId` - view an authorized workspace by six-digit public ID.
-- `/api/v1/checkouts` - persist a purchase from a signed server quote.
-- `/api/v1/checkouts/:checkoutId` - retrieve a purchase or configure its first workspace.
+- `/api/v1/checkouts` - persist an awaiting-payment checkout or explicitly eligible trial from a signed server quote.
+- `/api/v1/checkouts/:checkoutId` - retrieve a checkout or configure its first workspace after verified payment/trial approval.
+- `/api/v1/checkouts/:checkoutId/payment` - initiate an enabled provider payment session.
+- `/api/v1/webhooks/payments/:provider` - verify and idempotently reconcile provider webhooks.
+- `/api/v1/workspaces/:workspaceId/resources` - customer-authorized provisioning/resource state.
 - `/api/v1/auth/refresh` - rotate a refresh token.
 - `/api/v1/auth/logout` - revoke the bearer session.
 - `/api/v1/auth/context` - switch between personal and authorized admin context.

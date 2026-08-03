@@ -11,6 +11,7 @@ import {
 	Moon,
 	PackageOpen,
 	BadgePercent,
+	CloudCog,
 	Search,
 	Server,
 	Settings,
@@ -37,6 +38,7 @@ const navigation = [
 	{ label: 'Packages', path: '/admin/packages', icon: PackageOpen },
 	{ label: 'Offers', path: '/admin/offers', icon: BadgePercent },
 	{ label: 'Administrators', path: '/admin/administrators', icon: Shield },
+	{ label: 'Operations', path: '/admin/operations/payments', icon: CloudCog },
 	{ label: 'Settings', path: '/settings/profile', icon: Settings },
 ];
 
@@ -45,6 +47,9 @@ const titles: Record<string, string> = {
 	'/admin/packages': 'Packages',
 	'/admin/offers': 'Offers',
 	'/admin/administrators': 'Administrators',
+	'/admin/operations/payments': 'Payment operations',
+	'/admin/operations/provisioning': 'Provisioning operations',
+	'/admin/operations/providers': 'Provider health',
 	'/settings/profile': 'Profile settings',
 	'/settings/security': 'Security settings',
 	'/settings/sessions': 'Active sessions',

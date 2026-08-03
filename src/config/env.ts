@@ -21,6 +21,23 @@ const environmentSchema = z.object({
 	PAYU_ENVIRONMENT: z.enum(['test', 'production']).default('test'),
 	PAYU_MERCHANT_KEY: optionalEnvironmentSecret,
 	PAYU_MERCHANT_SALT: optionalEnvironmentSecret,
+	RAZORPAY_ENABLED: z.enum(['true', 'false']).default('false'),
+	RAZORPAY_KEY_ID: optionalEnvironmentSecret,
+	RAZORPAY_KEY_SECRET: optionalEnvironmentSecret,
+	RAZORPAY_WEBHOOK_SECRET: optionalEnvironmentSecret,
+	HOSTING_PROVIDER: z.enum(['mock', 'coolify']).default('mock'),
+	COOLIFY_ENABLED: z.enum(['true', 'false']).default('false'),
+	COOLIFY_BASE_URL: optionalEnvironmentSecret,
+	COOLIFY_API_TOKEN: optionalEnvironmentSecret,
+	COOLIFY_SERVER_UUID: optionalEnvironmentSecret,
+	COOLIFY_DESTINATION_UUID: optionalEnvironmentSecret,
+	COOLIFY_DEFAULT_PROJECT_UUID: optionalEnvironmentSecret,
+	COOLIFY_DEFAULT_ENVIRONMENT_NAME: z.string().trim().min(1).default('production'),
+	COOLIFY_WILDCARD_DOMAIN: optionalEnvironmentSecret,
+	COOLIFY_STARTER_IMAGE: z.string().trim().min(1).default('nginx'),
+	COOLIFY_STARTER_IMAGE_TAG: z.string().trim().min(1).default('alpine'),
+	COOLIFY_STARTER_PORT: z.string().trim().regex(/^\d{2,5}$/).default('80'),
+	INTERNAL_JOB_SECRET: optionalEnvironmentSecret,
 	JWT_ACCESS_SECRET: z.string().optional(),
 	JWT_REFRESH_SECRET: z.string().optional(),
 	OTP_HASH_SECRET: z.string().optional(),
@@ -34,14 +51,20 @@ const environmentSchema = z.object({
 	OTP_MAX_ATTEMPTS: z.coerce.number().int().positive().max(10).default(5)
 
 }).superRefine((environment, context) => {
-	if (environment.PAYU_ENABLED !== 'true') return;
-
-	if (!environment.PAYU_MERCHANT_KEY) {
+	if (environment.PAYU_ENABLED === 'true' && !environment.PAYU_MERCHANT_KEY) {
 		context.addIssue({ code: 'custom', message: 'PAYU_MERCHANT_KEY is required when PayU is enabled.', path: ['PAYU_MERCHANT_KEY'] });
 	}
 
-	if (!environment.PAYU_MERCHANT_SALT) {
+	if (environment.PAYU_ENABLED === 'true' && !environment.PAYU_MERCHANT_SALT) {
 		context.addIssue({ code: 'custom', message: 'PAYU_MERCHANT_SALT is required when PayU is enabled.', path: ['PAYU_MERCHANT_SALT'] });
+	}
+
+	if (environment.RAZORPAY_ENABLED === 'true') {
+		for (const key of ['RAZORPAY_KEY_ID', 'RAZORPAY_KEY_SECRET', 'RAZORPAY_WEBHOOK_SECRET'] as const) if (!environment[key]) context.addIssue({ code: 'custom', message: `${key} is required when Razorpay is enabled.`, path: [key] });
+	}
+
+	if (environment.HOSTING_PROVIDER === 'coolify' || environment.COOLIFY_ENABLED === 'true') {
+		for (const key of ['COOLIFY_BASE_URL', 'COOLIFY_API_TOKEN', 'COOLIFY_SERVER_UUID', 'COOLIFY_DEFAULT_PROJECT_UUID'] as const) if (!environment[key]) context.addIssue({ code: 'custom', message: `${key} is required when Coolify is enabled.`, path: [key] });
 	}
 });
 

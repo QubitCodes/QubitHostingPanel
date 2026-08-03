@@ -1,0 +1,19 @@
+import { relations, sql } from 'drizzle-orm';
+import { bigint, index, jsonb, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid, varchar } from 'drizzle-orm/pg-core';
+
+import { customerCheckouts } from './subscriptions';
+
+export const paymentProviderEnum = pgEnum('payment_provider', ['mock', 'payu', 'razorpay']);
+export const paymentAttemptStatusEnum = pgEnum('payment_attempt_status', ['initiated', 'pending', 'verified', 'failed', 'cancelled']);
+export const paymentEventStatusEnum = pgEnum('payment_event_status', ['received', 'processed', 'rejected', 'duplicate']);
+
+export const paymentAttempts = pgTable('payment_attempts', {
+	id: uuid('id').primaryKey().defaultRandom(), checkoutId: uuid('checkout_id').notNull().references(() => customerCheckouts.id, { onDelete: 'restrict' }), provider: paymentProviderEnum('provider').notNull(), status: paymentAttemptStatusEnum('status').notNull().default('initiated'), idempotencyKey: varchar('idempotency_key', { length: 160 }).notNull(), providerOrderId: varchar('provider_order_id', { length: 255 }), providerPaymentId: varchar('provider_payment_id', { length: 255 }), amountMinor: bigint('amount_minor', { mode: 'number' }).notNull(), currency: varchar('currency', { length: 3 }).notNull(), customerName: varchar('customer_name', { length: 160 }).notNull(), customerEmail: varchar('customer_email', { length: 320 }).notNull(), failureCode: varchar('failure_code', { length: 120 }), failureMessage: varchar('failure_message', { length: 500 }), providerPayload: jsonb('provider_payload').$type<Record<string, unknown>>().notNull().default({}), verifiedAt: timestamp('verified_at', { withTimezone: true }), createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(), updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(), deletedAt: timestamp('deleted_at', { withTimezone: true }), deleteReason: varchar('delete_reason', { length: 500 }),
+}, (table) => [uniqueIndex('payment_attempts_idempotency_unique').on(table.idempotencyKey).where(sql`${table.deletedAt} IS NULL`), index('payment_attempts_checkout_status_idx').on(table.checkoutId, table.status), index('payment_attempts_provider_order_idx').on(table.provider, table.providerOrderId)]);
+
+export const paymentWebhookEvents = pgTable('payment_webhook_events', {
+	id: uuid('id').primaryKey().defaultRandom(), paymentAttemptId: uuid('payment_attempt_id').references(() => paymentAttempts.id, { onDelete: 'restrict' }), provider: paymentProviderEnum('provider').notNull(), eventKey: varchar('event_key', { length: 128 }).notNull(), eventType: varchar('event_type', { length: 120 }).notNull(), status: paymentEventStatusEnum('status').notNull().default('received'), payload: jsonb('payload').$type<Record<string, unknown>>().notNull(), rejectionReason: varchar('rejection_reason', { length: 500 }), processedAt: timestamp('processed_at', { withTimezone: true }), createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(), updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(), deletedAt: timestamp('deleted_at', { withTimezone: true }), deleteReason: text('delete_reason'),
+}, (table) => [uniqueIndex('payment_webhook_events_provider_key_unique').on(table.provider, table.eventKey).where(sql`${table.deletedAt} IS NULL`), index('payment_webhook_events_attempt_idx').on(table.paymentAttemptId, table.createdAt)]);
+
+export const paymentAttemptRelations = relations(paymentAttempts, ({ many, one }) => ({ checkout: one(customerCheckouts, { fields: [paymentAttempts.checkoutId], references: [customerCheckouts.id] }), events: many(paymentWebhookEvents) }));
+export const paymentWebhookEventRelations = relations(paymentWebhookEvents, ({ one }) => ({ attempt: one(paymentAttempts, { fields: [paymentWebhookEvents.paymentAttemptId], references: [paymentAttempts.id] }) }));

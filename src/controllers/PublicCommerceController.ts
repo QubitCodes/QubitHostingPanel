@@ -58,7 +58,7 @@ export class PublicCommerceController {
 			const quoteId = crypto.randomUUID(); const expiresAt = new Date(Date.now() + environment.CHECKOUT_QUOTE_TTL_MINUTES * 60_000);
 			const payload = { quoteId, priceId: price.id, packageId: price.packageId, currency: price.currency, subtotalMinor: price.amountMinor, discountMinor: price.amountMinor - remaining, taxMinor, totalMinor, appliedOfferIds: appliedOffers.map(({ id }) => id) };
 			const token = await new SignJWT(payload).setProtectedHeader({ alg: 'HS256', typ: 'JWT' }).setIssuedAt().setExpirationTime(Math.floor(expiresAt.getTime() / 1000)).setIssuer('qubit-hosting-panel').setAudience('qubit-hosting-checkout').setJti(quoteId).sign(new TextEncoder().encode(environment.CHECKOUT_SIGNING_SECRET));
-			return resp.success('Checkout quote created.', { ...payload, packageSlug: price.packageSlug, packageName: price.packageName, billingInterval: price.billingInterval, intervalCount: price.intervalCount, appliedOffers, expiresAt: expiresAt.toISOString(), token }, resp.codes.CREATED, undefined, 201);
+			return resp.success('Checkout quote created.', { ...payload, packageSlug: price.packageSlug, packageName: price.packageName, billingInterval: price.billingInterval, intervalCount: price.intervalCount, trialEnabled: price.trialEnabled, appliedOffers, expiresAt: expiresAt.toISOString(), token }, resp.codes.CREATED, undefined, 201);
 		} catch (error) { console.error('Checkout quote failed.', error); return resp.failure('Unable to create checkout quote.', resp.codes.GENERAL_SERVER_ERROR, undefined, null, undefined, 500); }
 	}
 }

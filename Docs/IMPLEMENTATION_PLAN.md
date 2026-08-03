@@ -112,7 +112,7 @@ Delivery order:
 - [ ] Add immutable workspace billing-profile versions and authorized cloning with source lineage.
 - [x] Add an authorized dashboard workspace selector without workspace IDs in customer page URLs.
 - [x] Build the `/dashboard` shell and URL-backed overview, billing, subscription, security, and create-popup views.
-- [ ] Add workspace-owned checkout records, payment-provider abstraction, attempts, and verified-webhook foundations.
+- [x] Add customer-owned pre-workspace checkout records, mock/PayU/Razorpay provider abstraction, attempts, exact amount verification, and idempotent verified-webhook foundations.
 - [ ] Add one primary hosting subscription per workspace plus add-on items and lifecycle state.
 - [ ] Snapshot purchased price, offers, tax, billing profile, and entitlements immutably.
 - [ ] Add customer/workspace/subscription administration, OpenAPI documentation, tests, and live Supabase verification.
@@ -134,20 +134,22 @@ Gate: concurrent requests cannot exceed hard limits and stale observations are v
 
 Prerequisite: dedicated staging Linux server.
 
-- Encrypted connection records and least-privilege token.
-- Connection validation.
+- [x] Environment-secret single-connection configuration and least-privilege token contract.
+- [ ] Database-managed encrypted multi-connection records and token rotation workflow.
+- [x] Connection validation and protected admin provider-health view.
 - Import servers, applications, databases, services, and deployments.
 - Scheduled reconciliation and usage snapshots.
-- Provider retry and error isolation.
+- [x] Provider retry and error isolation in durable provisioning jobs.
 
 Gate: imported state is accurate/team-scoped and provider outages cannot corrupt commercial ownership.
 
 ## Phase 6 - Controlled provisioning
 
-- Idempotent provisioning job queue.
-- Application/database creation behind entitlement checks.
+- [x] Idempotent provisioning job queue with CLI/internal worker execution, optimistic claims, retry, and reconciliation.
+- [x] Starter Docker-image application creation after verified payment/trial and subscription snapshot; customer source and database selection remain later resource workflows.
 - Deployment status and domain conflict validation.
-- Admin approval paths and partial-failure reconciliation.
+- [x] Admin payment/provisioning visibility, provider health, failure detail, and manual retry.
+- [x] Partial-failure reconciliation prevents repeat workers from recreating an existing provider resource.
 
 Gate: retries and duplicate webhooks cannot create duplicate resources.
 
@@ -176,4 +178,4 @@ Gate: production checklist is accepted with evidence.
 
 ## Next implementation approval
 
-Next task: add payment-provider attempts and verified webhooks to the persistent purchase-first checkout and workspace subscription foundation.
+Next task: apply migration `0018`, seed new operational permissions, verify a complete mock purchase locally, then provide a public staging `APP_URL` and Coolify credentials for PayU-to-Coolify staging evidence.

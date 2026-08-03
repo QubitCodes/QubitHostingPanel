@@ -1,21 +1,22 @@
 import { relations, sql } from 'drizzle-orm';
-import { bigint, check, index, integer, jsonb, pgEnum, pgSequence, pgTable, text, timestamp, uniqueIndex, uuid, varchar } from 'drizzle-orm/pg-core';
+import { bigint, boolean, check, index, integer, jsonb, pgEnum, pgSequence, pgTable, text, timestamp, uniqueIndex, uuid, varchar } from 'drizzle-orm/pg-core';
 
 import { customers, workspaces } from './tenancy';
 import { packagePrices, packages, priceBillingIntervalEnum } from './packages';
 
-export const checkoutStatusEnum = pgEnum('checkout_status', ['purchased', 'configured', 'cancelled']);
+export const checkoutStatusEnum = pgEnum('checkout_status', ['awaiting_payment', 'payment_pending', 'paid', 'workspace_setup_pending', 'provisioning', 'active', 'payment_failed', 'provisioning_failed', 'cancelled', 'expired']);
 export const subscriptionStatusEnum = pgEnum('workspace_subscription_status', ['trialing', 'active', 'cancelled', 'expired']);
 export const checkoutPublicIdSequence = pgSequence('checkout_public_id_seq', { startWith: 100000, minValue: 100000, maxValue: 999999, cycle: false });
 
 export const customerCheckouts = pgTable('customer_checkouts', {
 	id: uuid('id').primaryKey().defaultRandom(),
 	publicId: integer('public_id').notNull().default(sql`nextval('checkout_public_id_seq')`),
+	quoteId: uuid('quote_id'),
 	customerId: uuid('customer_id').notNull().references(() => customers.id, { onDelete: 'restrict' }),
 	packageId: uuid('package_id').notNull().references(() => packages.id, { onDelete: 'restrict' }),
 	priceId: uuid('price_id').notNull().references(() => packagePrices.id, { onDelete: 'restrict' }),
 	workspaceId: uuid('workspace_id').references(() => workspaces.id, { onDelete: 'restrict' }),
-	status: checkoutStatusEnum('status').notNull().default('purchased'),
+	status: checkoutStatusEnum('status').notNull().default('awaiting_payment'),
 	packageNameSnapshot: varchar('package_name_snapshot', { length: 160 }).notNull(),
 	currency: varchar('currency', { length: 3 }).notNull(),
 	billingInterval: priceBillingIntervalEnum('billing_interval').notNull(),
@@ -25,7 +26,8 @@ export const customerCheckouts = pgTable('customer_checkouts', {
 	taxMinor: bigint('tax_minor', { mode: 'number' }).notNull(),
 	totalMinor: bigint('total_minor', { mode: 'number' }).notNull(),
 	appliedOfferIds: jsonb('applied_offer_ids').$type<string[]>().notNull().default([]),
-	purchasedAt: timestamp('purchased_at', { withTimezone: true }).notNull().defaultNow(),
+	trialSelected: boolean('trial_selected').notNull().default(false),
+	purchasedAt: timestamp('purchased_at', { withTimezone: true }),
 	configuredAt: timestamp('configured_at', { withTimezone: true }),
 	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 	updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
@@ -33,6 +35,7 @@ export const customerCheckouts = pgTable('customer_checkouts', {
 	deleteReason: varchar('delete_reason', { length: 500 }),
 }, (table) => [
 	uniqueIndex('customer_checkouts_public_id_unique').on(table.publicId),
+	uniqueIndex('customer_checkouts_quote_id_unique').on(table.quoteId).where(sql`${table.quoteId} IS NOT NULL AND ${table.deletedAt} IS NULL`),
 	index('customer_checkouts_customer_status_idx').on(table.customerId, table.status),
 	check('customer_checkouts_public_id_check', sql`${table.publicId} BETWEEN 100000 AND 999999`),
 	check('customer_checkouts_amounts_check', sql`${table.subtotalMinor} >= 0 AND ${table.discountMinor} >= 0 AND ${table.taxMinor} >= 0 AND ${table.totalMinor} >= 0`),

@@ -100,6 +100,8 @@ const RESOURCES = [
 	'subscriptions',
 	'usage',
 	'servers',
+	'payments',
+	'provisioning',
 	'audit_logs',
 ] as const;
 const ACTIONS = ['view', 'create', 'update', 'delete'] as const;
@@ -151,6 +153,7 @@ export async function seedEssentialData(): Promise<void> {
 				.values({ code, name })
 				.onConflictDoUpdate({
 					target: platformPermissions.code,
+					targetWhere: sql`${platformPermissions.deletedAt} IS NULL`,
 					set: { name, updatedAt: new Date() },
 				});
 		}
@@ -166,6 +169,7 @@ export async function seedEssentialData(): Promise<void> {
 					updatedAt: new Date(),
 				},
 				target: platformPermissions.code,
+				targetWhere: sql`${platformPermissions.deletedAt} IS NULL`,
 			});
 	}
 	const [superAdminRole] = await db

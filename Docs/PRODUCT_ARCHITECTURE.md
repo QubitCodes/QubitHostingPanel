@@ -103,7 +103,7 @@ All state-changing requests use JSON. Routes use native Web `Request` parsing, Z
 
 Customers and organisations are separate entities. A customer is the service profile of a user; an organisation is an optional extension of a workspace. The workspace is the durable tenant boundary.
 
-- Every registered user, including an administrator, receives a customer profile and Personal Workspace.
+- Every registered user, including an administrator, receives a customer profile. The first workspace is created only after a verified purchase or eligible trial and explicit workspace setup.
 - A user may own multiple workspaces and may retain independently authorized admin access.
 - A Personal Workspace has one owner at a time and may be transferred.
 - A workspace may be created as, or converted into, an Organisation Workspace without changing another workspace.

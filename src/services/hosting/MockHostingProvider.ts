@@ -24,13 +24,11 @@ export class MockHostingProvider implements HostingProvider {
 	}
 
 	public async provisionApplication(input: ProvisionApplicationInput): Promise<ProviderJob> {
-		void input;
-		return Promise.resolve({ id: 'mock-application-job', status: 'succeeded' });
+		return Promise.resolve({ id: `mock-app-${input.workspaceId}`, publicUrl: `https://${input.name}.mock.invalid`, status: 'succeeded' });
 	}
 
 	public async provisionDatabase(input: ProvisionDatabaseInput): Promise<ProviderJob> {
-		void input;
-		return Promise.resolve({ id: 'mock-database-job', status: 'succeeded' });
+		return Promise.resolve({ id: `mock-db-${input.workspaceId}`, status: 'succeeded' });
 	}
 
 	public async getDeployment(jobId: string): Promise<ProviderJobStatus> {
