@@ -7,6 +7,9 @@ const identifier = (value: string): string => `"${value.replaceAll('"', '""')}"`
 /** Escapes a PostgreSQL string literal for DDL statements that reject bind parameters. */
 export const postgresStringLiteral = (value: string): string => `'${value.replaceAll("'", "''")}'`;
 
+/** Builds the database-level isolation statement applied after database creation. */
+export const postgresDatabaseIsolationDdl = (databaseName: string): string => `REVOKE CONNECT ON DATABASE ${identifier(databaseName)} FROM PUBLIC`;
+
 /** Provisions one PostgreSQL database and a login that owns only that database. */
 export class PostgresSharedDatabaseProvisioner implements SharedDatabaseProvisioner {
 	public async createLogicalDatabase(input: CreateLogicalDatabaseInput): Promise<CreatedLogicalDatabase> {
@@ -15,8 +18,10 @@ export class PostgresSharedDatabaseProvisioner implements SharedDatabaseProvisio
 		try {
 			await admin.query(`CREATE ROLE ${identifier(input.username)} LOGIN PASSWORD ${postgresStringLiteral(input.password)}`);
 			await admin.query(`CREATE DATABASE ${identifier(input.databaseName)} OWNER ${identifier(input.username)}`);
+			await admin.query(postgresDatabaseIsolationDdl(input.databaseName));
 			if (input.connectionLimit) await admin.query(`ALTER DATABASE ${identifier(input.databaseName)} CONNECTION LIMIT ${Math.max(1, Math.trunc(input.connectionLimit))}`);
 		} catch (error) {
+			await admin.query(`DROP DATABASE IF EXISTS ${identifier(input.databaseName)}`).catch(() => undefined);
 			await admin.query(`DROP ROLE IF EXISTS ${identifier(input.username)}`).catch(() => undefined);
 			throw error;
 		} finally { await admin.end(); }

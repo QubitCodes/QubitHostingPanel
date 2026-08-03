@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { postgresStringLiteral } from '@services/databases/PostgresSharedDatabaseProvisioner';
+import { postgresDatabaseIsolationDdl, postgresStringLiteral } from '@services/databases/PostgresSharedDatabaseProvisioner';
 
 describe('PostgreSQL shared database provisioning', () => {
 	it('quotes role passwords for PostgreSQL DDL', () => {
@@ -13,5 +13,9 @@ describe('PostgreSQL shared database provisioning', () => {
 
 	it('can be embedded in PostgreSQL role rotation DDL', () => {
 		expect(`ALTER ROLE "workspace_user" PASSWORD ${postgresStringLiteral("new'password")}`).toBe("ALTER ROLE \"workspace_user\" PASSWORD 'new''password'");
+	});
+
+	it('revokes the default cross-database connection privilege', () => {
+		expect(postgresDatabaseIsolationDdl('workspace"database')).toBe('REVOKE CONNECT ON DATABASE "workspace""database" FROM PUBLIC');
 	});
 });
