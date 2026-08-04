@@ -9,3 +9,4 @@ export * from './provisioning';
 export * from './sharedPlatform';
 export * from './tenancy';
 export * from './subscriptions';
+export * from './usage';
