@@ -3,6 +3,7 @@ import {
 	Boxes,
 	CreditCard,
 	Database,
+	Globe2,
 	LayoutDashboard,
 	LogOut,
 	Moon,
@@ -128,6 +129,7 @@ export default function CustomerLayout() {
 		...(workspaces.length
 			? [
 					{ icon: Boxes, label: 'Applications', to: '/dashboard/applications' },
+					{ icon: Globe2, label: 'Domains', to: '/dashboard/domains' },
 					{ icon: Database, label: 'Databases', to: '/dashboard/databases' },
 					{ icon: BarChart3, label: 'Usage', to: '/dashboard/usage' },
 					{

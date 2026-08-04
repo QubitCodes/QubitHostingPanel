@@ -176,6 +176,7 @@ Gate: completed with encrypted multi-connection storage, validated rotation roll
 - [x] Separate private Coolify and optional IP-restricted management endpoints with explicit runtime selection and TLS-ready client configuration; migration `0023` applied to Supabase.
 - [x] Live PostgreSQL/MySQL logical database creation, credential rotation, quota enforcement, and cross-workspace/platform isolation verified against staging management endpoints.
 - [x] Customer application runtime/source selection, workspace database bindings, domain conflict checks, idempotent deployment management, provider logs, and URL-backed UI/API.
+- [x] Workspace-wide customer domain inventory with connected-application, DNS ownership, routing, and TLS state; application creation accepts multiple non-blocking pending custom domains while preserving a removable post-save platform fallback.
 - [x] Live public Git deployment verified through Coolify with a pinned Node runtime, database environment binding, partial-create recovery, healthy panel state, and public HTTPS 200.
 - [x] Per-database encrypted backup/restore lifecycle, entitlement retention, audited download/delete controls, and URL-backed recovery UI.
 - [x] Live PostgreSQL/MySQL encrypted backup, audited download, destructive restore recovery, cross-workspace rejection, artifact deletion, and soft-deletion verification.
@@ -214,4 +215,4 @@ Gate: production checklist is accepted with evidence.
 
 ## Next implementation approval
 
-Next task: complete the human OTP registration and failed/cancelled-first-checkout dashboard acceptance on the current same-domain staging deployment, then validate custom-domain ownership, TLS, primary switching, and platform-subdomain disabling. The separate `panel-staging.qubit.codes` alias is optional and remains deferred until separate-panel mode is intentionally enabled.
+Next task: deploy the workspace-wide domain workflow, then complete human OTP registration and failed/cancelled-first-checkout dashboard acceptance plus custom-domain ownership, TLS, primary switching, and safe platform-subdomain removal on the current same-domain staging deployment. The separate `panel-staging.qubit.codes` alias is optional and remains deferred until separate-panel mode is intentionally enabled.

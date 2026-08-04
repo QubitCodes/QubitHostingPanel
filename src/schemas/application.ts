@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 const command = z.string().trim().max(500).optional();
+const hostname = z.string().trim().toLowerCase().regex(/^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/);
 export const applicationPublicIdSchema = z.uuid();
 export const createApplicationSchema = z.object({
 	name: z.string().trim().min(2).max(80).regex(/^[a-zA-Z0-9][a-zA-Z0-9 _-]*$/),
@@ -14,7 +15,8 @@ export const createApplicationSchema = z.object({
 	baseDirectory: z.string().trim().min(1).max(500).regex(/^\/(?!.*\.\.)/).default('/'),
 	publishDirectory: z.string().trim().max(500).optional(),
 	port: z.number().int().min(1).max(65535),
-	domain: z.string().trim().toLowerCase().regex(/^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/).optional(),
+	domain: hostname.optional(),
+	domains: z.array(hostname).max(20).default([]),
 	subdomain: z.string().trim().toLowerCase().regex(/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/).optional(),
 	databases: z.array(z.object({ databaseId: z.uuid(), environmentPrefix: z.string().trim().toUpperCase().regex(/^[A-Z][A-Z0-9_]{1,39}$/) })).max(5).default([]),
 });
@@ -29,7 +31,8 @@ export const updateApplicationSchema = z.object({
 	port: z.number().int().min(1).max(65535),
 }).strict();
 export type UpdateApplicationRequest = z.infer<typeof updateApplicationSchema>;
-export const createApplicationDomainSchema = z.object({ hostname: z.string().trim().toLowerCase().regex(/^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/) }).strict();
+export const createApplicationDomainSchema = z.object({ hostname }).strict();
+export const checkApplicationDomainSchema = z.object({ hostname }).strict();
 export const updateApplicationDomainSchema = z.object({ action: z.enum(['set_primary', 'toggle_platform', 'refresh_tls']), enabled: z.boolean().optional() }).strict();
 export type CreateApplicationDomainRequest = z.infer<typeof createApplicationDomainSchema>;
 export type UpdateApplicationDomainRequest = z.infer<typeof updateApplicationDomainSchema>;

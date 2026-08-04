@@ -284,19 +284,19 @@ export class ApplicationController {
             404,
           );
       }
-      if (input.domain) {
-        const [conflict] = await db
+      const customHostnames = [...new Set([...(input.domain ? [input.domain] : []), ...input.domains])];
+      if (customHostnames.length) {
+		const conflicts = await db
           .select({ id: applicationBuilds.id })
           .from(applicationDomains)
           .innerJoin(applicationBuilds, eq(applicationBuilds.id, applicationDomains.applicationBuildId))
           .where(
             and(
-              eq(applicationDomains.hostname, input.domain),
+              inArray(applicationDomains.hostname, customHostnames),
               isNull(applicationDomains.deletedAt),
             ),
-          )
-          .limit(1);
-        if (conflict)
+          );
+		if (conflicts.length)
           return resp.failure(
             "Domain is already assigned.",
             resp.codes.RESOURCE_ALREADY_EXISTS,
@@ -313,8 +313,15 @@ export class ApplicationController {
       const platform = await getEffectivePlatformUrls();
       const subdomain = input.subdomain ?? input.name.toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-|-$/g, '').slice(0, 50);
       const platformHostname = `${subdomain}.${platform.applicationBaseDomain}`;
+	  if (customHostnames.includes(platformHostname)) {
+		await releaseUsageReservation(reservationId, 'Custom domain duplicated the platform subdomain.');
+		return resp.failure('A custom domain cannot duplicate the platform subdomain.', resp.codes.RESOURCE_ALREADY_EXISTS, undefined, null, undefined, 409);
+	  }
       const [hostnameConflict] = await db.select({ id: applicationDomains.id }).from(applicationDomains).where(and(eq(applicationDomains.hostname, platformHostname), isNull(applicationDomains.deletedAt))).limit(1);
-      if (hostnameConflict) return resp.failure('Application subdomain is already assigned.', resp.codes.RESOURCE_ALREADY_EXISTS, undefined, null, undefined, 409);
+	  if (hostnameConflict) {
+		await releaseUsageReservation(reservationId, 'Application subdomain is already assigned.');
+		return resp.failure('Application subdomain is already assigned.', resp.codes.RESOURCE_ALREADY_EXISTS, undefined, null, undefined, 409);
+	  }
       const result = await db.transaction(async (transaction) => {
         const [build] = await transaction
           .insert(applicationBuilds)
@@ -330,14 +337,14 @@ export class ApplicationController {
             baseDirectory: input.baseDirectory,
             publishDirectory: input.publishDirectory,
             applicationPort: input.port,
-            requestedDomain: input.domain,
+			requestedDomain: customHostnames[0],
             metadata: { name: input.name, buildPack: input.buildPack },
           })
           .returning({ id: applicationBuilds.id });
         if (!build) throw new Error("Unable to persist application.");
         await transaction.insert(applicationDomains).values([
           { applicationBuildId: build.id, hostname: platformHostname, type: 'platform', status: platform.applicationDomainReady ? 'verified' : 'pending', isPrimary: true, isEnabled: true, verifiedAt: platform.applicationDomainReady ? new Date() : null },
-          ...(input.domain ? [{ applicationBuildId: build.id, hostname: input.domain, type: 'custom' as const, status: 'pending' as const, isPrimary: false, isEnabled: false, verificationToken: randomUUID() }] : []),
+		  ...customHostnames.map((hostname) => ({ applicationBuildId: build.id, hostname, type: 'custom' as const, status: 'pending' as const, isPrimary: false, isEnabled: false, verificationToken: randomUUID() })),
         ]);
         if (input.databases.length)
           await transaction
@@ -379,6 +386,7 @@ export class ApplicationController {
           workspacePublicId,
           runtimeCode: input.runtimeCode,
           databaseCount: input.databases.length,
+		  domainCount: customHostnames.length,
         },
         ipAddress: metadata.ipAddress,
         userAgent: metadata.userAgent,

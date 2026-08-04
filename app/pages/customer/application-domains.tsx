@@ -66,12 +66,12 @@ export default function ApplicationDomainsPage() {
 		} catch (error) { toast.error(error instanceof Error ? error.message : 'Unable to check TLS.'); }
 	}
 
-	/** Remove a custom domain after explicit customer confirmation. */
+	/** Remove a saved domain after explicit customer confirmation and server safety checks. */
 	async function remove(domainId: string): Promise<void> {
-		if (!active || !applicationId || !window.confirm('Remove this custom domain?')) return;
+		if (!active || !applicationId || !window.confirm('Remove this domain?')) return;
 		try {
 			await api(`/api/v1/workspaces/${active.publicId}/applications/${applicationId}/domains/${domainId}`, { method: 'DELETE' });
-			toast.success('Custom domain removed.');
+			toast.success('Domain removed.');
 			await load();
 		} catch (error) { toast.error(error instanceof Error ? error.message : 'Unable to remove domain.'); }
 	}
@@ -95,7 +95,7 @@ export default function ApplicationDomainsPage() {
 				{domain.status === 'verified' && domain.isEnabled && <button className="rounded-xl border border-brand-primary/15 px-3 py-2 text-sm font-bold" onClick={() => void refreshTls(domain.id)} type="button">Check TLS</button>}
 				{domain.status === 'verified' && domain.isEnabled && !domain.isPrimary && <button className="rounded-xl border border-brand-primary/15 px-3 py-2 text-sm font-bold" onClick={() => void act(domain.id, 'set_primary')} type="button">Set primary</button>}
 				{domain.type === 'platform' && <button className="rounded-xl border border-brand-primary/15 px-3 py-2 text-sm font-bold" onClick={() => void act(domain.id, 'toggle_platform', !domain.isEnabled)} type="button">{domain.isEnabled ? 'Disable' : 'Enable'}</button>}
-				{domain.type === 'custom' && <button className="rounded-xl border border-red-300 px-3 py-2 text-sm font-bold text-red-700 dark:border-red-700 dark:text-red-300" onClick={() => void remove(domain.id)} type="button">Remove</button>}
+				<button className="rounded-xl border border-red-300 px-3 py-2 text-sm font-bold text-red-700 dark:border-red-700 dark:text-red-300" onClick={() => void remove(domain.id)} type="button">Remove</button>
 			</div></div>
 			{domain.type === 'custom' && domain.status !== 'verified' && <div className="mt-4 rounded-2xl bg-brand-primary/5 p-4 text-sm"><p>Create this TXT record:</p><p className="mt-2 break-all font-mono">_qubit-verification.{domain.hostname}</p><p className="mt-1 break-all font-mono">{domain.verificationToken}</p></div>}
 		</article>)}</div>

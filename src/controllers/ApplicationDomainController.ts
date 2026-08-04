@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import { resolveTxt } from 'node:dns/promises';
-import { and, eq, isNull, ne } from 'drizzle-orm';
+import { resolve4, resolve6, resolveCname, resolveTxt } from 'node:dns/promises';
+import { and, asc, eq, isNull, ne } from 'drizzle-orm';
 import { resp } from '@qubitcodes/qcresp';
 
 import { db } from '@db/client';
@@ -22,6 +22,17 @@ async function ownedApplication(request: Request, workspacePublicId: number, app
 		.where(and(eq(customers.userId, actor.userId), isNull(customers.deletedAt))).limit(1);
 	if (!application) throw new Error('Application not found.');
 	return { ...application, actorUserId: actor.userId };
+}
+
+/** Resolve a workspace only when it belongs to the authenticated customer. */
+async function ownedWorkspace(request: Request, workspacePublicId: number, metadata: RequestMetadata) {
+	const actor = await authenticateSession(request, metadata);
+	const [workspace] = await db.select({ id: workspaces.id }).from(customers)
+		.innerJoin(workspaceMemberships, and(eq(workspaceMemberships.customerId, customers.id), eq(workspaceMemberships.status, 'active'), isNull(workspaceMemberships.deletedAt)))
+		.innerJoin(workspaces, and(eq(workspaces.id, workspaceMemberships.workspaceId), eq(workspaces.publicId, workspacePublicId), isNull(workspaces.deletedAt)))
+		.where(and(eq(customers.userId, actor.userId), isNull(customers.deletedAt))).limit(1);
+	if (!workspace) throw new Error('Workspace not found.');
+	return workspace;
 }
 
 /** Read the provider hostname set, optionally projecting one pending mutation. */
@@ -52,6 +63,48 @@ async function inspectTls(hostname: string): Promise<{ failureReason: string | n
 }
 
 export class ApplicationDomainController {
+	/** List every active domain and its connected application in an owned workspace. */
+	public static async workspaceIndex(request: Request, workspaceId: number, metadata: RequestMetadata): Promise<Response> {
+		try {
+			const workspace = await ownedWorkspace(request, workspaceId, metadata);
+			const rows = await db.select({
+				applicationId: applicationBuilds.id,
+				applicationName: applicationBuilds.metadata,
+				createdAt: applicationDomains.createdAt,
+				hostname: applicationDomains.hostname,
+				id: applicationDomains.id,
+				isEnabled: applicationDomains.isEnabled,
+				isPrimary: applicationDomains.isPrimary,
+				status: applicationDomains.status,
+				tlsCheckedAt: applicationDomains.tlsCheckedAt,
+				tlsFailureReason: applicationDomains.tlsFailureReason,
+				tlsStatus: applicationDomains.tlsStatus,
+				type: applicationDomains.type,
+				verificationToken: applicationDomains.verificationToken,
+			}).from(applicationDomains)
+				.innerJoin(applicationBuilds, and(eq(applicationBuilds.id, applicationDomains.applicationBuildId), eq(applicationBuilds.workspaceId, workspace.id), isNull(applicationBuilds.deletedAt)))
+				.where(isNull(applicationDomains.deletedAt)).orderBy(asc(applicationDomains.hostname));
+			return resp.success('Workspace domains retrieved.', rows.map(({ applicationName, ...row }) => ({ ...row, applicationName: String(applicationName?.name ?? 'Application') })));
+		} catch {
+			return resp.failure('Workspace not found.', resp.codes.RESOURCE_NOT_FOUND, undefined, null, undefined, 404);
+		}
+	}
+
+	/** Check hostname availability and current public DNS without blocking application creation. */
+	public static async check(request: Request, workspaceId: number, hostname: string, metadata: RequestMetadata): Promise<Response> {
+		try {
+			await ownedWorkspace(request, workspaceId, metadata);
+			const [assigned] = await db.select({ id: applicationDomains.id }).from(applicationDomains).where(and(eq(applicationDomains.hostname, hostname), isNull(applicationDomains.deletedAt))).limit(1);
+			if (assigned) return resp.success('Domain check completed.', { available: false, dnsReady: false, records: [], reason: 'Domain is already connected to an application.' });
+			const records: string[] = [];
+			for (const resolver of [resolveCname, resolve4, resolve6]) {
+				try { records.push(...await resolver(hostname)); } catch { /* A hostname may legitimately expose only one record type. */ }
+			}
+			return resp.success('Domain check completed.', { available: true, dnsReady: records.length > 0, records, reason: records.length ? null : 'No public CNAME, A, or AAAA record is visible yet.' });
+		} catch {
+			return resp.failure('Workspace not found.', resp.codes.RESOURCE_NOT_FOUND, undefined, null, undefined, 404);
+		}
+	}
 	/** List active domain records for an owned application. */
 	public static async index(request: Request, workspaceId: number, applicationId: string, metadata: RequestMetadata): Promise<Response> {
 		try {
@@ -130,14 +183,14 @@ export class ApplicationDomainController {
 		}
 	}
 
-	/** Detach a custom domain from the provider, then soft-delete it locally. */
+	/** Detach a saved domain from the provider, preserving a verified primary replacement. */
 	public static async remove(request: Request, workspaceId: number, applicationId: string, domainId: string, metadata: RequestMetadata): Promise<Response> {
 		try {
 			const application = await ownedApplication(request, workspaceId, applicationId, metadata);
 			const [domain] = await db.select().from(applicationDomains).where(and(eq(applicationDomains.id, domainId), eq(applicationDomains.applicationBuildId, applicationId), isNull(applicationDomains.deletedAt))).limit(1);
 			if (!domain) return resp.failure('Domain not found.', resp.codes.RESOURCE_NOT_FOUND, undefined, null, undefined, 404);
-			if (domain.type !== 'custom') throw new Error('The platform domain cannot be removed.');
-			const [replacement] = domain.isPrimary ? await db.select({ id: applicationDomains.id }).from(applicationDomains).where(and(eq(applicationDomains.applicationBuildId, applicationId), ne(applicationDomains.id, domainId), eq(applicationDomains.status, 'verified'), eq(applicationDomains.isEnabled, true), isNull(applicationDomains.deletedAt))).limit(1) : [];
+			const [replacement] = domain.isPrimary || domain.type === 'platform' ? await db.select({ id: applicationDomains.id }).from(applicationDomains).where(and(eq(applicationDomains.applicationBuildId, applicationId), ne(applicationDomains.id, domainId), eq(applicationDomains.status, 'verified'), eq(applicationDomains.isEnabled, true), isNull(applicationDomains.deletedAt))).limit(1) : [];
+			if (domain.type === 'platform' && !replacement) throw new Error('Verify and enable another domain before removing the platform subdomain.');
 			if (domain.isPrimary && !replacement) throw new Error('Choose or enable another primary domain before removing this domain.');
 			await synchronize(application.resourceProviderId, await enabledHostnames(applicationId, { domainId, remove: true }));
 			await db.transaction(async (transaction) => {
@@ -145,7 +198,7 @@ export class ApplicationDomainController {
 				if (replacement) await transaction.update(applicationDomains).set({ isPrimary: true, updatedAt: new Date() }).where(eq(applicationDomains.id, replacement.id));
 			});
 			await recordAuditLog({ action: 'application_domain.removed', actorUserId: application.actorUserId, ipAddress: metadata.ipAddress, metadata: { hostname: domain.hostname }, resourceId: domainId, resourceType: 'application_domain', userAgent: metadata.userAgent });
-			return resp.success('Custom domain removed.', null, resp.codes.UPDATED);
+			return resp.success('Domain removed.', null, resp.codes.UPDATED);
 		} catch (error) {
 			return resp.failure(error instanceof Error ? error.message : 'Unable to remove domain.', resp.codes.GENERAL_BUSINESS_LOGIC_ERROR, undefined, null, undefined, 422);
 		}
