@@ -48,7 +48,7 @@ Do not install Coolify on the existing aaPanel production server. Both systems m
 ```text
 qubit.codes                 Public website
 panel.qubit.codes           Production panel
-panel-staging.qubit.codes   Staging panel
+panel.apps-staging.qubit.codes Staging panel
 coolify.qubit.codes         Production Coolify
 coolify-staging.qubit.codes Staging Coolify
 *.apps-staging.qubit.codes  Staging workloads

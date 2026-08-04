@@ -177,6 +177,8 @@ Gate: completed with encrypted multi-connection storage, validated rotation roll
 - [x] Live PostgreSQL/MySQL logical database creation, credential rotation, quota enforcement, and cross-workspace/platform isolation verified against staging management endpoints.
 - [x] Customer application runtime/source selection, workspace database bindings, domain conflict checks, idempotent deployment management, provider logs, and URL-backed UI/API.
 - [x] Workspace-wide customer domain inventory with connected-application, DNS ownership, routing, and TLS state; application creation accepts multiple non-blocking pending custom domains while preserving a removable post-save platform fallback.
+- [x] Workspace domain ownership registry with configurable TXT verification, verified parent-domain protection, and owner-controlled cross-workspace subdomain approval/revocation.
+- [ ] Staging domain acceptance: ownership verification, cross-workspace subdomain approval, TLS issuance, primary switching, and safe platform-subdomain removal.
 - [x] Live public Git deployment verified through Coolify with a pinned Node runtime, database environment binding, partial-create recovery, healthy panel state, and public HTTPS 200.
 - [x] Per-database encrypted backup/restore lifecycle, entitlement retention, audited download/delete controls, and URL-backed recovery UI.
 - [x] Live PostgreSQL/MySQL encrypted backup, audited download, destructive restore recovery, cross-workspace rejection, artifact deletion, and soft-deletion verification.
@@ -215,4 +217,4 @@ Gate: production checklist is accepted with evidence.
 
 ## Next implementation approval
 
-Next task: deploy the workspace-wide domain workflow, then complete human OTP registration and failed/cancelled-first-checkout dashboard acceptance plus custom-domain ownership, TLS, primary switching, and safe platform-subdomain removal on the current same-domain staging deployment. The separate `panel-staging.qubit.codes` alias is optional and remains deferred until separate-panel mode is intentionally enabled.
+Next task: complete human OTP registration and failed/cancelled-first-checkout dashboard acceptance. Domain acceptance remains explicitly pending until a real custom domain is available; the separate `panel-staging.qubit.codes` alias is removed unless separate-panel mode is intentionally enabled later.

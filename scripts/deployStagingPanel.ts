@@ -1,6 +1,6 @@
 const APPLICATION_NAME = 'qubit-hosting-panel-staging';
 const APPLICATION_DOMAIN = 'https://panel.apps-staging.qubit.codes';
-const APPLICATION_DOMAINS = `${APPLICATION_DOMAIN},https://panel-staging.qubit.codes`;
+const APPLICATION_DOMAINS = APPLICATION_DOMAIN;
 const REPOSITORY_URL = 'https://github.com/QubitCodes/QubitHostingPanel';
 const REQUIRED_COOLIFY_KEYS = ['COOLIFY_API_TOKEN', 'COOLIFY_BASE_URL', 'COOLIFY_DEFAULT_PROJECT_UUID', 'COOLIFY_SERVER_UUID'] as const;
 const RUNTIME_SECRET_KEYS = [

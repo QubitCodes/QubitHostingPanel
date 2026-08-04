@@ -30,7 +30,7 @@ Use the PayU API key as `PAYU_MERCHANT_KEY` and the 32-bit salt as `PAYU_MERCHAN
 Configure the PayU payment webhook as:
 
 ```text
-https://panel-staging.qubit.codes/api/v1/webhooks/payments/payu
+https://panel.apps-staging.qubit.codes/api/v1/webhooks/payments/payu
 ```
 
 The browser success and failure URLs are generated from `APP_URL` and point to `/api/v1/payments/payu/callback`. Both paths validate PayU's reverse SHA-512 hash. The webhook is the durable source; duplicate notifications are accepted as no-ops. Test callbacks require a public HTTPS `APP_URL`; localhost cannot receive PayU redirects or webhooks from the internet without a secure tunnel.
@@ -47,7 +47,7 @@ RAZORPAY_WEBHOOK_SECRET=
 The server creates every Razorpay Order. Browser completion is accepted only after HMAC verification and a server-side Payment API fetch confirms the provider order, amount, currency, and captured status. Configure the webhook URL as:
 
 ```text
-https://panel-staging.qubit.codes/api/v1/webhooks/payments/razorpay
+https://panel.apps-staging.qubit.codes/api/v1/webhooks/payments/razorpay
 ```
 
 Subscribe to `payment.captured`, `payment.failed`, and `order.paid`.

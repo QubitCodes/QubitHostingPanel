@@ -4,7 +4,7 @@
 
 Before production traffic, require all of the following: production `APP_URL`; final DNS and TLS; restricted database management ports; production payment credentials/webhooks; Coolify production connection; off-host encrypted backups; external uptime/error alerts; reverse-proxy rate limits; and an accepted restore drill. Run `npm run typecheck`, `npm run lint`, `npm test`, `npm run build`, `npm run db:migrate`, and `npm run operations:readiness` against the release environment.
 
-For the isolated staging control plane, run `npm run staging:deploy:panel` from the local operator checkout. The command only creates or reuses `qubit-hosting-panel-staging`, installs its environment without logging secret values, disables development authentication bypass, retains test payment mode from `.env`, and queues the pushed `main` branch for `https://panel.apps-staging.qubit.codes`. The intended `panel-staging.qubit.codes` alias remains configured but requires its DNS A record to target the workload server. The command refuses to run from the deployed production-mode process.
+For the isolated staging control plane, run `npm run staging:deploy:panel` from the local operator checkout. The command only creates or reuses `qubit-hosting-panel-staging`, installs its environment without logging secret values, disables development authentication bypass, retains test payment mode from `.env`, and queues the pushed `main` branch for `https://panel.apps-staging.qubit.codes`. No separate panel-domain alias is configured while the platform uses same-domain mode. The command refuses to run from the deployed production-mode process.
 
 ## Scheduled operations
 
