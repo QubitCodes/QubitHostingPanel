@@ -6,6 +6,7 @@ const hostname = z.string().trim().toLowerCase().max(255).regex(/^(?=.{1,253}$)(
 export const updatePlatformSettingsSchema = z.object({
 	applicationBaseDomain: hostname,
 	defaultApplicationSubdomainEnabled: z.boolean(),
+	domainOwnershipVerificationEnabled: z.boolean(),
 	panelBaseUrl: httpsBaseUrl.nullable(),
 	panelDomainMode: z.enum(['same_domain', 'separate_domain']),
 	publicBaseUrl: httpsBaseUrl,

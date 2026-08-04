@@ -15,6 +15,7 @@ export const platformSettings = pgTable('platform_settings', {
 	applicationBaseDomain: varchar('application_base_domain', { length: 255 }).notNull(),
 	applicationDomainStatus: domainVerificationStatusEnum('application_domain_status').notNull().default('pending'),
 	defaultApplicationSubdomainEnabled: boolean('default_application_subdomain_enabled').notNull().default(true),
+	domainOwnershipVerificationEnabled: boolean('domain_ownership_verification_enabled').notNull().default(true),
 	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 	updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 	deletedAt: timestamp('deleted_at', { withTimezone: true }),

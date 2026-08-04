@@ -33,6 +33,7 @@ export const updateApplicationSchema = z.object({
 export type UpdateApplicationRequest = z.infer<typeof updateApplicationSchema>;
 export const createApplicationDomainSchema = z.object({ hostname }).strict();
 export const checkApplicationDomainSchema = z.object({ hostname }).strict();
+export const domainAccessActionSchema = z.object({ action: z.enum(['approve', 'reject', 'revoke']) }).strict();
 export const updateApplicationDomainSchema = z.object({ action: z.enum(['set_primary', 'toggle_platform', 'refresh_tls']), enabled: z.boolean().optional() }).strict();
 export type CreateApplicationDomainRequest = z.infer<typeof createApplicationDomainSchema>;
 export type UpdateApplicationDomainRequest = z.infer<typeof updateApplicationDomainSchema>;

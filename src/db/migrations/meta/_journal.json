@@ -232,6 +232,13 @@
       "when": 1785846473230,
       "tag": "0032_harsh_red_wolf",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1785854932796,
+      "tag": "0033_quick_wolfsbane",
+      "breakpoints": true
     }
   ]
 }

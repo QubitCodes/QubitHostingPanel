@@ -6,6 +6,7 @@ export * from './offers';
 export * from './packages';
 export * from './payments';
 export * from './platformSettings';
+export * from './domainOwnership';
 export * from './provisioning';
 export * from './providerConnections';
 export * from './sharedPlatform';

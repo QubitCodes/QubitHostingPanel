@@ -120,6 +120,8 @@ export default [
 		route('workspaces/:workspaceId/databases/:databaseId/backups/:backupId/download', 'api/v1/workspaces/databases/backups/download.ts'),
 		route('workspaces/:workspaceId/applications', 'api/v1/workspaces/applications/index.ts'),
 		route('workspaces/:workspaceId/domains', 'api/v1/workspaces/applications/workspace-domains.ts'),
+		route('workspaces/:workspaceId/domain-ownership', 'api/v1/workspaces/applications/domain-ownership.ts'),
+		route('workspaces/:workspaceId/domain-access/:requestId', 'api/v1/workspaces/applications/domain-access.ts'),
 		route('workspaces/:workspaceId/applications/:applicationId', 'api/v1/workspaces/applications/detail.ts'),
 		route('workspaces/:workspaceId/applications/options', 'api/v1/workspaces/applications/options.ts'),
 		route('workspaces/:workspaceId/applications/:applicationId/logs', 'api/v1/workspaces/applications/logs.ts'),

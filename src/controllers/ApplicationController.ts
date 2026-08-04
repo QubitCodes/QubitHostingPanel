@@ -9,6 +9,8 @@ import {
   applicationDeployments,
   applicationDomains,
   customers,
+  domainAccessRequests,
+  domainOwnerships,
   logicalDatabases,
   provisioningJobs,
   runtimeImages,
@@ -22,6 +24,7 @@ import { recordAuditLog } from "@services/auditLogService";
 import { authenticateSession } from "@services/auth/authenticatedSessionService";
 import { hostingProvider } from "@services/hosting/hostingProviderFactory";
 import { getEffectivePlatformUrls } from '@services/platformUrlService';
+import { controllingOwnership, ownershipVerificationEnabled } from '@services/domains/domainOwnershipService';
 import { commitUsageReservation, releaseUsageReservation, reserveWorkspaceUsage } from "@services/usage/quotaEngine";
 import type { RequestMetadata } from "@utils/request";
 
@@ -285,6 +288,8 @@ export class ApplicationController {
           );
       }
       const customHostnames = [...new Set([...(input.domain ? [input.domain] : []), ...input.domains])];
+	  const verificationRequired = await ownershipVerificationEnabled();
+	  const domainPolicies = await Promise.all(customHostnames.map(async (hostname) => ({ hostname, ownership: await controllingOwnership(hostname) })));
       if (customHostnames.length) {
 		const conflicts = await db
           .select({ id: applicationBuilds.id })
@@ -342,10 +347,23 @@ export class ApplicationController {
           })
           .returning({ id: applicationBuilds.id });
         if (!build) throw new Error("Unable to persist application.");
-        await transaction.insert(applicationDomains).values([
+		const domainRows = await transaction.insert(applicationDomains).values([
           { applicationBuildId: build.id, hostname: platformHostname, type: 'platform', status: platform.applicationDomainReady ? 'verified' : 'pending', isPrimary: true, isEnabled: true, verifiedAt: platform.applicationDomainReady ? new Date() : null },
-		  ...customHostnames.map((hostname) => ({ applicationBuildId: build.id, hostname, type: 'custom' as const, status: 'pending' as const, isPrimary: false, isEnabled: false, verificationToken: randomUUID() })),
-        ]);
+		  ...domainPolicies.map(({ hostname, ownership }) => {
+			const owned = ownership?.workspaceId === workspace.id;
+			const direct = owned || (!ownership && !verificationRequired);
+			return { applicationBuildId: build.id, hostname, type: 'custom' as const, status: direct ? 'verified' as const : 'pending' as const, isPrimary: false, isEnabled: direct, verifiedAt: direct ? new Date() : null, tlsStatus: direct ? 'provisioning' as const : 'pending' as const, verificationToken: ownership ? null : verificationRequired ? randomUUID() : null };
+		  }),
+		]).returning({ id: applicationDomains.id, hostname: applicationDomains.hostname, verificationToken: applicationDomains.verificationToken });
+		for (const policy of domainPolicies) {
+			const domain = domainRows.find((row) => row.hostname === policy.hostname);
+			if (!domain) throw new Error('Unable to persist custom domain.');
+			if (!policy.ownership) {
+				await transaction.insert(domainOwnerships).values({ workspaceId: workspace.id, hostname: policy.hostname, status: verificationRequired ? 'pending' : 'verified', verificationToken: domain.verificationToken, verificationMethod: verificationRequired ? 'dns_txt' : 'platform_bypass', verifiedAt: verificationRequired ? null : new Date() });
+			} else if (policy.ownership.workspaceId !== workspace.id) {
+				await transaction.insert(domainAccessRequests).values({ ownershipId: policy.ownership.id, requestingWorkspaceId: workspace.id, applicationBuildId: build.id, applicationDomainId: domain.id, hostname: policy.hostname });
+			}
+		}
         if (input.databases.length)
           await transaction
             .insert(applicationDatabaseBindings)
