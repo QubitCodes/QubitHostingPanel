@@ -3,12 +3,12 @@ import { createMsg91Client } from '@qubitcodes/msg91';
 import { getEnvironment } from '@config/env';
 
 export interface OtpDeliveryProvider {
-	send(destination: string): Promise<{ code: string; providerReference?: string }>;
+	send(destination: string, code?: string): Promise<{ code: string; providerReference?: string }>;
 }
 
 /** Server-only MSG91 WhatsApp delivery adapter. OTP verification remains application-owned. */
 export class Msg91OtpProvider implements OtpDeliveryProvider {
-	public async send(destination: string): Promise<{ code: string; providerReference?: string }> {
+	public async send(destination: string, code?: string): Promise<{ code: string; providerReference?: string }> {
 		const environment = getEnvironment();
 		if (!environment.MSG91_AUTH_KEY || !environment.MSG91_WHATSAPP_NUMBER) {
 			throw new Error('MSG91 WhatsApp credentials are not configured.');
@@ -21,7 +21,7 @@ export class Msg91OtpProvider implements OtpDeliveryProvider {
 		const submission = await client.whatsapp.otp.send({
 			from: 'support',
 			to: destination.replace(/^\+/, ''),
-			generate: {}
+			...(code ? { code } : { generate: {} })
 		});
 		const result = submission.results[0];
 		if (!result) throw new Error('MSG91 did not return an OTP result.');

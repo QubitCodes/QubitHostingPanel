@@ -239,6 +239,13 @@
       "when": 1785854932796,
       "tag": "0033_quick_wolfsbane",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1785867241679,
+      "tag": "0034_ancient_moon_knight",
+      "breakpoints": true
     }
   ]
 }

@@ -1,6 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ArrowRight, Building2, LoaderCircle, UserRound } from "lucide-react";
 import { useEffect, useState } from "react";
+import { getCountries } from "libphonenumber-js";
 import {
   Controller,
   useForm,
@@ -18,8 +19,12 @@ import {
 
 /** Collects the immutable billing identity captured with the purchase. */
 function BillingProfileFields({
+  control,
+  emailLocked,
   register,
 }: {
+  control: ReturnType<typeof useForm<ConfigureCheckoutWorkspaceInput>>["control"];
+  emailLocked: boolean;
   register: UseFormRegister<ConfigureCheckoutWorkspaceInput>;
 }) {
   const inputClass =
@@ -39,8 +44,11 @@ function BillingProfileFields({
         <input
           className={inputClass}
           type="email"
+          readOnly={emailLocked}
+          aria-readonly={emailLocked}
           {...register("billingProfile.contactEmail")}
         />
+        {emailLocked && <span className="mt-1 block text-xs text-app-muted">Captured during checkout</span>}
       </label>
       <label className="sm:col-span-2">
         <span className="text-sm font-semibold">Address</span>
@@ -65,15 +73,20 @@ function BillingProfileFields({
         />
       </label>
       <label>
-        <span className="text-sm font-semibold">Country code</span>
-        <input
-          className={`${inputClass} uppercase`}
-          maxLength={2}
-          {...register("billingProfile.countryCode")}
-        />
+        <span className="text-sm font-semibold">Country</span>
+        <Controller control={control} name="billingProfile.countryCode" render={({ field }) => <SearchableSelect className="mt-2" onChange={field.onChange} options={countryOptions()} placeholder="Select country" searchPlaceholder="Search countries" value={field.value} />} />
       </label>
     </fieldset>
   );
+}
+
+let cachedCountryOptions: Array<{ keywords: string; label: string; value: string }> | undefined;
+/** Produces localized ISO-country choices once for every checkout form instance. */
+function countryOptions(): Array<{ keywords: string; label: string; value: string }> {
+  if (cachedCountryOptions) return cachedCountryOptions;
+  const names = new Intl.DisplayNames(["en"], { type: "region" });
+  cachedCountryOptions = getCountries().map((country) => ({ value: country, label: names.of(country) ?? country, keywords: country })).sort((left, right) => left.label.localeCompare(right.label));
+  return cachedCountryOptions;
 }
 
 export default function CheckoutSetupPage() {
@@ -84,11 +97,13 @@ export default function CheckoutSetupPage() {
     status: string;
   }>();
   const [error, setError] = useState("");
+  const [emailLocked, setEmailLocked] = useState(false);
   const {
     control,
     formState: { errors, isSubmitting },
     handleSubmit,
     register,
+    setValue,
   } = useForm<ConfigureCheckoutWorkspaceInput>({
     resolver: zodResolver(configureCheckoutWorkspaceSchema),
     defaultValues: {
@@ -112,13 +127,18 @@ export default function CheckoutSetupPage() {
     void authenticatedFetch(`/api/v1/checkouts/${checkoutId}`)
       .then(async (response) => {
         const body = (await response.json()) as {
-          data?: { packageName: string; status: string };
+          data?: { packageName: string; status: string; billingDefaults?: { contactEmail?: string | null; countryCode?: string; displayName?: string; emailLocked?: boolean } };
           message: string;
           status: boolean;
         };
         if (!response.ok || !body.status || !body.data)
           throw new Error(body.message);
         setPurchase(body.data);
+        const defaults = body.data.billingDefaults;
+        if (defaults?.displayName) setValue("billingProfile.displayName", defaults.displayName);
+        if (defaults?.contactEmail) setValue("billingProfile.contactEmail", defaults.contactEmail);
+        if (defaults?.countryCode) setValue("billingProfile.countryCode", defaults.countryCode);
+        setEmailLocked(Boolean(defaults?.emailLocked));
       })
       .catch((reason: unknown) =>
         setError(
@@ -127,7 +147,7 @@ export default function CheckoutSetupPage() {
             : "Unable to load the purchase.",
         ),
       );
-  }, [checkoutId]);
+  }, [checkoutId, setValue]);
   const submit = handleSubmit(async (input) => {
     setError("");
     const response = await authenticatedFetch(
@@ -244,7 +264,7 @@ export default function CheckoutSetupPage() {
             </label>
           </div>
         )}
-        <BillingProfileFields register={register} />
+        <BillingProfileFields control={control} emailLocked={emailLocked} register={register} />
         <button
           className="mt-8 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-brand-action px-5 py-4 font-bold text-brand-ink disabled:opacity-60"
           disabled={isSubmitting}

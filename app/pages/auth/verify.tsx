@@ -105,8 +105,8 @@ export default function VerifyLoginPage() {
 		if (!pendingIdentity) { toast.error('Return to login and enter your mobile number again.'); return; }
 		setResending(true);
 		try {
-			const response = await fetch('/api/v1/auth/otp/request', {
-				body: JSON.stringify(pendingIdentity),
+			const response = await fetch('/api/v1/auth/otp/resend', {
+				body: JSON.stringify({ challengeId }),
 				headers: { 'content-type': 'application/json', 'x-device-id': getDeviceIdentifier() },
 				method: 'POST',
 			});
@@ -116,7 +116,7 @@ export default function VerifyLoginPage() {
 			setResendAvailableAt(Number.isFinite(nextResendAt) ? nextResendAt : 0);
 			if (body.data.resendAvailableAt) sessionStorage.setItem('pendingOtpResendAvailableAt', body.data.resendAvailableAt);
 			form.reset({ otp: '' });
-			toast.success('A new WhatsApp code was requested.');
+			toast.success(body.message);
 			if (body.data.challengeId !== challengeId) navigate(`/login/verify/${body.data.challengeId}${returnTo ? `?returnTo=${encodeURIComponent(returnTo)}` : ''}`, { replace: true });
 		} catch (error) { toast.error(error instanceof Error ? error.message : 'Unable to resend OTP.'); }
 		finally { setResending(false); }

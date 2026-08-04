@@ -13,6 +13,7 @@ export const verifyOtpSchema = z.object({
 	challengeId: z.uuid(),
 	otp: z.string().regex(/^\d{6}$/, 'OTP must contain exactly 6 digits.')
 }).strict();
+export const resendOtpSchema = z.object({ challengeId: z.uuid() }).strict();
 
 export const refreshSessionSchema = z.object({ refreshToken: z.string().min(32) }).strict();
 export const switchContextSchema = z.object({
@@ -30,5 +31,6 @@ export const updateSessionLabelSchema = z.object({
 }).strict();
 
 export type RequestOtpInput = z.infer<typeof requestOtpSchema>;
+export type ResendOtpInput = z.infer<typeof resendOtpSchema>;
 export type ResolveMobileCountryInput = z.infer<typeof resolveMobileCountrySchema>;
 export type VerifyOtpInput = z.infer<typeof verifyOtpSchema>;

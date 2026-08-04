@@ -68,6 +68,15 @@ export const OPENAPI_DOCUMENT = {
 				},
 			},
 		},
+		'/auth/otp/resend': {
+			post: {
+				description: 'Resends the current code while more than one minute remains. During the final minute, rotates the code and starts a fresh expiry window.',
+				summary: 'Resend the active WhatsApp OTP',
+				operationId: 'resendWhatsAppOtp',
+				requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', additionalProperties: false, required: ['challengeId'], properties: { challengeId: { type: 'string', format: 'uuid' } } } } } },
+				responses: { '202': { description: 'Current or newly rotated OTP sent.' }, '429': { description: 'Resend cooldown is active or the challenge expired.' } },
+			},
+		},
 		'/auth/refresh': {
 			post: {
 				summary: 'Rotate a refresh token',

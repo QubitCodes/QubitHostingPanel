@@ -6,6 +6,7 @@ import {
 	pgEnum,
 	pgSequence,
 	pgTable,
+	text,
 	timestamp,
 	uniqueIndex,
 	uuid,
@@ -131,6 +132,7 @@ export const otpChallenges = pgTable(
 		purpose: otpPurposeEnum('purpose').notNull().default('login'),
 		otpHash: varchar('otp_hash', { length: 128 }).notNull(),
 		otpSalt: varchar('otp_salt', { length: 64 }).notNull(),
+		otpCiphertext: text('otp_ciphertext'),
 		deliveryStatus: otpDeliveryStatusEnum('delivery_status')
 			.notNull()
 			.default('pending'),

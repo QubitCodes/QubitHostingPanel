@@ -6,7 +6,7 @@ import { getCountryCallingCode, isSupportedCountry, type CountryCode } from 'lib
 import { getEnvironment } from '@config/env';
 import { db } from '@db/client';
 import { authenticationEvents, authenticationHandoffs, otpChallenges, platformUserRoles, userSessions, users } from '@db/schema';
-import type { CreateAuthenticationHandoffInput, ConsumeAuthenticationHandoffInput, RequestOtpInput, ResolveMobileCountryInput, VerifyOtpInput } from '@schemas/auth';
+import type { CreateAuthenticationHandoffInput, ConsumeAuthenticationHandoffInput, RequestOtpInput, ResendOtpInput, ResolveMobileCountryInput, VerifyOtpInput } from '@schemas/auth';
 import { Msg91OtpProvider, type OtpDeliveryProvider } from '@services/auth/Msg91OtpProvider';
 import { canUseDevelopmentAuthBypass, parseDevelopmentAuthMobile } from '@services/auth/developmentAuthBypassService';
 import { createOtpSalt, hashOtp, hashSensitiveValue, verifyOtpHash } from '@services/auth/otpCryptoService';
@@ -18,9 +18,15 @@ import { API_DOCS_COOKIE, API_DOCS_PERMISSION } from '@services/authorization/ap
 import { ensureCustomer, ensureCustomerForUser } from '@services/customerWorkspaceService';
 import type { RequestMetadata } from '@utils/request';
 import { getEffectivePlatformUrls } from '@services/platformUrlService';
+import { decryptCredential, encryptCredential } from '@services/encryption/credentialEncryptionService';
 
 function maskMobile(value: string): string {
 	return value.length <= 4 ? '*'.repeat(value.length) : `${'*'.repeat(value.length - 4)}${value.slice(-4)}`;
+}
+
+/** Reuses an encrypted OTP only while its expiry is strictly more than one minute away. */
+export function shouldReuseOtpCode(expiresAt: Date, now: Date, hasCiphertext: boolean): boolean {
+	return hasCiphertext && expiresAt.getTime() - now.getTime() > 60_000;
 }
 
 async function hasActiveAdminRole(userId: string): Promise<boolean> {
@@ -175,6 +181,7 @@ export class AuthController {
 				mobile: parsedMobile.mobile,
 				otpHash: hashOtp(generatedCode, otpSalt, secret),
 				otpSalt,
+				otpCiphertext: deliveryStatus === 'submitted' ? encryptCredential(generatedCode) : null,
 				deliveryStatus,
 				providerReference,
 				maxAttempts: environment.OTP_MAX_ATTEMPTS,
@@ -204,6 +211,27 @@ export class AuthController {
 		}
 	}
 
+	/** Resends a valid code, rotating it only during the final minute of its lifetime. */
+	public static async resendOtp(input: ResendOtpInput, metadata: RequestMetadata, provider: OtpDeliveryProvider = new Msg91OtpProvider()): Promise<Response> {
+		try {
+			const environment = getEnvironment();
+			const now = new Date();
+			const [challenge] = await db.select().from(otpChallenges).where(and(eq(otpChallenges.id, input.challengeId), eq(otpChallenges.deliveryStatus, 'submitted'), isNull(otpChallenges.consumedAt), isNull(otpChallenges.deletedAt), gt(otpChallenges.expiresAt, now))).limit(1);
+			if (!challenge || challenge.resendAvailableAt > now || !challenge.countryCode || !challenge.mobile) return resp.failure('OTP cannot be resent yet or has expired.', resp.codes.RATE_LIMIT_EXCEEDED, undefined, null, undefined, 429);
+			const reuseCurrentCode = shouldReuseOtpCode(challenge.expiresAt, now, Boolean(challenge.otpCiphertext));
+			const currentCode = reuseCurrentCode ? decryptCredential(challenge.otpCiphertext!) : undefined;
+			const delivery = await provider.send(`${challenge.countryCode}${challenge.mobile}`, currentCode);
+			const otpSalt = reuseCurrentCode ? challenge.otpSalt : createOtpSalt();
+			const expiresAt = reuseCurrentCode ? challenge.expiresAt : new Date(now.getTime() + environment.OTP_TTL_MINUTES * 60_000);
+			const [updated] = await db.update(otpChallenges).set({ otpHash: reuseCurrentCode ? challenge.otpHash : hashOtp(delivery.code, otpSalt, requireOtpSecret()), otpSalt, otpCiphertext: encryptCredential(delivery.code), providerReference: delivery.providerReference, expiresAt, resendAvailableAt: new Date(now.getTime() + environment.OTP_RESEND_COOLDOWN_SECONDS * 1_000), updatedAt: now }).where(eq(otpChallenges.id, challenge.id)).returning();
+			if (!updated) throw new Error('Unable to update OTP challenge.');
+			await db.insert(authenticationEvents).values({ userId: challenge.userId, challengeId: challenge.id, identityHash: challenge.identityHash, type: 'otp_requested', status: 'success', reason: reuseCurrentCode ? 'same_code_resent' : 'code_rotated', ipAddress: metadata.ipAddress, userAgent: metadata.userAgent });
+			return resp.success(reuseCurrentCode ? 'The current WhatsApp code was resent.' : 'A new WhatsApp code was sent.', { challengeId: updated.id, expiresAt: updated.expiresAt, resendAvailableAt: updated.resendAvailableAt }, resp.codes.ACCEPTED, undefined, 202);
+		} catch {
+			return resp.failure('Unable to resend OTP.', resp.codes.INTERNAL_SERVICE_ERROR, undefined, null, undefined, 500);
+		}
+	}
+
 	/** Verifies a one-time challenge once and creates a multi-device session. */
 	public static async verifyOtp(input: VerifyOtpInput, metadata: RequestMetadata): Promise<Response> {
 		try {
@@ -230,7 +258,7 @@ export class AuthController {
 			}
 			const user = await db.transaction(async (transaction) => {
 				const [consumedChallenge] = await transaction.update(otpChallenges)
-					.set({ consumedAt: now, updatedAt: now })
+					.set({ consumedAt: now, otpCiphertext: null, updatedAt: now })
 					.where(and(eq(otpChallenges.id, challenge.id), isNull(otpChallenges.consumedAt)))
 					.returning({ id: otpChallenges.id });
 				if (!consumedChallenge) throw new Error('OTP challenge was already consumed.');
