@@ -191,7 +191,7 @@ Gate: retries and duplicate webhooks cannot create duplicate resources.
 - [x] Incident, rollback, suspension, and cancellation playbooks.
 - [x] Automated readiness report covers failed provisioning, stale pending payments, latest provider reconciliation health, stale usage, and provider health.
 - [x] Live payment/provisioning verification confirmed all four idempotency indexes, required lifecycle states, and eight operational permissions; verified payment state is monotonic under concurrent events.
-- [ ] Resolve or explicitly close stale PayU checkout `100001` after provider-dashboard confirmation; the panel intentionally does not guess payment outcome.
+- [x] PayU checkout `100001` reconciled as cancelled after dashboard evidence confirmed both real test transactions belonged to checkout `100002`; the correction was audited and checkout `100002` remained active/verified.
 
 Gate: production checklist is accepted with evidence.
 

@@ -46,5 +46,6 @@ export async function reconcileProviderConnection(connectionId: string): Promise
 	}
 	const status = failures.length === 0 ? 'succeeded' : failures.length === IMPORT_KINDS.length ? 'failed' : 'partial';
 	await db.update(providerReconciliationRuns).set({ completedAt: new Date(), failureDetails: failures, importedCounts, status, updatedAt: new Date() }).where(eq(providerReconciliationRuns.id, run.id));
+	await db.update(providerConnections).set({ lastError: failures.length ? failures.map((failure) => `${failure.kind}: ${failure.message}`).join('; ').slice(0, 2000) : null, lastHealthyAt: failures.length === 0 ? new Date() : undefined, lastValidatedAt: new Date(), status: failures.length === IMPORT_KINDS.length ? 'unhealthy' : 'active', updatedAt: new Date() }).where(eq(providerConnections.id, connectionId));
 	return { failures, importedCounts, runId: run.id };
 }
