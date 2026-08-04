@@ -15,6 +15,7 @@ export const configureCheckoutWorkspaceSchema = z.object({
 		displayName: z.string().trim().min(2).max(160),
 		legalName: z.string().trim().min(2).max(200).nullable().optional(),
 	}).strict().nullable().optional(),
+	billingProfile: z.object({ displayName: z.string().trim().min(2).max(200), legalName: z.string().trim().max(200).optional(), contactEmail: z.email(), addressLine1: z.string().trim().min(3).max(255), addressLine2: z.string().trim().max(255).optional(), city: z.string().trim().min(2).max(120), region: z.string().trim().min(2).max(120), postalCode: z.string().trim().min(3).max(20), countryCode: z.string().trim().toUpperCase().regex(/^[A-Z]{2}$/), gstin: z.string().trim().toUpperCase().regex(/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/).optional() }).strict(),
 }).strict().superRefine((value, context) => {
 	if (value.type === 'organisation' && !value.organisation) context.addIssue({ code: 'custom', message: 'Organisation details are required.', path: ['organisation'] });
 });

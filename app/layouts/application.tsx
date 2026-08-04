@@ -39,6 +39,7 @@ const navigation = [
 	{ label: 'Packages', path: '/admin/packages', icon: PackageOpen },
 	{ label: 'Offers', path: '/admin/offers', icon: BadgePercent },
 	{ label: 'Administrators', path: '/admin/administrators', icon: Shield },
+	{ label: 'Customers', path: '/admin/customers', icon: UserRound },
 	{ label: 'Operations', path: '/admin/operations/payments', icon: CloudCog },
 	{ label: 'Database clusters', path: '/admin/operations/database-clusters', icon: Database },
 	{ label: 'Settings', path: '/settings/profile', icon: Settings },
@@ -49,6 +50,7 @@ const titles: Record<string, string> = {
 	'/admin/packages': 'Packages',
 	'/admin/offers': 'Offers',
 	'/admin/administrators': 'Administrators',
+	'/admin/customers': 'Customers and workspaces',
 	'/admin/operations/payments': 'Payment operations',
 	'/admin/operations/provisioning': 'Provisioning operations',
 	'/admin/operations/providers': 'Provider health',
@@ -67,6 +69,8 @@ function pageTitle(pathname: string): string {
 				? 'Database cluster'
 			: pathname.startsWith('/admin/administrators/')
 			? 'Administrator details'
+			: pathname.startsWith('/admin/customers/')
+				? 'Customer workspace'
 			: pathname.startsWith('/settings/sessions/')
 				? 'Session details'
 				: pathname.startsWith('/search/')

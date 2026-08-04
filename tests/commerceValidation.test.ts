@@ -21,10 +21,12 @@ describe('commercial validation', () => {
 		expect(checkoutQuoteSchema.safeParse({ priceId: 'bad', total: 1 }).success).toBe(false);
 	});
 	it('validates purchase tokens and post-purchase workspace setup', () => {
+		const billingProfile = { displayName: 'Qubit Codes', contactEmail: 'billing@example.com', addressLine1: '42 Green Road', city: 'Kolkata', region: 'West Bengal', postalCode: '700001', countryCode: 'IN' };
 		expect(purchaseCheckoutSchema.safeParse({ quoteToken: 'x'.repeat(32) }).success).toBe(true);
-		expect(configureCheckoutWorkspaceSchema.safeParse({ name: 'Production', type: 'personal', organisation: null }).success).toBe(true);
-		expect(configureCheckoutWorkspaceSchema.safeParse({ name: 'Company', type: 'organisation', organisation: null }).success).toBe(false);
-		expect(configureCheckoutWorkspaceSchema.safeParse({ name: 'Company', type: 'organisation', organisation: { displayName: 'Qubit Codes', legalName: null } }).success).toBe(true);
+		expect(configureCheckoutWorkspaceSchema.safeParse({ name: 'Production', type: 'personal', organisation: null, billingProfile }).success).toBe(true);
+		expect(configureCheckoutWorkspaceSchema.safeParse({ name: 'Production', type: 'personal', organisation: null }).success).toBe(false);
+		expect(configureCheckoutWorkspaceSchema.safeParse({ name: 'Company', type: 'organisation', organisation: null, billingProfile }).success).toBe(false);
+		expect(configureCheckoutWorkspaceSchema.safeParse({ name: 'Company', type: 'organisation', organisation: { displayName: 'Qubit Codes', legalName: null }, billingProfile }).success).toBe(true);
 	});
 	it('enforces one entitlement value or unlimited', () => {
 		const entitlementId = '00000000-0000-4000-8000-000000000000';

@@ -16,6 +16,7 @@ const workspaceProjection = {
 	role: workspaceMemberships.role,
 	organisationDisplayName: organisations.displayName,
 	subscriptionStatus: workspaceSubscriptions.status,
+	cancelAtPeriodEnd: workspaceSubscriptions.cancelAtPeriodEnd,
 	packageName: packages.name,
 	termEndsAt: workspaceSubscriptions.termEndsAt,
 	trialEndsAt: workspaceSubscriptions.trialEndsAt,

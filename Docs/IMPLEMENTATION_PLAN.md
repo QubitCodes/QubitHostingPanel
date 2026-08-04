@@ -107,15 +107,15 @@ Delivery order:
 - [x] Update OTP registration to transactionally create/reuse only the customer profile; defer the first workspace until purchase.
 - [x] Backfill every current user, including administrators, with missing customer records idempotently without seeding workspaces.
 - [x] Permit multiple independently billed workspaces per user through purchase-first workspace setup during the MVA.
-- [ ] Create Personal or Organisation Workspaces and convert Personal Workspaces into organisations without changing workspace identity.
-- [ ] Support audited Personal Workspace ownership transfer with recipient confirmation and automatic replacement workspace when required.
-- [ ] Add immutable workspace billing-profile versions and authorized cloning with source lineage.
+- [x] Create Personal or Organisation Workspaces and convert Personal Workspaces into organisations without changing workspace identity.
+- [x] Support audited Personal Workspace ownership transfer with recipient confirmation and automatic replacement workspace when required.
+- [x] Add immutable workspace billing-profile versions and authorized cloning with source lineage.
 - [x] Add an authorized dashboard workspace selector without workspace IDs in customer page URLs.
 - [x] Build the `/dashboard` shell and URL-backed overview, billing, subscription, security, and create-popup views.
 - [x] Add customer-owned pre-workspace checkout records, mock/PayU/Razorpay provider abstraction, attempts, exact amount verification, and idempotent verified-webhook foundations.
-- [ ] Add one primary hosting subscription per workspace plus add-on items and lifecycle state.
-- [ ] Snapshot purchased price, offers, tax, billing profile, and entitlements immutably.
-- [ ] Add customer/workspace/subscription administration, OpenAPI documentation, tests, and live Supabase verification.
+- [x] Add one primary hosting subscription per workspace plus add-on items and lifecycle state.
+- [x] Snapshot purchased price, offers, tax, billing profile, and entitlements immutably.
+- [x] Add customer/workspace/subscription administration, OpenAPI documentation, tests, and live Supabase verification.
 
 Gate: every user has a customer profile, purchased workspaces have isolated billing/plan state, ownership transfer preserves workspace history, and admin access remains independently authorized.
 
@@ -198,4 +198,4 @@ Gate: production checklist is accepted with evidence.
 
 ## Next implementation approval
 
-Next task: complete Phase 3 workspace conversion, ownership transfer, billing-profile, and subscription lifecycle gaps.
+Next task: implement Phase 4 usage, reservation, observation, quota, and override enforcement.

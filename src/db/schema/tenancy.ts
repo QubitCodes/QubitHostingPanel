@@ -10,6 +10,7 @@ import {
 	uniqueIndex,
 	uuid,
 	varchar,
+	text,
 } from 'drizzle-orm/pg-core';
 
 import { users } from './identity';
@@ -39,6 +40,7 @@ export const workspaceMembershipStatusEnum = pgEnum('workspace_membership_status
 	'suspended',
 	'left',
 ]);
+export const workspaceOwnershipTransferStatusEnum = pgEnum('workspace_ownership_transfer_status', ['pending', 'accepted', 'declined', 'cancelled', 'expired']);
 
 export const customerPublicIdSequence = pgSequence('customer_public_id_seq', {
 	startWith: 100000,
@@ -127,6 +129,47 @@ export const organisations = pgTable('organisations', {
 	check('organisations_gstin_check', sql`${table.gstin} IS NULL OR ${table.gstin} ~ '^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$'`),
 ]);
 
+/** Immutable workspace billing identity version used for purchase and invoice snapshots. */
+export const workspaceBillingProfiles = pgTable('workspace_billing_profiles', {
+	id: uuid('id').primaryKey().defaultRandom(),
+	workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'restrict' }),
+	version: integer('version').notNull(),
+	displayName: varchar('display_name', { length: 200 }).notNull(),
+	legalName: varchar('legal_name', { length: 200 }),
+	contactEmail: varchar('contact_email', { length: 320 }).notNull(),
+	contactCountryCode: varchar('contact_country_code', { length: 8 }),
+	contactMobile: varchar('contact_mobile', { length: 32 }),
+	gstin: varchar('gstin', { length: 15 }),
+	addressLine1: varchar('address_line_1', { length: 255 }).notNull(),
+	addressLine2: varchar('address_line_2', { length: 255 }),
+	city: varchar('city', { length: 120 }).notNull(),
+	region: varchar('region', { length: 120 }).notNull(),
+	postalCode: varchar('postal_code', { length: 20 }).notNull(),
+	countryCode: varchar('country_code', { length: 2 }).notNull().default('IN'),
+	sourceProfileId: uuid('source_profile_id'),
+	createdByUserId: uuid('created_by_user_id').notNull().references(() => users.id, { onDelete: 'restrict' }),
+	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+	updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+	deletedAt: timestamp('deleted_at', { withTimezone: true }),
+	deleteReason: varchar('delete_reason', { length: 500 }),
+}, (table) => [uniqueIndex('workspace_billing_profiles_version_unique').on(table.workspaceId, table.version), index('workspace_billing_profiles_workspace_created_idx').on(table.workspaceId, table.createdAt), check('workspace_billing_profiles_country_check', sql`${table.countryCode} ~ '^[A-Z]{2}$'`)]);
+
+/** Audited owner handoff requiring the recipient customer to accept. */
+export const workspaceOwnershipTransfers = pgTable('workspace_ownership_transfers', {
+	id: uuid('id').primaryKey().defaultRandom(),
+	workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'restrict' }),
+	fromCustomerId: uuid('from_customer_id').notNull().references(() => customers.id, { onDelete: 'restrict' }),
+	toCustomerId: uuid('to_customer_id').notNull().references(() => customers.id, { onDelete: 'restrict' }),
+	status: workspaceOwnershipTransferStatusEnum('status').notNull().default('pending'),
+	reason: text('reason'),
+	expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+	respondedAt: timestamp('responded_at', { withTimezone: true }),
+	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+	updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+	deletedAt: timestamp('deleted_at', { withTimezone: true }),
+	deleteReason: varchar('delete_reason', { length: 500 }),
+}, (table) => [uniqueIndex('workspace_ownership_transfers_pending_unique').on(table.workspaceId).where(sql`${table.status} = 'pending' AND ${table.deletedAt} IS NULL`), index('workspace_ownership_transfers_recipient_status_idx').on(table.toCustomerId, table.status), check('workspace_ownership_transfers_distinct_check', sql`${table.fromCustomerId} <> ${table.toCustomerId}`)]);
+
 export const customersRelations = relations(customers, ({ many, one }) => ({
 	memberships: many(workspaceMemberships),
 	user: one(users, { fields: [customers.userId], references: [users.id] }),
@@ -152,3 +195,4 @@ export type Workspace = typeof workspaces.$inferSelect;
 export type NewWorkspace = typeof workspaces.$inferInsert;
 export type WorkspaceMembership = typeof workspaceMemberships.$inferSelect;
 export type Organisation = typeof organisations.$inferSelect;
+export type WorkspaceBillingProfile = typeof workspaceBillingProfiles.$inferSelect;

@@ -183,6 +183,13 @@
       "when": 1785785373550,
       "tag": "0025_cold_scrambler",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1785787972032,
+      "tag": "0026_fearless_captain_britain",
+      "breakpoints": true
     }
   ]
 }
