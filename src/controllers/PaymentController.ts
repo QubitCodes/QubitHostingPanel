@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { and, desc, eq, isNull } from 'drizzle-orm';
+import { and, desc, eq, isNull, ne } from 'drizzle-orm';
 import { resp } from '@qubitcodes/qcresp';
 
 import { db } from '@db/client';
@@ -53,14 +53,13 @@ export class PaymentController {
 	private static async applyProviderResult(providerCode: PaymentProviderCode, result: VerifiedPayment): Promise<{ checkoutPublicId: number; success: boolean }> {
 		const [attempt] = await db.select({ id: paymentAttempts.id, checkoutId: paymentAttempts.checkoutId, amountMinor: paymentAttempts.amountMinor, currency: paymentAttempts.currency, checkoutPublicId: customerCheckouts.publicId }).from(paymentAttempts).innerJoin(customerCheckouts, eq(customerCheckouts.id, paymentAttempts.checkoutId)).where(and(eq(paymentAttempts.provider, providerCode), eq(paymentAttempts.providerOrderId, result.orderId), isNull(paymentAttempts.deletedAt), isNull(customerCheckouts.deletedAt))).orderBy(desc(paymentAttempts.createdAt)).limit(1);
 		if (!attempt) throw new Error('Payment attempt not found.');
-		const existing = await db.select({ id: paymentWebhookEvents.id }).from(paymentWebhookEvents).where(and(eq(paymentWebhookEvents.provider, providerCode), eq(paymentWebhookEvents.eventKey, result.eventKey), isNull(paymentWebhookEvents.deletedAt))).limit(1);
-		if (existing.length) return { checkoutPublicId: attempt.checkoutPublicId, success: result.status === 'verified' };
 		const amountMatches = attempt.amountMinor === result.amountMinor && attempt.currency === result.currency;
 		const accepted = result.status === 'verified' && amountMatches;
 		await db.transaction(async (transaction) => {
-			await transaction.insert(paymentWebhookEvents).values({ paymentAttemptId: attempt.id, provider: providerCode, eventKey: result.eventKey || createHash('sha256').update(JSON.stringify(result.payload)).digest('hex'), eventType: result.status, status: amountMatches ? 'processed' : 'rejected', payload: sanitizedPayload(result.payload), rejectionReason: amountMatches ? null : 'Payment amount or currency mismatch.', processedAt: new Date() }).onConflictDoNothing();
-			await transaction.update(paymentAttempts).set({ status: accepted ? 'verified' : result.status, providerPaymentId: result.paymentId, providerPayload: sanitizedPayload(result.payload), verifiedAt: accepted ? new Date() : null, failureMessage: amountMatches ? null : 'Payment amount or currency mismatch.', updatedAt: new Date() }).where(eq(paymentAttempts.id, attempt.id));
-			await transaction.update(customerCheckouts).set({ status: accepted ? 'workspace_setup_pending' : result.status === 'failed' ? 'payment_failed' : 'payment_pending', purchasedAt: accepted ? new Date() : null, updatedAt: new Date() }).where(eq(customerCheckouts.id, attempt.checkoutId));
+			const [inserted] = await transaction.insert(paymentWebhookEvents).values({ paymentAttemptId: attempt.id, provider: providerCode, eventKey: result.eventKey || createHash('sha256').update(JSON.stringify(result.payload)).digest('hex'), eventType: result.status, status: amountMatches ? 'processed' : 'rejected', payload: sanitizedPayload(result.payload), rejectionReason: amountMatches ? null : 'Payment amount or currency mismatch.', processedAt: new Date() }).onConflictDoNothing().returning({ id: paymentWebhookEvents.id });
+			if (!inserted) return;
+			await transaction.update(paymentAttempts).set({ status: accepted ? 'verified' : result.status, providerPaymentId: result.paymentId, providerPayload: sanitizedPayload(result.payload), verifiedAt: accepted ? new Date() : null, failureMessage: amountMatches ? null : 'Payment amount or currency mismatch.', updatedAt: new Date() }).where(and(eq(paymentAttempts.id, attempt.id), ne(paymentAttempts.status, 'verified')));
+			await transaction.update(customerCheckouts).set({ status: accepted ? 'workspace_setup_pending' : result.status === 'failed' ? 'payment_failed' : 'payment_pending', purchasedAt: accepted ? new Date() : null, updatedAt: new Date() }).where(and(eq(customerCheckouts.id, attempt.checkoutId), ne(customerCheckouts.status, 'workspace_setup_pending'), ne(customerCheckouts.status, 'provisioning'), ne(customerCheckouts.status, 'active')));
 		});
 		return { checkoutPublicId: attempt.checkoutPublicId, success: accepted };
 	}

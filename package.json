@@ -19,6 +19,7 @@
 		"usage:observe": "node --env-file=.env --import tsx scripts/observeInfrastructureUsage.ts",
 		"provider:bootstrap": "node --env-file=.env --import tsx scripts/bootstrapProviderConnection.ts",
 		"provider:reconcile": "node --env-file=.env --import tsx scripts/reconcileProviderConnections.ts",
+		"operations:readiness": "node --env-file=.env --import tsx scripts/operationsReadinessReport.ts",
 		"db:generate": "node --env-file=.env node_modules/drizzle-kit/bin.cjs generate",
 		"db:migrate": "node --env-file=.env node_modules/drizzle-kit/bin.cjs migrate",
 		"db:studio": "drizzle-kit studio",

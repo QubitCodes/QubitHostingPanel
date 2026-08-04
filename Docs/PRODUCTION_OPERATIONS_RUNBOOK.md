@@ -1,0 +1,44 @@
+# Production operations runbook
+
+## Release gate
+
+Before production traffic, require all of the following: production `APP_URL`; final DNS and TLS; restricted database management ports; production payment credentials/webhooks; Coolify production connection; off-host encrypted backups; external uptime/error alerts; reverse-proxy rate limits; and an accepted restore drill. Run `npm run typecheck`, `npm run lint`, `npm test`, `npm run build`, `npm run db:migrate`, and `npm run operations:readiness` against the release environment.
+
+## Scheduled operations
+
+- Every 5 minutes: `npm run jobs:process` and alert on exhausted/failed jobs.
+- Every 15 minutes: `npm run provider:reconcile` and `npm run usage:observe`.
+- Every 15 minutes: `npm run operations:readiness`; exit code `2` means an actionable anomaly.
+- Daily: database backups, encrypted artifact verification, expired-backup cleanup, payment pending-age review, and provider reconciliation review.
+- Weekly: restore a disposable PostgreSQL and MySQL logical database, validate public HTTPS, and review audit logs/admin overrides.
+- Quarterly: create a new Coolify token, rotate it in the panel, verify reconciliation, then revoke the retired token at Coolify.
+
+Alert when any provider is unhealthy/stale for one hour, reconciliation is partial/failed, a payment remains pending for one hour, a provisioning job exhausts retries, usage observations are older than one day, backup creation fails, or public health/TLS fails.
+
+## Incident and rollback
+
+1. Declare owner, severity, start time, customer impact, and frozen change scope.
+2. Preserve logs, audit events, provider reconciliation runs, payment events, and database backups.
+3. Stop only the affected worker/provider connection. Never delete ownership, checkout, subscription, or provider records to “retry.”
+4. Roll application code back to the last verified commit. Roll schema forward with a corrective migration; never rewrite applied migrations.
+5. Re-run provider reconciliation, usage observation, payment anomaly report, direct upstream health, and public HTTPS.
+6. Record recovery time, root cause, affected records, corrective controls, and follow-up owner.
+
+For provider failure, disable the affected connection and preserve imported snapshots. For payment failure, do not manually mark a payment verified without provider evidence; replay the signed webhook/callback or reconcile through the provider dashboard. Verified payments are monotonic and cannot be downgraded by later failed events.
+
+## Suspension and cancellation
+
+Use the audited admin subscription lifecycle. Suspension blocks new resource mutations while preserving data. Customer cancellation remains reversible until term end. Add-ons cancel independently. Permanent resource removal occurs only after retention expiry, backup confirmation, and an audited explicit action.
+
+## Backup and token drills
+
+The staging PostgreSQL/MySQL backup/restore drill and encrypted artifact verification are recorded in the implementation plan. The database-managed Coolify token drill validated a candidate before activating version 2 and retiring version 1. Production completion additionally requires revoking the retired token in Coolify and performing the same restore drill against production-grade backup storage.
+
+## Security review
+
+- Secrets are encrypted at rest and omitted from APIs/audit metadata; provider snapshots recursively remove credential-like properties.
+- Admin APIs require explicit permissions; customer queries enforce workspace membership before limits.
+- Payment callbacks/webhooks verify provider signatures, amount, currency, unique event keys, and monotonic verified state.
+- OTP requests use identity cooldown and verification attempt caps. Production ingress must additionally rate-limit OTP, auth, payment, upload, and internal endpoints by IP/path.
+- Internal worker endpoints require their dedicated secret. Rotate all environment secrets before launch and after suspected exposure.
+- Keep PostgreSQL/MySQL management endpoints private or IP-restricted with TLS. Never expose Coolify or database administrator credentials to customers.

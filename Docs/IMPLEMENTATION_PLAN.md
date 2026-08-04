@@ -185,10 +185,13 @@ Gate: retries and duplicate webhooks cannot create duplicate resources.
 ## Phase 7 - Production readiness
 
 - Production infrastructure and DNS.
-- Backup/restore and token-rotation drills.
+- [x] Staging backup/restore and database-managed token-rotation drills.
 - Monitoring, alerting, rate limits, and security review.
-- Payment reconciliation and concurrency verification.
-- Incident, rollback, suspension, and cancellation playbooks.
+- [x] Payment reconciliation and concurrency verification.
+- [x] Incident, rollback, suspension, and cancellation playbooks.
+- [x] Automated readiness report covers failed provisioning, stale pending payments, latest provider reconciliation health, stale usage, and provider health.
+- [x] Live payment/provisioning verification confirmed all four idempotency indexes, required lifecycle states, and eight operational permissions; verified payment state is monotonic under concurrent events.
+- [ ] Resolve or explicitly close stale PayU checkout `100001` after provider-dashboard confirmation; the panel intentionally does not guess payment outcome.
 
 Gate: production checklist is accepted with evidence.
 
@@ -208,4 +211,4 @@ Gate: production checklist is accepted with evidence.
 
 ## Next implementation approval
 
-Next task: implement Phase 5 database-managed Coolify connections, token rotation, imports, and scheduled reconciliation.
+Next task: complete the remaining production-environment, external monitoring/rate-limit, and acceptance evidence in Phase 7.
