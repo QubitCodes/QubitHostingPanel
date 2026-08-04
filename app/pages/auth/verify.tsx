@@ -7,6 +7,7 @@ import { z } from 'zod';
 
 import { getDeviceIdentifier } from '@root/app/utils/authenticatedFetch';
 import { safeAuthenticationReturn } from '@root/app/utils/authReturn';
+import { openPanelPath } from '@root/app/utils/panelNavigation';
 
 const codeSchema = z.object({
 	otp: z.string().regex(/^\d{6}$/, 'Enter the six-digit code.'),
@@ -51,7 +52,10 @@ export default function VerifyLoginPage() {
 			sessionStorage.setItem('refreshToken', body.misc.refreshToken);
 			sessionStorage.setItem('authUser', JSON.stringify(body.data?.user ?? {}));
 			const user = body.data?.user;
-			navigate(returnTo ?? (user?.hasCustomerDashboardAccess ? '/dashboard' : user?.hasAdminAccess ? '/admin/overview' : '/'));
+			if (returnTo) navigate(returnTo);
+			else if (user?.hasCustomerDashboardAccess) await openPanelPath('/dashboard');
+			else if (user?.hasAdminAccess) await openPanelPath('/admin/overview');
+			else navigate('/');
 		} catch (error) {
 			toast.error(
 				error instanceof Error ? error.message : 'Unable to verify OTP.',

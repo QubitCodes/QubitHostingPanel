@@ -218,6 +218,13 @@
       "when": 1785843241000,
       "tag": "0030_ancient_doctor_faustus",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1785845146477,
+      "tag": "0031_spooky_weapon_omega",
+      "breakpoints": true
     }
   ]
 }

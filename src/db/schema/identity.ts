@@ -271,11 +271,36 @@ export const authenticationEvents = pgTable(
 	],
 );
 
+/** Short-lived one-time code used to establish a session on a verified panel host. */
+export const authenticationHandoffs = pgTable('authentication_handoffs', {
+	id: uuid('id').primaryKey().defaultRandom(),
+	userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+	sourceSessionId: uuid('source_session_id').notNull().references(() => userSessions.id, { onDelete: 'cascade' }),
+	tokenHash: varchar('token_hash', { length: 64 }).notNull(),
+	targetOrigin: varchar('target_origin', { length: 500 }).notNull(),
+	targetPath: varchar('target_path', { length: 500 }).notNull(),
+	expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+	consumedAt: timestamp('consumed_at', { withTimezone: true }),
+	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+	updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+	deletedAt: timestamp('deleted_at', { withTimezone: true }),
+	deleteReason: varchar('delete_reason', { length: 500 }),
+}, (table) => [
+	uniqueIndex('authentication_handoffs_token_hash_unique').on(table.tokenHash),
+	index('authentication_handoffs_user_expires_idx').on(table.userId, table.expiresAt),
+]);
+
 export const usersRelations = relations(users, ({ many }) => ({
 	authenticationEvents: many(authenticationEvents),
 	externalIdentities: many(externalIdentities),
 	otpChallenges: many(otpChallenges),
 	sessions: many(userSessions),
+	handoffs: many(authenticationHandoffs),
+}));
+
+export const authenticationHandoffsRelations = relations(authenticationHandoffs, ({ one }) => ({
+	user: one(users, { fields: [authenticationHandoffs.userId], references: [users.id] }),
+	sourceSession: one(userSessions, { fields: [authenticationHandoffs.sourceSessionId], references: [userSessions.id] }),
 }));
 
 export const externalIdentitiesRelations = relations(

@@ -8,6 +8,7 @@ import type { z } from 'zod';
 import { PhoneNumberInput } from '@root/app/components/forms/phone-number-input';
 import { getDeviceIdentifier } from '@root/app/utils/authenticatedFetch';
 import { safeAuthenticationReturn } from '@root/app/utils/authReturn';
+import { openPanelPath } from '@root/app/utils/panelNavigation';
 import { requestOtpSchema } from '@schemas/auth';
 
 type LoginForm = z.infer<typeof requestOtpSchema>;
@@ -43,7 +44,10 @@ export default function LoginPage() {
 				sessionStorage.setItem('refreshToken', body.misc.refreshToken);
 				sessionStorage.setItem('authUser', JSON.stringify(body.data?.user ?? {}));
 				const user = body.data?.user;
-				navigate(returnTo ?? (user?.hasCustomerDashboardAccess ? '/dashboard' : user?.hasAdminAccess ? '/admin/overview' : '/'));
+				if (returnTo) navigate(returnTo);
+				else if (user?.hasCustomerDashboardAccess) await openPanelPath('/dashboard');
+				else if (user?.hasAdminAccess) await openPanelPath('/admin/overview');
+				else navigate('/');
 				return;
 			}
 			if (!body.data?.challengeId) throw new Error(body.message);

@@ -17,6 +17,10 @@ export const switchContextSchema = z.object({
 }).strict();
 
 export const sessionIdSchema = z.uuid();
+export const createAuthenticationHandoffSchema = z.object({ targetPath: z.enum(['/dashboard', '/admin/overview']) }).strict();
+export const consumeAuthenticationHandoffSchema = z.object({ token: z.string().min(32).max(200) }).strict();
+export type CreateAuthenticationHandoffInput = z.infer<typeof createAuthenticationHandoffSchema>;
+export type ConsumeAuthenticationHandoffInput = z.infer<typeof consumeAuthenticationHandoffSchema>;
 export const updateSessionLabelSchema = z.object({
 	label: z.string().trim().min(1).max(100)
 }).strict();

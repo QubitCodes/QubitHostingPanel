@@ -1,10 +1,11 @@
+import { createHash, randomBytes } from 'node:crypto';
 import { and, eq, gt, isNotNull, isNull, or, sql } from 'drizzle-orm';
 import { resp } from '@qubitcodes/qcresp';
 
 import { getEnvironment } from '@config/env';
 import { db } from '@db/client';
-import { authenticationEvents, otpChallenges, platformUserRoles, userSessions, users } from '@db/schema';
-import type { RequestOtpInput, VerifyOtpInput } from '@schemas/auth';
+import { authenticationEvents, authenticationHandoffs, otpChallenges, platformUserRoles, userSessions, users } from '@db/schema';
+import type { CreateAuthenticationHandoffInput, ConsumeAuthenticationHandoffInput, RequestOtpInput, VerifyOtpInput } from '@schemas/auth';
 import { Msg91OtpProvider, type OtpDeliveryProvider } from '@services/auth/Msg91OtpProvider';
 import { canUseDevelopmentAuthBypass, parseDevelopmentAuthMobile } from '@services/auth/developmentAuthBypassService';
 import { createOtpSalt, hashOtp, hashSensitiveValue, verifyOtpHash } from '@services/auth/otpCryptoService';
@@ -15,6 +16,7 @@ import { hasCustomerDashboardAccess } from '@services/authorization/customerDash
 import { API_DOCS_COOKIE, API_DOCS_PERMISSION } from '@services/authorization/apiDocsAuthorizationService';
 import { ensureCustomer, ensureCustomerForUser } from '@services/customerWorkspaceService';
 import type { RequestMetadata } from '@utils/request';
+import { getEffectivePlatformUrls } from '@services/platformUrlService';
 
 function maskMobile(value: string): string {
 	return value.length <= 4 ? '*'.repeat(value.length) : `${'*'.repeat(value.length - 4)}${value.slice(-4)}`;
@@ -39,6 +41,8 @@ function getBearerToken(request: Request): string | undefined {
 	const [scheme, token] = request.headers.get('authorization')?.split(' ') ?? [];
 	return scheme?.toLowerCase() === 'bearer' ? token : undefined;
 }
+
+const hashHandoffToken = (token: string): string => createHash('sha256').update(token).digest('hex');
 
 /** Builds the short-lived, API-scoped cookie used only for documentation GET requests. */
 function apiDocsCookie(value: string, maximumAgeSeconds: number): string {
@@ -231,6 +235,34 @@ export class AuthController {
 		} catch {
 			return resp.failure('Unable to verify OTP.', resp.codes.INTERNAL_SERVICE_ERROR, undefined, null, undefined, 500);
 		}
+	}
+
+	/** Rotates the opaque refresh token and returns a fresh access token. */
+	public static async createHandoff(request: Request, input: CreateAuthenticationHandoffInput, metadata: RequestMetadata): Promise<Response> {
+		try {
+			const authenticated = await authenticateSession(request, metadata);
+			const urls = await getEffectivePlatformUrls();
+			if (urls.panelDomainMode !== 'separate_domain' || !urls.panelDomainReady) return resp.failure('A verified separate panel domain is not active.', resp.codes.GENERAL_BUSINESS_LOGIC_ERROR, undefined, null, undefined, 422);
+			if (input.targetPath === '/admin/overview' && !await hasActiveAdminRole(authenticated.userId)) return resp.failure('Admin dashboard access is not permitted.', resp.codes.PERMISSION_DENIED, undefined, null, undefined, 403);
+			if (input.targetPath === '/dashboard' && !await hasCustomerDashboardAccess(authenticated.userId)) return resp.failure('Customer dashboard access is not permitted.', resp.codes.PERMISSION_DENIED, undefined, null, undefined, 403);
+			const token = randomBytes(48).toString('base64url');
+			const targetOrigin = new URL(urls.panelBaseUrl).origin;
+			await db.insert(authenticationHandoffs).values({ userId: authenticated.userId, sourceSessionId: authenticated.sessionId, tokenHash: hashHandoffToken(token), targetOrigin, targetPath: input.targetPath, expiresAt: new Date(Date.now() + 2 * 60_000) });
+			return resp.success('Secure panel handoff created.', { handoffUrl: new URL(`/auth/handoff#token=${encodeURIComponent(token)}`, targetOrigin).toString() }, resp.codes.CREATED, undefined, 201);
+		} catch { return resp.failure('Unable to create panel handoff.', resp.codes.AUTHENTICATION_ERROR, undefined, null, undefined, 401); }
+	}
+
+	public static async consumeHandoff(request: Request, input: ConsumeAuthenticationHandoffInput, metadata: RequestMetadata): Promise<Response> {
+		try {
+			const requestOrigin = new URL(request.url).origin;
+			const [handoff] = await db.update(authenticationHandoffs).set({ consumedAt: new Date(), updatedAt: new Date() }).where(and(eq(authenticationHandoffs.tokenHash, hashHandoffToken(input.token)), eq(authenticationHandoffs.targetOrigin, requestOrigin), isNull(authenticationHandoffs.consumedAt), isNull(authenticationHandoffs.deletedAt), gt(authenticationHandoffs.expiresAt, new Date()))).returning();
+			if (!handoff) return resp.failure('Panel handoff is invalid or expired.', resp.codes.AUTHENTICATION_ERROR, undefined, null, undefined, 401);
+			const [user] = await db.select().from(users).where(and(eq(users.id, handoff.userId), eq(users.status, 'active'), isNull(users.deletedAt))).limit(1);
+			if (!user) return resp.failure('Account is inactive.', resp.codes.ACCOUNT_INACTIVE, undefined, null, undefined, 422);
+			const session = await createSession(user.id, user.tokenVersion, metadata);
+			const [hasAdminAccess, customerDashboardAccess] = await Promise.all([hasActiveAdminRole(user.id), hasCustomerDashboardAccess(user.id)]);
+			return resp.success('Panel session established.', { targetPath: handoff.targetPath, user: { id: user.id, displayName: user.displayName, countryCode: user.countryCode, mobile: user.mobile, mobileE164: `${user.countryCode}${user.mobile}`, hasAdminAccess, hasCustomerDashboardAccess: customerDashboardAccess } }, resp.codes.OK, session);
+		} catch { return resp.failure('Unable to consume panel handoff.', resp.codes.AUTHENTICATION_ERROR, undefined, null, undefined, 401); }
 	}
 
 	/** Rotates the opaque refresh token and returns a fresh access token. */

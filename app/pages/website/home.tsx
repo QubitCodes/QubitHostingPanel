@@ -20,6 +20,7 @@ import { Link, useLoaderData } from 'react-router';
 
 import { PublicCommerceController } from '@controllers/PublicCommerceController';
 import { authenticatedFetch, clearAuthentication } from '@root/app/utils/authenticatedFetch';
+import { openPanelPath } from '@root/app/utils/panelNavigation';
 
 interface CatalogueEntitlement {
 	booleanValue: boolean | null;
@@ -116,6 +117,19 @@ export function LandingPage({ catalogue }: { catalogue: CataloguePackage[] }) {
 			}
 		}, 0);
 		return () => window.clearTimeout(timeout);
+	}, []);
+
+	useEffect(() => {
+		const interceptPanelNavigation = (event: MouseEvent) => {
+			const anchor = (event.target as Element | null)?.closest('a');
+			if (!anchor) return;
+			const path = new URL(anchor.href, window.location.href).pathname;
+			if (path !== '/dashboard' && path !== '/admin/overview') return;
+			event.preventDefault();
+			void openPanelPath(path).catch(() => window.location.assign(path));
+		};
+		document.addEventListener('click', interceptPanelNavigation);
+		return () => document.removeEventListener('click', interceptPanelNavigation);
 	}, []);
 
 	function toggleTheme() {
