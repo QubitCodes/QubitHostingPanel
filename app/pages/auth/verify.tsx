@@ -1,6 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { ArrowLeft, ArrowRight } from 'lucide-react';
 import { Controller, useForm } from 'react-hook-form';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import { toast } from 'sonner';
 import { z } from 'zod';
@@ -20,7 +21,11 @@ export default function VerifyLoginPage() {
 	const navigate = useNavigate();
 	const [searchParams] = useSearchParams();
 	const returnTo = safeAuthenticationReturn(searchParams.get('returnTo'));
-	const pendingMobileSuffix = typeof sessionStorage === 'undefined' ? '••••' : sessionStorage.getItem('pendingMobile')?.slice(-4) || '••••';
+	const [pendingMobileSuffix, setPendingMobileSuffix] = useState('••••');
+	useEffect(() => {
+		const timeout = window.setTimeout(() => setPendingMobileSuffix(sessionStorage.getItem('pendingMobile')?.slice(-4) || '••••'), 0);
+		return () => window.clearTimeout(timeout);
+	}, []);
 	const form = useForm<CodeForm>({
 		resolver: zodResolver(codeSchema),
 		defaultValues: { otp: '' },
