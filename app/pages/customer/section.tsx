@@ -4,6 +4,7 @@ import { Link, useLocation, useOutletContext } from 'react-router';
 
 import type { WorkspaceSummary } from '@root/app/layouts/customer';
 import { authenticatedFetch } from '@root/app/utils/authenticatedFetch';
+import { CheckoutAttemptHistory } from '@root/app/components/customer/checkout-attempt-history';
 
 interface Entitlement { booleanValue?: boolean | null; code?: string; isUnlimited?: boolean; name?: string; numericValue?: number | null; unit?: string | null }
 interface Payment { amountMinor: number; createdAt: string; currency: string; failureMessage?: string | null; id: string; provider: string; providerPaymentId?: string | null; status: string; verifiedAt?: string | null }
@@ -45,5 +46,6 @@ export default function CustomerSectionPage() {
 	const [detail, setDetail] = useState<WorkspaceDetail>();
 	const loading = !detail || detail.publicId !== active?.publicId;
 	useEffect(() => { if (!active) return; void authenticatedFetch(`/api/v1/workspaces/${active.publicId}`).then((response) => response.json()).then((body: ApiEnvelope<WorkspaceDetail>) => setDetail(body.status ? body.data : undefined)); }, [active]);
+	if (!active) return <div className="mx-auto max-w-6xl"><p className="text-sm font-semibold capitalize text-brand-primary dark:text-brand-action">{section}</p><h2 className="mt-2 text-4xl font-black capitalize">Account {section}</h2><p className="mt-3 max-w-2xl text-sm leading-6 text-app-muted">{section === 'security' ? 'Account security and device sessions apply even before your first completed purchase.' : 'All attempted checkouts remain available here.'}</p><div className="mt-8">{section === 'security' ? <SecuritySection /> : <CheckoutAttemptHistory />}</div></div>;
 	return <div className="mx-auto max-w-6xl"><p className="text-sm font-semibold capitalize text-brand-primary dark:text-brand-action">{section}</p><h2 className="mt-2 text-4xl font-black capitalize">Workspace {section}</h2><p className="mt-3 max-w-2xl text-sm leading-6 text-app-muted">{section === 'security' ? 'Account security and device sessions apply across your workspaces.' : `Commercial details for ${active?.name ?? 'this workspace'}.`}</p><div className="mt-8">{loading || !detail ? <div className="grid min-h-56 place-items-center rounded-3xl border border-brand-primary/10 bg-app-surface"><LoaderCircle className="size-7 animate-spin text-brand-primary dark:text-brand-action" /></div> : section === 'subscription' ? <PlanCard detail={detail} /> : section === 'billing' ? <BillingSection detail={detail} /> : <SecuritySection />}</div></div>;
 }

@@ -3,13 +3,15 @@ import { resp } from '@qubitcodes/qcresp';
 
 import { getEnvironment } from '@config/env';
 import { db } from '@db/client';
-import { authenticationEvents, customers, otpChallenges, platformUserRoles, userSessions, users, workspaceMemberships } from '@db/schema';
+import { authenticationEvents, otpChallenges, platformUserRoles, userSessions, users } from '@db/schema';
 import type { RequestOtpInput, VerifyOtpInput } from '@schemas/auth';
 import { Msg91OtpProvider, type OtpDeliveryProvider } from '@services/auth/Msg91OtpProvider';
 import { canUseDevelopmentAuthBypass, parseDevelopmentAuthMobile } from '@services/auth/developmentAuthBypassService';
 import { createOtpSalt, hashOtp, hashSensitiveValue, verifyOtpHash } from '@services/auth/otpCryptoService';
 import { createRefreshToken, hashRefreshToken, issueAccessToken, verifyAccessToken, type SessionContext } from '@services/auth/tokenService';
+import { authenticateSession } from '@services/auth/authenticatedSessionService';
 import { authorizeAdmin } from '@services/authorization/adminAuthorizationService';
+import { hasCustomerDashboardAccess } from '@services/authorization/customerDashboardAccessService';
 import { API_DOCS_COOKIE, API_DOCS_PERMISSION } from '@services/authorization/apiDocsAuthorizationService';
 import { ensureCustomer, ensureCustomerForUser } from '@services/customerWorkspaceService';
 import type { RequestMetadata } from '@utils/request';
@@ -25,13 +27,6 @@ async function hasActiveAdminRole(userId: string): Promise<boolean> {
 		or(isNull(platformUserRoles.expiresAt), gt(platformUserRoles.expiresAt, new Date())),
 	)).limit(1);
 	return Boolean(assignment);
-}
-
-async function hasCustomerDashboard(userId: string): Promise<boolean> {
-	const [membership] = await db.select({ id: workspaceMemberships.id }).from(customers)
-		.innerJoin(workspaceMemberships, and(eq(workspaceMemberships.customerId, customers.id), eq(workspaceMemberships.status, 'active'), isNull(workspaceMemberships.deletedAt)))
-		.where(and(eq(customers.userId, userId), isNull(customers.deletedAt))).limit(1);
-	return Boolean(membership);
 }
 
 function requireOtpSecret(): string {
@@ -110,8 +105,8 @@ export class AuthController {
 					userAgent: metadata.userAgent,
 					metadata: { authenticationMethod: 'development_bypass' },
 				});
-				const [hasAdminAccess, hasCustomerDashboardAccess] = await Promise.all([hasActiveAdminRole(user.id), hasCustomerDashboard(user.id)]);
-				return resp.success('Authentication successful.', { user: { id: user.id, displayName: user.displayName, countryCode: user.countryCode, mobile: user.mobile, mobileE164: `${user.countryCode}${user.mobile}`, hasAdminAccess, hasCustomerDashboardAccess }, context: 'personal' }, resp.codes.OK, session);
+				const [hasAdminAccess, customerDashboardAccess] = await Promise.all([hasActiveAdminRole(user.id), hasCustomerDashboardAccess(user.id)]);
+				return resp.success('Authentication successful.', { user: { id: user.id, displayName: user.displayName, countryCode: user.countryCode, mobile: user.mobile, mobileE164: `${user.countryCode}${user.mobile}`, hasAdminAccess, hasCustomerDashboardAccess: customerDashboardAccess }, context: 'personal' }, resp.codes.OK, session);
 			}
 			const [cooldownChallenge] = await db.select().from(otpChallenges).where(and(
 				eq(otpChallenges.identityHash, identityHash),
@@ -231,10 +226,23 @@ export class AuthController {
 			});
 			const session = await createSession(user.id, user.tokenVersion, metadata);
 			await db.insert(authenticationEvents).values({ userId: user.id, challengeId: challenge.id, type: 'login_succeeded', status: 'success', ipAddress: metadata.ipAddress, userAgent: metadata.userAgent });
-			const [hasAdminAccess, hasCustomerDashboardAccess] = await Promise.all([hasActiveAdminRole(user.id), hasCustomerDashboard(user.id)]);
-			return resp.success('Authentication successful.', { user: { id: user.id, displayName: user.displayName, countryCode: user.countryCode, mobile: user.mobile, mobileE164: `${user.countryCode}${user.mobile}`, hasAdminAccess, hasCustomerDashboardAccess }, context: 'personal' }, resp.codes.OK, session);
+			const [hasAdminAccess, customerDashboardAccess] = await Promise.all([hasActiveAdminRole(user.id), hasCustomerDashboardAccess(user.id)]);
+			return resp.success('Authentication successful.', { user: { id: user.id, displayName: user.displayName, countryCode: user.countryCode, mobile: user.mobile, mobileE164: `${user.countryCode}${user.mobile}`, hasAdminAccess, hasCustomerDashboardAccess: customerDashboardAccess }, context: 'personal' }, resp.codes.OK, session);
 		} catch {
 			return resp.failure('Unable to verify OTP.', resp.codes.INTERNAL_SERVICE_ERROR, undefined, null, undefined, 500);
+		}
+	}
+
+	/** Rotates the opaque refresh token and returns a fresh access token. */
+	public static async profile(request: Request, metadata: RequestMetadata): Promise<Response> {
+		try {
+			const authenticated = await authenticateSession(request, metadata);
+			const [user] = await db.select({ countryCode: users.countryCode, displayName: users.displayName, id: users.id, mobile: users.mobile }).from(users).where(and(eq(users.id, authenticated.userId), eq(users.status, 'active'), isNull(users.deletedAt))).limit(1);
+			if (!user) return resp.failure('Account not found.', resp.codes.RESOURCE_NOT_FOUND, undefined, null, undefined, 404);
+			const [hasAdminAccess, customerDashboardAccess] = await Promise.all([hasActiveAdminRole(user.id), hasCustomerDashboardAccess(user.id)]);
+			return resp.success('Authenticated user retrieved.', { ...user, mobileE164: `${user.countryCode}${user.mobile}`, hasAdminAccess, hasCustomerDashboardAccess: customerDashboardAccess });
+		} catch {
+			return resp.failure('Authentication required.', resp.codes.AUTHENTICATION_ERROR, undefined, null, undefined, 401);
 		}
 	}
 

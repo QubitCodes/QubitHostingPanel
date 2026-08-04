@@ -90,6 +90,7 @@ export default [
 		route('auth/otp/verify', 'api/v1/auth/otp-verify.ts'),
 		route('auth/refresh', 'api/v1/auth/refresh.ts'),
 		route('auth/logout', 'api/v1/auth/logout.ts'),
+		route('auth/profile', 'api/v1/auth/profile.ts'),
 		route('auth/context', 'api/v1/auth/context.ts'),
 		route('auth/sessions', 'api/v1/auth/sessions.ts'),
 		route('auth/sessions/others', 'api/v1/auth/sessions-others.ts'),

@@ -147,13 +147,6 @@ export default function CheckoutSetupPage() {
       setError(body.message);
       return;
     }
-    const authUser = JSON.parse(
-      sessionStorage.getItem("authUser") ?? "{}",
-    ) as Record<string, unknown>;
-    sessionStorage.setItem(
-      "authUser",
-      JSON.stringify({ ...authUser, hasCustomerDashboardAccess: true }),
-    );
     navigate(body.data.dashboardUrl);
   });
   if (!purchase && !error)

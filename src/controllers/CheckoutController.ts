@@ -1,10 +1,10 @@
 import { jwtVerify } from 'jose';
-import { and, eq, inArray, isNull, notInArray } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, notInArray } from 'drizzle-orm';
 import { resp } from '@qubitcodes/qcresp';
 
 import { getEnvironment } from '@config/env';
 import { db } from '@db/client';
-import { customerCheckouts, customers, entitlementDefinitions, offers, organisations, packageEntitlements, packagePrices, packages, workspaceBillingProfiles, workspaceMemberships, workspaces, workspaceSubscriptions } from '@db/schema';
+import { customerCheckouts, customers, entitlementDefinitions, offers, organisations, packageEntitlements, packagePrices, packages, paymentAttempts, workspaceBillingProfiles, workspaceMemberships, workspaces, workspaceSubscriptions } from '@db/schema';
 import type { ConfigureCheckoutWorkspaceInput, PurchaseCheckoutInput } from '@schemas/checkout';
 import { authenticateSession } from '@services/auth/authenticatedSessionService';
 import { ensureCustomer } from '@services/customerWorkspaceService';
@@ -29,6 +29,34 @@ function addTrial(date: Date, duration: number, unit: 'day' | 'week' | 'month'):
 
 /** Persists a signed purchase and configures its workspace only after purchase completion. */
 export class CheckoutController {
+	/** Lists every hosted-gateway attempt owned by the authenticated customer. */
+	public static async index(request: Request, metadata: RequestMetadata): Promise<Response> {
+		try {
+			const authenticated = await authenticateSession(request, metadata);
+			const attempts = await db.select({
+				amountMinor: paymentAttempts.amountMinor,
+				checkoutId: customerCheckouts.publicId,
+				checkoutStatus: customerCheckouts.status,
+				createdAt: paymentAttempts.createdAt,
+				currency: paymentAttempts.currency,
+				failureMessage: paymentAttempts.failureMessage,
+				id: paymentAttempts.id,
+				packageName: customerCheckouts.packageNameSnapshot,
+				provider: paymentAttempts.provider,
+				providerPaymentId: paymentAttempts.providerPaymentId,
+				status: paymentAttempts.status,
+				verifiedAt: paymentAttempts.verifiedAt,
+			}).from(paymentAttempts)
+				.innerJoin(customerCheckouts, and(eq(customerCheckouts.id, paymentAttempts.checkoutId), isNull(customerCheckouts.deletedAt)))
+				.innerJoin(customers, and(eq(customers.id, customerCheckouts.customerId), isNull(customers.deletedAt)))
+				.where(and(eq(customers.userId, authenticated.userId), isNull(paymentAttempts.deletedAt)))
+				.orderBy(desc(paymentAttempts.createdAt));
+			return resp.success('Checkout attempts retrieved.', attempts);
+		} catch {
+			return resp.failure('Authentication required.', resp.codes.AUTHENTICATION_ERROR, undefined, null, undefined, 401);
+		}
+	}
+
 	public static async purchase(request: Request, input: PurchaseCheckoutInput, metadata: RequestMetadata): Promise<Response> {
 		try {
 			const authenticated = await authenticateSession(request, metadata);

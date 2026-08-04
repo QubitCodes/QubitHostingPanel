@@ -106,7 +106,14 @@ export function LandingPage({ catalogue }: { catalogue: CataloguePackage[] }) {
 			const initialDark = storedTheme === 'dark' || (!storedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches);
 			setDark(initialDark);
 			document.documentElement.classList.toggle('dark', initialDark);
-			if (sessionStorage.getItem('accessToken')) setAuthUser(JSON.parse(sessionStorage.getItem('authUser') ?? '{}'));
+			if (sessionStorage.getItem('accessToken')) {
+				setAuthUser(JSON.parse(sessionStorage.getItem('authUser') ?? '{}'));
+				void authenticatedFetch('/api/v1/auth/profile').then((response) => response.json()).then((body: { data?: { displayName?: string; hasAdminAccess?: boolean; hasCustomerDashboardAccess?: boolean }; status: boolean }) => {
+					if (!body.status || !body.data) return;
+					sessionStorage.setItem('authUser', JSON.stringify(body.data));
+					setAuthUser(body.data);
+				});
+			}
 		}, 0);
 		return () => window.clearTimeout(timeout);
 	}, []);
@@ -154,7 +161,7 @@ export function LandingPage({ catalogue }: { catalogue: CataloguePackage[] }) {
 function AccountMenu({ user }: { user: { displayName?: string; hasAdminAccess?: boolean; hasCustomerDashboardAccess?: boolean } }) {
 	const [open, setOpen] = useState(false);
 	async function logout(): Promise<void> { await authenticatedFetch('/api/v1/auth/logout', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' }); clearAuthentication(); window.location.assign('/'); }
-	return <div className="relative" onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false); }} onKeyDown={(event) => { if (event.key === 'Escape') setOpen(false); }}><button aria-expanded={open} className="flex items-center gap-2 rounded-xl border border-brand-primary/20 px-3 py-2.5 text-sm font-semibold" onClick={() => setOpen((current) => !current)} type="button"><span className="max-w-32 truncate">{user.displayName ?? 'Account'}</span><ChevronDown className="size-4" /></button>{open && <div className="absolute right-0 top-full z-50 mt-2 w-52 rounded-2xl border border-brand-primary/10 bg-app-surface p-2 shadow-2xl">{user.hasCustomerDashboardAccess && <Link className="block rounded-xl px-3 py-2.5 text-sm font-semibold hover:bg-brand-muted/15" onClick={() => setOpen(false)} to="/dashboard">Dashboard</Link>}{user.hasAdminAccess && <Link className="block rounded-xl px-3 py-2.5 text-sm font-semibold hover:bg-brand-muted/15" onClick={() => setOpen(false)} to="/admin/overview">Admin Panel</Link>}<button className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-rose-500 hover:bg-rose-500/10" onClick={() => void logout()} type="button"><LogOut className="size-4" /> Logout</button></div>}</div>;
+	return <div className="relative" onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false); }} onKeyDown={(event) => { if (event.key === 'Escape') setOpen(false); }}><button aria-expanded={open} className="flex items-center gap-2 rounded-xl border border-brand-primary/20 px-3 py-2.5 text-sm font-semibold" onClick={() => setOpen((current) => !current)} type="button"><span className="max-w-32 truncate">{user.displayName ?? 'Account'}</span><ChevronDown className="size-4" /></button>{open && <div className="absolute right-0 top-full z-50 mt-2 w-52 rounded-2xl border border-brand-primary/10 bg-app-surface p-2 shadow-2xl">{user.hasCustomerDashboardAccess && <Link className="block rounded-xl px-3 py-2.5 text-sm font-semibold hover:bg-brand-muted/15" onClick={() => setOpen(false)} to="/dashboard">Dashboard</Link>}{user.hasAdminAccess && <Link className="block rounded-xl px-3 py-2.5 text-sm font-semibold hover:bg-brand-muted/15" onClick={() => setOpen(false)} to="/admin/overview">Admin Dashboard</Link>}<button className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-rose-500 hover:bg-rose-500/10" onClick={() => void logout()} type="button"><LogOut className="size-4" /> Logout</button></div>}</div>;
 }
 
 /** Small metric tile used by the product preview. */
