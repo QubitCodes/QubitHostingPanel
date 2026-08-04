@@ -309,7 +309,7 @@ export const OPENAPI_DOCUMENT = {
 				operationId: 'showWorkspace',
 				security: [{ bearerAuth: [] }],
 				parameters: [{ in: 'path', name: 'workspaceId', required: true, schema: { type: 'integer', minimum: 100000, maximum: 999999 } }],
-				responses: { '200': { description: 'Workspace retrieved with immutable package and entitlement snapshots plus sanitized payment history.' }, '401': { description: 'Authentication required.' }, '404': { description: 'Workspace not found or inaccessible.' } },
+				responses: { '200': { description: 'Workspace retrieved with every current and historical subscription snapshot plus sanitized payment history.' }, '401': { description: 'Authentication required.' }, '404': { description: 'Workspace not found or inaccessible.' } },
 			},
 		},
 		'/public/catalogue': {

@@ -31,6 +31,20 @@ const workspaceDetailProjection = {
 	startsAt: workspaceSubscriptions.startsAt,
 };
 
+const subscriptionProjection = {
+	id: workspaceSubscriptions.id,
+	checkoutId: workspaceSubscriptions.checkoutId,
+	status: workspaceSubscriptions.status,
+	cancelAtPeriodEnd: workspaceSubscriptions.cancelAtPeriodEnd,
+	packageName: packages.name,
+	packageSnapshot: workspaceSubscriptions.packageSnapshot,
+	entitlementSnapshot: workspaceSubscriptions.entitlementSnapshot,
+	startsAt: workspaceSubscriptions.startsAt,
+	termEndsAt: workspaceSubscriptions.termEndsAt,
+	trialEndsAt: workspaceSubscriptions.trialEndsAt,
+	createdAt: workspaceSubscriptions.createdAt,
+};
+
 /** Customer-authorized workspace reads for the User Panel. */
 export class WorkspaceController {
 	public static async index(request: Request, metadata: RequestMetadata): Promise<Response> {
@@ -62,6 +76,10 @@ export class WorkspaceController {
 				.where(and(eq(customers.userId, authenticated.userId), isNull(customers.deletedAt)))
 				.limit(1);
 			if (!workspace) return resp.failure('Workspace not found.', resp.codes.RESOURCE_NOT_FOUND, undefined, null, undefined, 404);
+			const subscriptions = await db.select(subscriptionProjection).from(workspaceSubscriptions)
+				.leftJoin(packages, eq(packages.id, workspaceSubscriptions.packageId))
+				.where(and(eq(workspaceSubscriptions.workspaceId, workspace.id), isNull(workspaceSubscriptions.deletedAt)))
+				.orderBy(desc(workspaceSubscriptions.createdAt));
 			const payments = workspace.checkoutId ? await db.select({
 				id: paymentAttempts.id,
 				provider: paymentAttempts.provider,
@@ -73,7 +91,7 @@ export class WorkspaceController {
 				createdAt: paymentAttempts.createdAt,
 				verifiedAt: paymentAttempts.verifiedAt,
 			}).from(paymentAttempts).where(and(eq(paymentAttempts.checkoutId, workspace.checkoutId), isNull(paymentAttempts.deletedAt))).orderBy(desc(paymentAttempts.createdAt)) : [];
-			return resp.success('Workspace retrieved.', { ...workspace, payments });
+			return resp.success('Workspace retrieved.', { ...workspace, payments, subscriptions });
 		} catch {
 			return resp.failure('Authentication required.', resp.codes.AUTHENTICATION_ERROR, undefined, null, undefined, 401);
 		}
