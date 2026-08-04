@@ -17,20 +17,27 @@ const codeSchema = z.object({
 type CodeForm = z.infer<typeof codeSchema>;
 interface PendingOtpIdentity { countryCode?: string; mobile: string }
 
+/** Remove transient OTP identity data when the flow completes or is abandoned. */
+function clearPendingOtp(): void {
+	sessionStorage.removeItem('pendingMobile');
+	sessionStorage.removeItem('pendingOtpIdentity');
+	sessionStorage.removeItem('pendingOtpResendAvailableAt');
+}
+
 /** Verifies the URL-addressed OTP challenge and enters the strongest permitted context. */
 export default function VerifyLoginPage() {
 	const { challengeId } = useParams();
 	const navigate = useNavigate();
 	const [searchParams] = useSearchParams();
 	const returnTo = safeAuthenticationReturn(searchParams.get('returnTo'));
-	const [pendingMobileSuffix, setPendingMobileSuffix] = useState('••••');
+	const [pendingMobile, setPendingMobile] = useState('••••');
 	const [pendingIdentity, setPendingIdentity] = useState<PendingOtpIdentity>();
 	const [resendAvailableAt, setResendAvailableAt] = useState(0);
 	const [remainingSeconds, setRemainingSeconds] = useState(0);
 	const [resending, setResending] = useState(false);
 	useEffect(() => {
 		const timeout = window.setTimeout(() => {
-			setPendingMobileSuffix(sessionStorage.getItem('pendingMobile')?.slice(-4) || '••••');
+			setPendingMobile(sessionStorage.getItem('pendingMobile') || '••••');
 			try {
 				const storedIdentity = sessionStorage.getItem('pendingOtpIdentity');
 				if (storedIdentity) setPendingIdentity(JSON.parse(storedIdentity) as PendingOtpIdentity);
@@ -82,6 +89,7 @@ export default function VerifyLoginPage() {
 			sessionStorage.setItem('accessToken', body.misc.accessToken);
 			sessionStorage.setItem('refreshToken', body.misc.refreshToken);
 			sessionStorage.setItem('authUser', JSON.stringify(body.data?.user ?? {}));
+			clearPendingOtp();
 			const user = body.data?.user;
 			if (returnTo) navigate(returnTo);
 			else if (user?.hasCustomerDashboardAccess) await openPanelPath('/dashboard');
@@ -118,6 +126,7 @@ export default function VerifyLoginPage() {
 			<section className="w-full max-w-md rounded-[2rem] border border-stone-200 bg-app-surface p-6 shadow-[0_24px_80px_-40px_rgba(43,87,72,.45)] dark:border-stone-700 sm:p-9">
 				<Link
 					className="inline-flex items-center gap-2 text-sm text-stone-600 hover:text-brand-primary dark:text-stone-300"
+					onClick={clearPendingOtp}
 					to="/login"
 				>
 					<ArrowLeft className="size-4" />
@@ -130,8 +139,8 @@ export default function VerifyLoginPage() {
 					Enter your verification code
 				</h1>
 				<p className="mt-3 text-sm leading-6 text-stone-600 dark:text-stone-300">
-					We sent a six-digit code to the registered number ending in{' '}
-					{pendingMobileSuffix}.
+					We sent a six-digit code to <span className="font-semibold text-app-text">{pendingMobile}</span>.{' '}
+					<Link className="font-semibold text-brand-primary hover:underline dark:text-brand-action" to={`/login?changeNumber=1${returnTo ? `&returnTo=${encodeURIComponent(returnTo)}` : ''}`}>Change number</Link>
 				</p>
 				<form className="mt-8 space-y-5" onSubmit={form.handleSubmit(verify)}>
 					<Controller

@@ -122,6 +122,8 @@ describe('application layout SSR', () => {
 			);
 		}).not.toThrow();
 		expect(verifyHtml).toContain('aria-label="Resend OTP"');
+		expect(verifyHtml).toContain('Change number');
+		expect(verifyHtml).toContain('changeNumber=1');
 		expect(verifyHtml).toContain('grid-cols-[minmax(0,1fr)_4.5rem]');
 		expect(verifyHtml).toContain('min-h-[4.5rem]');
 		expect(verifyHtml).toContain('rounded-2xl');

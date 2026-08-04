@@ -21,10 +21,17 @@ export default function LoginPage() {
 	const returnTo = safeAuthenticationReturn(searchParams.get('returnTo'));
 	const form = useForm<LoginForm>({
 		resolver: zodResolver(requestOtpSchema),
-		defaultValues: { countryCode: undefined, mobile: '~~9400143527' },
+		defaultValues: { countryCode: undefined, mobile: '' },
 	});
 	const countryCode = useWatch({ control: form.control, name: 'countryCode' });
 	const mobile = useWatch({ control: form.control, name: 'mobile' });
+	useEffect(() => {
+		if (searchParams.get('changeNumber') !== '1') return;
+		try {
+			const storedIdentity = sessionStorage.getItem('pendingOtpIdentity');
+			if (storedIdentity) form.reset(JSON.parse(storedIdentity) as LoginForm);
+		} catch { sessionStorage.removeItem('pendingOtpIdentity'); }
+	}, [form, searchParams]);
 
 	useEffect(() => {
 		const nationalNumber = mobile.replace(/^~~/, '').replace(/\D/g, '');
