@@ -185,6 +185,9 @@ Gate: retries and duplicate webhooks cannot create duplicate resources.
 ## Phase 7 - Production readiness
 
 - Production infrastructure and DNS.
+- [x] Staging control plane deployed from pushed `main` with development authentication bypass disabled and trusted HTTPS at `panel.apps-staging.qubit.codes`.
+- [x] Staging source-deployment acceptance completed through the normal quota, job, provider, and reconciliation path: Node 22/Express and PHP 8.3/Laravel 12 both return public HTTPS 200 and finished as succeeded/running.
+- [x] Coolify partial-create recovery now upserts provider-generated environment variables, refreshes changed application commands, and redeploys terminal failures without duplicating active builds.
 - [x] Staging backup/restore and database-managed token-rotation drills.
 - Monitoring, alerting, rate limits, and security review.
 - [x] Payment reconciliation and concurrency verification.
@@ -211,4 +214,4 @@ Gate: production checklist is accepted with evidence.
 
 ## Next implementation approval
 
-Next task: complete the remaining production-environment, external monitoring/rate-limit, and acceptance evidence in Phase 7.
+Next task: complete the human OTP registration acceptance on staging, correct the `panel-staging.qubit.codes` DNS A record to the workload server, and then complete the deferred production-environment, external monitoring/rate-limit, and acceptance evidence in Phase 7.

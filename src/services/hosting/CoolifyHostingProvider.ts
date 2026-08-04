@@ -15,6 +15,12 @@ export function normalizeCoolifyWildcardDomain(domain: string): string {
 /** Finds an exact-name provider application created before a panel retry could persist it. */
 export function reusableCoolifyApplication(applications: CoolifyApplication[], name: string): CoolifyApplication | undefined { return applications.find((application) => application.name === name && application.uuid); }
 
+/** Identifies Coolify's duplicate-key response so an existing generated variable can be updated. */
+export function isCoolifyEnvironmentConflict(error: unknown): boolean { return error instanceof Error && /^Coolify 409:.*environment variable already exists/i.test(error.message); }
+
+/** Determines whether a recovered partial application needs a fresh provider deployment. */
+export function shouldRedeployCoolifyApplication(status?: string): boolean { return /failed|exited|stopped|cancelled/i.test(status ?? ''); }
+
 /** Least-privilege Coolify v4 REST adapter for starter workload provisioning. */
 export class CoolifyHostingProvider implements HostingProvider {
 	private readonly environment = getEnvironment();
@@ -55,6 +61,18 @@ export class CoolifyHostingProvider implements HostingProvider {
 
 	public async getUsage(): Promise<readonly ProviderUsage[]> { return []; }
 
+	/** Creates a literal application variable or updates the provider-generated key when it already exists. */
+	private async upsertApplicationEnvironment(applicationUuid: string, key: string, value: string): Promise<void> {
+		const path = `/applications/${encodeURIComponent(applicationUuid)}/envs`;
+		const body = JSON.stringify({ key, value, is_preview: false, is_literal: true, is_multiline: value.includes('\n') });
+		try {
+			await this.request(path, { method: 'POST', body });
+		} catch (error) {
+			if (!isCoolifyEnvironmentConflict(error)) throw error;
+			await this.request(path, { method: 'PATCH', body });
+		}
+	}
+
 	public async createSharedDatabase(input: CreateCoolifyDatabaseInput): Promise<{ uuid: string }> {
 		if (!this.config.defaultProjectUuid || !this.config.serverUuid) throw new Error('Coolify placement is incomplete.');
 		const common = { server_uuid: this.config.serverUuid, project_uuid: this.config.defaultProjectUuid, environment_name: this.config.defaultEnvironmentName ?? 'production', destination_uuid: this.config.destinationUuid, name: input.name, description: 'Qubit shared database cluster', image: input.image, is_public: false, limits_memory: input.limitsMemory, limits_cpus: input.limitsCpus, instant_deploy: true };
@@ -75,13 +93,14 @@ export class CoolifyHostingProvider implements HostingProvider {
 		const domains = input.domain ? `https://${input.domain}` : wildcardDomain ? `https://${input.name}.${wildcardDomain}` : undefined;
 		const applications = await this.request<CoolifyApplication[]>('/applications');
 		const existing = reusableCoolifyApplication(applications, input.name);
-		if (existing?.uuid) return { id: existing.uuid, publicUrl: existing.fqdn?.split(',')[0] ?? domains?.split(',')[0], status: 'pending' };
 		const common = { project_uuid: this.config.defaultProjectUuid, server_uuid: this.config.serverUuid, environment_name: this.config.defaultEnvironmentName ?? 'production', destination_uuid: this.config.destinationUuid, ports_exposes: runtimePort, name: input.name, description: `Qubit workspace ${input.workspaceId}`, autogenerate_domain: !domains, domains, health_check_enabled: true, health_check_path: '/', health_check_port: runtimePort, instant_deploy: true, force_domain_override: false };
-		const body = input.source
+		const body = existing?.uuid ? { uuid: existing.uuid } : input.source
 			? await this.request<{ uuid: string }>('/applications/public', { method: 'POST', body: JSON.stringify({ ...common, git_repository: input.source.repository, git_branch: input.source.branch, build_pack: input.buildPack ?? 'nixpacks', install_command: input.installCommand, build_command: input.buildCommand, start_command: input.startCommand, base_directory: input.baseDirectory, publish_directory: input.publishDirectory, is_static: input.buildPack === 'static' }) })
 			: await this.request<{ uuid: string }>('/applications/dockerimage', { method: 'POST', body: JSON.stringify({ ...common, docker_registry_image_name: input.runtimeImage?.repository ?? this.environment.COOLIFY_STARTER_IMAGE, docker_registry_image_tag: input.runtimeImage?.tag ?? this.environment.COOLIFY_STARTER_IMAGE_TAG }) });
-		for (const variable of input.databaseEnvironment ?? []) await this.request(`/applications/${encodeURIComponent(body.uuid)}/envs`, { method: 'POST', body: JSON.stringify({ key: variable.key, value: variable.value, is_preview: false, is_literal: true, is_multiline: false }) });
-		return { id: body.uuid, publicUrl: domains?.split(',')[0], status: 'pending' };
+		if (existing?.uuid && input.source) await this.request(`/applications/${encodeURIComponent(existing.uuid)}`, { method: 'PATCH', body: JSON.stringify({ build_pack: input.buildPack ?? 'nixpacks', install_command: input.installCommand ?? '', build_command: input.buildCommand ?? '', start_command: input.startCommand ?? '', base_directory: input.baseDirectory, publish_directory: input.publishDirectory ?? '', ports_exposes: runtimePort, domains, health_check_port: runtimePort }) });
+		for (const variable of input.databaseEnvironment ?? []) await this.upsertApplicationEnvironment(body.uuid, variable.key, variable.value);
+		if (existing?.uuid && shouldRedeployCoolifyApplication(existing.status)) await this.request('/deploy', { method: 'POST', body: JSON.stringify({ force: true, uuid: existing.uuid }) });
+		return { id: body.uuid, publicUrl: existing?.fqdn?.split(',')[0] ?? domains?.split(',')[0], status: 'pending' };
 	}
 
 	public async getDeployment(jobId: string): Promise<ProviderJobStatus> {

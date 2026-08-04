@@ -35,9 +35,30 @@ export async function processProvisioningJobs(limit = 5): Promise<{ failed: numb
 			const [configuredApplication] = input.applicationBuildId ? await db.select({ build: applicationBuilds, runtime: runtimeImages }).from(applicationBuilds).innerJoin(runtimeImages, eq(runtimeImages.id, applicationBuilds.runtimeImageId)).where(and(eq(applicationBuilds.id, input.applicationBuildId), eq(applicationBuilds.workspaceId, claimed.workspaceId), isNull(applicationBuilds.deletedAt))).limit(1) : [];
 			const applicationMetadata = configuredApplication?.build.metadata as { buildPack?: 'dockerfile' | 'nixpacks' | 'static'; name?: string } | undefined;
 			const resourceName = `${String(applicationMetadata?.name ?? input.workspaceName ?? 'workspace').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40)}-${claimed.workspaceId.slice(0, 8)}`;
+			/** Resolves secrets only when submitting or retrying a provider deployment. */
+			const deploymentInput = async () => {
+				let databaseEnvironment: Array<{ key: string; value: string }> = [];
+				if (configuredApplication) {
+					const bindings = await db.select({ prefix: applicationDatabaseBindings.environmentPrefix, database: logicalDatabases, cluster: databaseClusters }).from(applicationDatabaseBindings).innerJoin(logicalDatabases, eq(logicalDatabases.id, applicationDatabaseBindings.logicalDatabaseId)).innerJoin(databaseClusters, eq(databaseClusters.id, logicalDatabases.clusterId)).where(and(eq(applicationDatabaseBindings.applicationBuildId, configuredApplication.build.id), isNull(applicationDatabaseBindings.deletedAt), isNull(logicalDatabases.deletedAt)));
+					databaseEnvironment = bindings.flatMap(({ prefix, database, cluster }) => { const credential = JSON.parse(decryptCredential(database.credentialCiphertext)) as { databaseName: string; password: string; username: string }; const endpoint = databaseClusterEndpoint(cluster); return [{ key: `${prefix}_ENGINE`, value: cluster.engine }, { key: `${prefix}_HOST`, value: endpoint.host }, { key: `${prefix}_PORT`, value: String(endpoint.port) }, { key: `${prefix}_DATABASE`, value: credential.databaseName }, { key: `${prefix}_USERNAME`, value: credential.username }, { key: `${prefix}_PASSWORD`, value: credential.password }]; });
+					const runtimeVersionVariable = configuredApplication.runtime.language === 'node' ? 'NIXPACKS_NODE_VERSION' : configuredApplication.runtime.language === 'python' ? 'NIXPACKS_PYTHON_VERSION' : configuredApplication.runtime.language === 'php' ? 'NIXPACKS_PHP_VERSION' : undefined;
+					if (runtimeVersionVariable) databaseEnvironment.push({ key: runtimeVersionVariable, value: configuredApplication.runtime.version });
+					await db.update(applicationBuilds).set({ status: 'building', startedAt: new Date(), failureReason: null, updatedAt: new Date() }).where(eq(applicationBuilds.id, configuredApplication.build.id));
+					if (input.deploymentId) await db.update(applicationDeployments).set({ status: 'deploying', startedAt: new Date(), failureReason: null, updatedAt: new Date() }).where(eq(applicationDeployments.id, input.deploymentId));
+				}
+				return { name: resourceName, workspaceId: claimed.workspaceId, source: configuredApplication ? { repository: configuredApplication.build.sourceRepository, branch: configuredApplication.build.sourceRef } : undefined, buildPack: applicationMetadata?.buildPack, installCommand: configuredApplication?.build.installCommand ?? undefined, buildCommand: configuredApplication?.build.buildCommand ?? undefined, startCommand: configuredApplication?.build.startCommand ?? undefined, baseDirectory: configuredApplication?.build.baseDirectory, publishDirectory: configuredApplication?.build.publishDirectory ?? undefined, domain: configuredApplication?.build.requestedDomain ?? undefined, databaseEnvironment, runtimeImage: configuredApplication ? { repository: `${configuredApplication.runtime.registry}/${configuredApplication.runtime.repository}`, tag: configuredApplication.runtime.tag, port: configuredApplication.build.applicationPort } : undefined };
+			};
 			const [existingResource] = await db.select().from(workspaceResources).where(and(eq(workspaceResources.provisioningJobId, claimed.id), isNull(workspaceResources.deletedAt))).limit(1);
 			if (existingResource) {
 				const providerStatus = await provider.getDeployment(existingResource.providerResourceId);
+				if (providerStatus === 'failed' && configuredApplication) {
+					const retry = await provider.provisionApplication(await deploymentInput());
+					await db.transaction(async (transaction) => {
+						await transaction.update(workspaceResources).set({ status: 'provisioning', publicUrl: retry.publicUrl ?? existingResource.publicUrl, lastReconciledAt: new Date(), updatedAt: new Date() }).where(eq(workspaceResources.id, existingResource.id));
+						await transaction.update(provisioningJobs).set({ status: 'queued', lockedAt: null, nextAttemptAt: new Date(Date.now() + 30_000), result: { providerResourceId: existingResource.providerResourceId, providerStatus: retry.status, publicUrl: retry.publicUrl }, lastError: null, updatedAt: new Date() }).where(eq(provisioningJobs.id, claimed.id));
+					});
+					continue;
+				}
 				if (providerStatus === 'failed') throw new Error('The provider reports that deployment failed.');
 				if (providerStatus !== 'succeeded') {
 					await db.transaction(async (transaction) => {
@@ -56,16 +77,7 @@ export async function processProvisioningJobs(limit = 5): Promise<{ failed: numb
 				succeeded += 1;
 				continue;
 			}
-			let databaseEnvironment: Array<{ key: string; value: string }> = [];
-			if (configuredApplication) {
-				const bindings = await db.select({ prefix: applicationDatabaseBindings.environmentPrefix, database: logicalDatabases, cluster: databaseClusters }).from(applicationDatabaseBindings).innerJoin(logicalDatabases, eq(logicalDatabases.id, applicationDatabaseBindings.logicalDatabaseId)).innerJoin(databaseClusters, eq(databaseClusters.id, logicalDatabases.clusterId)).where(and(eq(applicationDatabaseBindings.applicationBuildId, configuredApplication.build.id), isNull(applicationDatabaseBindings.deletedAt), isNull(logicalDatabases.deletedAt)));
-				databaseEnvironment = bindings.flatMap(({ prefix, database, cluster }) => { const credential = JSON.parse(decryptCredential(database.credentialCiphertext)) as { databaseName: string; password: string; username: string }; const endpoint = databaseClusterEndpoint(cluster); return [{ key: `${prefix}_ENGINE`, value: cluster.engine }, { key: `${prefix}_HOST`, value: endpoint.host }, { key: `${prefix}_PORT`, value: String(endpoint.port) }, { key: `${prefix}_DATABASE`, value: credential.databaseName }, { key: `${prefix}_USERNAME`, value: credential.username }, { key: `${prefix}_PASSWORD`, value: credential.password }]; });
-				const runtimeVersionVariable = configuredApplication.runtime.language === 'node' ? 'NIXPACKS_NODE_VERSION' : configuredApplication.runtime.language === 'python' ? 'NIXPACKS_PYTHON_VERSION' : configuredApplication.runtime.language === 'php' ? 'NIXPACKS_PHP_VERSION' : undefined;
-				if (runtimeVersionVariable) databaseEnvironment.push({ key: runtimeVersionVariable, value: configuredApplication.runtime.version });
-				await db.update(applicationBuilds).set({ status: 'building', startedAt: new Date(), updatedAt: new Date() }).where(eq(applicationBuilds.id, configuredApplication.build.id));
-				if (input.deploymentId) await db.update(applicationDeployments).set({ status: 'deploying', startedAt: new Date(), updatedAt: new Date() }).where(eq(applicationDeployments.id, input.deploymentId));
-			}
-			const result = await provider.provisionApplication({ name: resourceName, workspaceId: claimed.workspaceId, source: configuredApplication ? { repository: configuredApplication.build.sourceRepository, branch: configuredApplication.build.sourceRef } : undefined, buildPack: applicationMetadata?.buildPack, installCommand: configuredApplication?.build.installCommand ?? undefined, buildCommand: configuredApplication?.build.buildCommand ?? undefined, startCommand: configuredApplication?.build.startCommand ?? undefined, baseDirectory: configuredApplication?.build.baseDirectory, publishDirectory: configuredApplication?.build.publishDirectory ?? undefined, domain: configuredApplication?.build.requestedDomain ?? undefined, databaseEnvironment, runtimeImage: configuredApplication ? { repository: `${configuredApplication.runtime.registry}/${configuredApplication.runtime.repository}`, tag: configuredApplication.runtime.tag, port: configuredApplication.build.applicationPort } : undefined });
+			const result = await provider.provisionApplication(await deploymentInput());
 			await db.transaction(async (transaction) => {
 				const [resource] = await transaction.insert(workspaceResources).values({ workspaceId: claimed.workspaceId, provisioningJobId: claimed.id, provider: claimed.provider, kind: 'application', name: resourceName, providerResourceId: result.id, status: result.status === 'succeeded' ? 'running' : 'provisioning', publicUrl: result.publicUrl, metadata: { checkoutId: input.checkoutId, applicationBuildId: input.applicationBuildId }, lastReconciledAt: new Date() }).onConflictDoNothing().returning({ id: workspaceResources.id });
 				if (input.applicationBuildId && resource) await transaction.update(applicationBuilds).set({ resourceId: resource.id, providerBuildId: result.id, status: result.status === 'succeeded' ? 'succeeded' : 'building', completedAt: result.status === 'succeeded' ? new Date() : null, updatedAt: new Date() }).where(eq(applicationBuilds.id, input.applicationBuildId));

@@ -20,6 +20,8 @@
 		"provider:bootstrap": "node --env-file=.env --import tsx scripts/bootstrapProviderConnection.ts",
 		"provider:reconcile": "node --env-file=.env --import tsx scripts/reconcileProviderConnections.ts",
 		"operations:readiness": "node --env-file=.env --import tsx scripts/operationsReadinessReport.ts",
+		"staging:deploy:panel": "node --env-file=.env --import tsx scripts/deployStagingPanel.ts",
+		"staging:queue:proofs": "node --env-file=.env --import tsx scripts/queueStagingDeploymentProofs.ts",
 		"db:generate": "node --env-file=.env node_modules/drizzle-kit/bin.cjs generate",
 		"db:migrate": "node --env-file=.env node_modules/drizzle-kit/bin.cjs migrate",
 		"db:studio": "drizzle-kit studio",
