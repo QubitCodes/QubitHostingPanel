@@ -292,6 +292,14 @@ export const OPENAPI_DOCUMENT = {
 		'/operations/provider/connections/{connectionId}/reconcile': {
 			post: { summary: 'Import and reconcile scoped Coolify inventory', operationId: 'reconcileProviderConnection', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Servers, applications, databases, services, and deployments reconciled without creating commercial ownership.' }, '502': { description: 'Reconciliation failed.' } } },
 		},
+		'/operations/runtime-images': {
+			get: { summary: 'List the complete admin runtime catalogue', operationId: 'listRuntimeImages', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Active, deprecated, and disabled runtime images returned.' } } },
+			post: { summary: 'Create an approved runtime image', operationId: 'createRuntimeImage', security: [{ bearerAuth: [] }], responses: { '201': { description: 'Runtime image created.' }, '400': { description: 'Image reference or code conflicts.' } } },
+		},
+		'/operations/runtime-images/{imageId}': {
+			patch: { summary: 'Update runtime metadata, default, or lifecycle', operationId: 'updateRuntimeImage', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Runtime image updated.' }, '404': { description: 'Runtime image not found.' } } },
+			delete: { summary: 'Soft-delete an unused runtime image', operationId: 'deleteRuntimeImage', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Unused runtime image soft-deleted.' }, '422': { description: 'Build history exists; disable the runtime instead.' } } },
+		},
 		'/workspaces/{workspaceId}': {
 			get: {
 				summary: 'View an authorized workspace by its six-digit public ID',

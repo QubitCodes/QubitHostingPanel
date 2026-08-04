@@ -159,7 +159,7 @@ Gate: completed with encrypted multi-connection storage, validated rotation roll
 - [x] Idempotent provisioning job queue with CLI/internal worker execution, optimistic claims, retry, and reconciliation.
 - [x] Starter Docker-image application creation after verified payment/trial and subscription snapshot; customer source and database selection remain later resource workflows.
 - [x] Direct provider smoke deployment verified with `nginx:alpine`, a healthy container, and a public HTTPS `apps-staging.qubit.codes` response.
-- Deployment status and domain conflict validation.
+- [x] Deployment status and domain conflict validation.
 - [x] Admin payment/provisioning visibility, provider health, failure detail, and manual retry.
 - [x] Partial-failure reconciliation prevents repeat workers from recreating an existing provider resource.
 - [x] Shared-platform schema foundation for reusable runtime images, build artifacts, database clusters, and workspace logical databases.
@@ -170,7 +170,7 @@ Gate: completed with encrypted multi-connection storage, validated rotation roll
 - [x] Shared-platform migrations `0020` and `0021` applied to Supabase and seven runtime catalogue entries seeded with verified versions and default ports.
 - [x] Public anonymous GHCR pulls verified and immutable manifests recorded for all seven exact-version runtime catalogue entries.
 - [x] Admin shared database cluster creation, capacity/lifecycle settings, provider health validation, and scheduled backup management with URL-backed views.
-- [ ] Admin runtime catalogue editing and lifecycle management.
+- [x] Admin runtime catalogue editing and lifecycle management.
 - [x] PostgreSQL/MySQL logical database allocation, restricted users, encrypted credential reveal/rotation, entitlement quotas, and audited lifecycle API.
 - [x] Customer database management UI/API with URL-backed list, create, detail, reveal, and rotation views.
 - [x] Separate private Coolify and optional IP-restricted management endpoints with explicit runtime selection and TLS-ready client configuration; migration `0023` applied to Supabase.

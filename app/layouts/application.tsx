@@ -42,6 +42,7 @@ const navigation = [
 	{ label: 'Customers', path: '/admin/customers', icon: UserRound },
 	{ label: 'Operations', path: '/admin/operations/payments', icon: CloudCog },
 	{ label: 'Database clusters', path: '/admin/operations/database-clusters', icon: Database },
+	{ label: 'Runtime images', path: '/admin/operations/runtime-images', icon: PackageOpen },
 	{ label: 'Settings', path: '/settings/profile', icon: Settings },
 ];
 
@@ -55,6 +56,7 @@ const titles: Record<string, string> = {
 	'/admin/operations/provisioning': 'Provisioning operations',
 	'/admin/operations/providers': 'Provider health',
 	'/admin/operations/database-clusters': 'Database clusters',
+	'/admin/operations/runtime-images': 'Runtime images',
 	'/settings/profile': 'Profile settings',
 	'/settings/security': 'Security settings',
 	'/settings/sessions': 'Active sessions',

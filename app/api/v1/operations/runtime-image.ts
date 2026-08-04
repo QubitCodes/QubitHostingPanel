@@ -1,0 +1,4 @@
+import { RuntimeImageController } from '@controllers/RuntimeImageController';
+import { deleteRuntimeImageSchema, updateRuntimeImageSchema } from '@schemas/runtimeImage';
+import { getRequestMetadata, parseJson } from '@utils/request';
+export async function action({ params, request }: { params: { imageId?: string }; request: Request }): Promise<Response> { if (request.method === 'DELETE') { const input = await parseJson(request, deleteRuntimeImageSchema); return input instanceof Response ? input : RuntimeImageController.destroy(request, params.imageId ?? '', input.reason, getRequestMetadata(request)); } const input = await parseJson(request, updateRuntimeImageSchema); return input instanceof Response ? input : RuntimeImageController.update(request, params.imageId ?? '', input, getRequestMetadata(request)); }
