@@ -11,6 +11,7 @@ describe('application domain validation', () => {
 	it('rejects invalid custom hostnames and domain actions', () => {
 		expect(createApplicationDomainSchema.safeParse({ hostname: 'https://example.com/path' }).success).toBe(false);
 		expect(updateApplicationDomainSchema.safeParse({ action: 'toggle_platform', enabled: false }).success).toBe(true);
+		expect(updateApplicationDomainSchema.safeParse({ action: 'refresh_tls' }).success).toBe(true);
 		expect(updateApplicationDomainSchema.safeParse({ action: 'delete' }).success).toBe(false);
 	});
 });

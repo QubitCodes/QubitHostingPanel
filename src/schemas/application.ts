@@ -20,6 +20,6 @@ export const createApplicationSchema = z.object({
 });
 export type CreateApplicationRequest = z.infer<typeof createApplicationSchema>;
 export const createApplicationDomainSchema = z.object({ hostname: z.string().trim().toLowerCase().regex(/^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/) }).strict();
-export const updateApplicationDomainSchema = z.object({ action: z.enum(['set_primary', 'toggle_platform']), enabled: z.boolean().optional() }).strict();
+export const updateApplicationDomainSchema = z.object({ action: z.enum(['set_primary', 'toggle_platform', 'refresh_tls']), enabled: z.boolean().optional() }).strict();
 export type CreateApplicationDomainRequest = z.infer<typeof createApplicationDomainSchema>;
 export type UpdateApplicationDomainRequest = z.infer<typeof updateApplicationDomainSchema>;

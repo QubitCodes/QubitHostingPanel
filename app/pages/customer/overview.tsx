@@ -13,14 +13,17 @@ export default function CustomerOverviewPage() {
 	const [resources, setResources] = useState<Resource[]>([]);
 	const [detail, setDetail] = useState<WorkspaceDetail>();
 	useEffect(() => {
-		if (!active) { setResources([]); setDetail(undefined); return; }
-		void Promise.all([
-			authenticatedFetch(`/api/v1/workspaces/${active.publicId}/resources`).then((response) => response.json()),
-			authenticatedFetch(`/api/v1/workspaces/${active.publicId}`).then((response) => response.json()),
-		]).then(([resourceBody, detailBody]: [{ data?: Resource[]; status: boolean }, { data?: WorkspaceDetail; status: boolean }]) => {
-			setResources(resourceBody.status ? resourceBody.data ?? [] : []);
-			setDetail(detailBody.status ? detailBody.data : undefined);
-		});
+		const timeout = window.setTimeout(() => {
+			if (!active) { setResources([]); setDetail(undefined); return; }
+			void Promise.all([
+				authenticatedFetch(`/api/v1/workspaces/${active.publicId}/resources`).then((response) => response.json()),
+				authenticatedFetch(`/api/v1/workspaces/${active.publicId}`).then((response) => response.json()),
+			]).then(([resourceBody, detailBody]: [{ data?: Resource[]; status: boolean }, { data?: WorkspaceDetail; status: boolean }]) => {
+				setResources(resourceBody.status ? resourceBody.data ?? [] : []);
+				setDetail(detailBody.status ? detailBody.data : undefined);
+			});
+		}, 0);
+		return () => window.clearTimeout(timeout);
 	}, [active]);
 	const latest = resources[0];
 	const resourceText = latest?.jobStatus === 'failed' ? 'Provisioning needs attention' : latest?.status === 'running' ? 'Application is running' : latest ? 'Provisioning in progress' : 'Awaiting provisioning';

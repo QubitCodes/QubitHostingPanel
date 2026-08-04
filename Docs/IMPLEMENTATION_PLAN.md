@@ -214,4 +214,4 @@ Gate: production checklist is accepted with evidence.
 
 ## Next implementation approval
 
-Next task: complete the human OTP registration acceptance on staging, correct the `panel-staging.qubit.codes` DNS A record to the workload server, and then complete the deferred production-environment, external monitoring/rate-limit, and acceptance evidence in Phase 7.
+Next task: complete the human OTP registration and failed/cancelled-first-checkout dashboard acceptance on the current same-domain staging deployment, then validate custom-domain ownership, TLS, primary switching, and platform-subdomain disabling. The separate `panel-staging.qubit.codes` alias is optional and remains deferred until separate-panel mode is intentionally enabled.

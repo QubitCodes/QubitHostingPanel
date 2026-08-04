@@ -10,6 +10,7 @@ export const applicationBuildStatusEnum = pgEnum('application_build_status', ['q
 export const applicationDeploymentStatusEnum = pgEnum('application_deployment_status', ['queued', 'deploying', 'running', 'failed', 'stopped']);
 export const applicationDomainTypeEnum = pgEnum('application_domain_type', ['platform', 'custom']);
 export const applicationDomainStatusEnum = pgEnum('application_domain_status', ['pending', 'verified', 'failed']);
+export const applicationDomainTlsStatusEnum = pgEnum('application_domain_tls_status', ['pending', 'provisioning', 'active', 'failed']);
 export const databaseEngineEnum = pgEnum('database_engine', ['postgresql', 'mysql']);
 export const databaseClusterStatusEnum = pgEnum('database_cluster_status', ['provisioning', 'active', 'maintenance', 'unavailable', 'retired']);
 export const databaseTlsModeEnum = pgEnum('database_tls_mode', ['disabled', 'require', 'verify-full']);
@@ -89,6 +90,9 @@ export const applicationDomains = pgTable('application_domains', {
 	isEnabled: boolean('is_enabled').notNull().default(true),
 	verificationToken: varchar('verification_token', { length: 120 }),
 	verifiedAt: timestamp('verified_at', { withTimezone: true }),
+	tlsStatus: applicationDomainTlsStatusEnum('tls_status').notNull().default('pending'),
+	tlsCheckedAt: timestamp('tls_checked_at', { withTimezone: true }),
+	tlsFailureReason: varchar('tls_failure_reason', { length: 500 }),
 	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 	updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 	deletedAt: timestamp('deleted_at', { withTimezone: true }),

@@ -156,6 +156,12 @@ Initial publication policy: Launch, Growth, and Business may be public after the
 - `/api/v1/workspaces/:workspaceId/applications` - list and queue runtime-backed public Git deployments.
 - `/api/v1/workspaces/:workspaceId/applications/options` - workspace-authorized runtime and database choices.
 - `/api/v1/workspaces/:workspaceId/applications/:applicationId/logs` - workspace-authorized provider logs.
+- `/api/v1/workspaces/:workspaceId/applications/:applicationId/domains` - custom-domain registration and domain/TLS state.
+- `/api/v1/workspaces/:workspaceId/applications/:applicationId/domains/:domainId` - primary selection, platform-domain toggle, TLS refresh, and custom-domain removal.
+- `/api/v1/auth/profile` - server-authorized profile and dashboard capabilities.
+- `/api/v1/auth/handoff` - short-lived, single-use session transfer to an optional separate panel origin.
+- `/api/v1/public/platform` - effective public, panel, and application-domain URL configuration.
+- `/api/v1/operations/platform-settings` - permission-protected platform-domain configuration.
 - `/api/v1/workspaces/:workspaceId/databases/:databaseId/backups` - list and create encrypted logical-database recovery points.
 - `/api/v1/workspaces/:workspaceId/databases/:databaseId/backups/:backupId/restore` - exact-name-confirmed destructive restore.
 - `/api/v1/workspaces/:workspaceId/databases/:databaseId/backups/:backupId/download` - authorized, audited decrypted dump download.

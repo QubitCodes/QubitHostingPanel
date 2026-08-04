@@ -17,6 +17,14 @@ For the isolated staging control plane, run `npm run staging:deploy:panel` from 
 
 Alert when any provider is unhealthy/stale for one hour, reconciliation is partial/failed, a payment remains pending for one hour, a provisioning job exhausts retries, usage observations are older than one day, backup creation fails, or public health/TLS fails.
 
+## Application domain operations
+
+- DNS TXT verification proves ownership only. A verified custom hostname enters `provisioning` TLS state after Coolify accepts the proposed hostname set.
+- Use the customer `Check TLS` action after DNS and certificate issuance settle. Any HTTPS response proves the TLS handshake; the application response code does not need to be successful.
+- Provider hostname changes are applied before their matching database mutation. A provider rejection therefore leaves the prior enabled-domain set intact in the panel.
+- Removing a custom domain first detaches it from Coolify and then soft-deletes it. The platform domain cannot be removed, and the current primary cannot be removed without another enabled verified domain.
+- If provider state is suspected to have drifted, run provider reconciliation before retrying the domain mutation. Do not manually delete the domain row.
+
 ## Incident and rollback
 
 1. Declare owner, severity, start time, customer impact, and frozen change scope.
