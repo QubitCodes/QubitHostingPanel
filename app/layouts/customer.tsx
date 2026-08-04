@@ -187,14 +187,6 @@ export default function CustomerLayout() {
 							</p>
 						)}
 					</div>
-					<button
-						aria-label="Toggle colour theme"
-						className="rounded-xl border border-brand-primary/15 p-2.5 hover:bg-brand-primary/5"
-						onClick={toggleTheme}
-						type="button"
-					>
-						{dark ? <Sun className="size-5" /> : <Moon className="size-5" />}
-					</button>
 					<details className="relative">
 						<summary className="cursor-pointer list-none rounded-xl border border-brand-primary/15 px-3 py-2 text-sm font-semibold">
 							{authUser.displayName ?? 'Account'}
@@ -229,6 +221,14 @@ export default function CustomerLayout() {
 							</button>
 						</div>
 					</details>
+					<button
+						aria-label="Toggle colour theme"
+						className="rounded-xl border border-brand-primary/15 p-2.5 hover:bg-brand-primary/5"
+						onClick={toggleTheme}
+						type="button"
+					>
+						{dark ? <Sun className="size-5" /> : <Moon className="size-5" />}
+					</button>
 				</header>
 				<div className="p-5 sm:p-8">
 					<Outlet context={{ active, authUser, workspaces }} />

@@ -24,6 +24,9 @@
 	--theme-surface: #ffffff;
 	--theme-text: #17211d;
 	--theme-text-muted: #66736c;
+	--theme-scrollbar-track: #e5e9e4;
+	--theme-scrollbar-thumb: #9aa79f;
+	--theme-scrollbar-thumb-hover: #2b5748;
 	color-scheme: light dark;
 	font-family: Inter, ui-sans-serif, system-ui, sans-serif;
 }
@@ -38,6 +41,9 @@ html.dark {
 	--theme-surface: #141c18;
 	--theme-text: #eff6f1;
 	--theme-text-muted: #9caaa2;
+	--theme-scrollbar-track: #0d1411;
+	--theme-scrollbar-thumb: #526159;
+	--theme-scrollbar-thumb-hover: #36ada3;
 	background: var(--theme-canvas);
 	color: var(--theme-text);
 }
@@ -45,6 +51,31 @@ html.dark {
 body {
 	min-height: 100vh;
 	margin: 0;
+}
+
+/* Keep data-table scrollbars legible and aligned with the active colour theme. */
+.theme-scrollbar {
+	scrollbar-color: var(--theme-scrollbar-thumb) var(--theme-scrollbar-track);
+	scrollbar-width: thin;
+}
+
+.theme-scrollbar::-webkit-scrollbar {
+	height: 0.75rem;
+	width: 0.75rem;
+}
+
+.theme-scrollbar::-webkit-scrollbar-track {
+	background: var(--theme-scrollbar-track);
+}
+
+.theme-scrollbar::-webkit-scrollbar-thumb {
+	background: var(--theme-scrollbar-thumb);
+	border: 0.1875rem solid var(--theme-scrollbar-track);
+	border-radius: 9999px;
+}
+
+.theme-scrollbar::-webkit-scrollbar-thumb:hover {
+	background: var(--theme-scrollbar-thumb-hover);
 }
 
 /* Keep public plan cards fluid without allowing their content to widen the page. */

@@ -27,7 +27,7 @@ export function DataTable({
 	minimumWidth = '56rem',
 }: DataTableProps) {
 	return (
-		<div className="overflow-x-auto rounded-2xl border border-stone-200 bg-app-surface dark:border-stone-800">
+		<div className="theme-scrollbar overflow-x-auto rounded-2xl border border-stone-200 bg-app-surface dark:border-stone-800">
 			<table className="w-full text-sm" style={{ minWidth: minimumWidth }}>
 				{children}
 			</table>
