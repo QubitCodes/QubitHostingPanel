@@ -44,6 +44,8 @@ const environmentSchema = z.object({
 	COOLIFY_STARTER_IMAGE: z.string().trim().min(1).default('nginx'),
 	COOLIFY_STARTER_IMAGE_TAG: z.string().trim().min(1).default('alpine'),
 	COOLIFY_STARTER_PORT: z.string().trim().regex(/^\d{2,5}$/).default('80'),
+	CLOUDFLARE_DNS_API_TOKEN: optionalEnvironmentSecret,
+	CLOUDFLARE_DNS_ACCOUNT_ID: optionalEnvironmentSecret,
 	INTERNAL_JOB_SECRET: optionalEnvironmentSecret,
 	JWT_ACCESS_SECRET: z.string().optional(),
 	JWT_REFRESH_SECRET: z.string().optional(),

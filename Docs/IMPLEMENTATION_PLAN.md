@@ -179,6 +179,7 @@ Gate: completed with encrypted multi-connection storage, validated rotation roll
 - [x] Workspace-wide customer domain inventory with connected-application, DNS ownership, routing, and TLS state; application creation accepts multiple non-blocking pending custom domains while preserving a removable post-save platform fallback.
 - [x] Workspace domain ownership registry with configurable TXT verification, verified parent-domain protection, and owner-controlled cross-workspace subdomain approval/revocation.
 - [ ] Staging domain acceptance: ownership verification, cross-workspace subdomain approval, TLS issuance, primary switching, and safe platform-subdomain removal.
+- [x] Root-only domain inventory and domain-panel DNS workflow with draft capture, BIND/GoDaddy/Hostinger import, Cloudflare authoritative provisioning, delegation refresh, and managed subdomain A/AAAA lifecycle.
 - [x] Live public Git deployment verified through Coolify with a pinned Node runtime, database environment binding, partial-create recovery, healthy panel state, and public HTTPS 200.
 - [x] Per-database encrypted backup/restore lifecycle, entitlement retention, audited download/delete controls, and URL-backed recovery UI.
 - [x] Live PostgreSQL/MySQL encrypted backup, audited download, destructive restore recovery, cross-workspace rejection, artifact deletion, and soft-deletion verification.

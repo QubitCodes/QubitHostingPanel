@@ -294,6 +294,20 @@ export const OPENAPI_DOCUMENT = {
 		'/workspaces/{workspaceId}/resources': {
 			get: { summary: 'List owned workspace provisioning jobs and resources', operationId: 'listWorkspaceResources', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Provisioning and resource state.' }, '404': { description: 'Workspace not found.' } } },
 		},
+		'/workspaces/{workspaceId}/domains/{domainId}/dns': {
+			get: { summary: 'View an owned root-domain DNS zone, records, and managed subdomains', operationId: 'showDomainDns', security: [{ bearerAuth: [] }], responses: { '200': { description: 'DNS configuration retrieved.' }, '404': { description: 'Domain is not owned by this workspace.' } } },
+			post: { summary: 'Provision authoritative DNS or refresh nameserver delegation', operationId: 'updateDomainDnsLifecycle', security: [{ bearerAuth: [] }], responses: { '200': { description: 'DNS lifecycle updated.' }, '502': { description: 'Authoritative provider or public DNS unavailable.' } } },
+		},
+		'/workspaces/{workspaceId}/domains/{domainId}/dns/import': {
+			post: { summary: 'Capture current DNS into a review draft', description: 'Supports a credential-free public scan, BIND zone text, and one-request GoDaddy or Hostinger API token capture. Provider tokens are not persisted.', operationId: 'importDomainDns', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Discovered records merged into the draft.' }, '502': { description: 'Source provider unavailable.' } } },
+		},
+		'/workspaces/{workspaceId}/domains/{domainId}/dns/records': {
+			post: { summary: 'Create a customer-managed DNS record', operationId: 'createDomainDnsRecord', security: [{ bearerAuth: [] }], responses: { '201': { description: 'DNS record created.' }, '422': { description: 'Record conflicts with DNS rules.' } } },
+		},
+		'/workspaces/{workspaceId}/domains/{domainId}/dns/records/{recordId}': {
+			patch: { summary: 'Update a customer-managed DNS record', operationId: 'updateDomainDnsRecord', security: [{ bearerAuth: [] }], responses: { '200': { description: 'DNS record updated.' }, '422': { description: 'Platform-managed records cannot be edited.' } } },
+			delete: { summary: 'Soft-delete a customer-managed DNS record', operationId: 'deleteDomainDnsRecord', security: [{ bearerAuth: [] }], responses: { '200': { description: 'DNS record removed locally and from the authoritative provider.' } } },
+		},
 		'/internal/jobs/process': {
 			post: { summary: 'Process a bounded provisioning-job batch', operationId: 'processProvisioningJobs', responses: { '200': { description: 'Batch result.' }, '404': { description: 'Hidden when worker secret is invalid.' } } },
 		},

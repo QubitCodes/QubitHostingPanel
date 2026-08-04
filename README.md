@@ -159,6 +159,9 @@ Initial publication policy: Launch, Growth, and Business may be public after the
 - `/api/v1/workspaces/:workspaceId/applications/:applicationId/logs` - workspace-authorized provider logs.
 - `/api/v1/workspaces/:workspaceId/applications/:applicationId/domains` - custom-domain registration and domain/TLS state.
 - `/api/v1/workspaces/:workspaceId/applications/:applicationId/domains/:domainId` - primary selection, platform-domain toggle, TLS refresh, and custom-domain removal.
+- `/api/v1/workspaces/:workspaceId/domains/:domainId/dns` - root-domain DNS draft, Cloudflare provisioning, and delegation refresh.
+- `/api/v1/workspaces/:workspaceId/domains/:domainId/dns/import` - credential-free public scan, BIND import, or one-time GoDaddy/Hostinger capture.
+- `/api/v1/workspaces/:workspaceId/domains/:domainId/dns/records` - customer DNS record creation and management.
 - `/api/v1/auth/profile` - server-authorized profile and dashboard capabilities.
 - `/api/v1/auth/handoff` - short-lived, single-use session transfer to an optional separate panel origin.
 - `/api/v1/public/platform` - effective public, panel, and application-domain URL configuration.

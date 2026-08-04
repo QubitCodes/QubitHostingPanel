@@ -19,6 +19,8 @@ Alert when any provider is unhealthy/stale for one hour, reconciliation is parti
 
 ## Application domain operations
 
+Authoritative DNS provisioning uses `CLOUDFLARE_DNS_API_TOKEN` and `CLOUDFLARE_DNS_ACCOUNT_ID`. Keep both server-side. Configure stable ingress IPv4/IPv6 values in Platform Settings before expecting managed subdomain A/AAAA creation. GoDaddy and Hostinger capture tokens are accepted for one request only and are never persisted.
+
 - DNS TXT verification proves ownership only. A verified custom hostname enters `provisioning` TLS state after Coolify accepts the proposed hostname set.
 - Use the customer `Check TLS` action after DNS and certificate issuance settle. Any HTTPS response proves the TLS handshake; the application response code does not need to be successful.
 - Provider hostname changes are applied before their matching database mutation. A provider rejection therefore leaves the prior enabled-domain set intact in the panel.

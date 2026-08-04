@@ -2,11 +2,16 @@ import { z } from 'zod';
 
 const httpsBaseUrl = z.url().refine((value) => value.startsWith('https://'), 'HTTPS is required.').transform((value) => value.replace(/\/$/, ''));
 const hostname = z.string().trim().toLowerCase().max(255).regex(/^(?=.{1,253}$)(?!-)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/, 'Enter a valid domain name.');
+const optionalIpv4 = z.union([z.ipv4(), z.literal('')]).nullable();
+const optionalIpv6 = z.union([z.ipv6(), z.literal('')]).nullable();
 
 export const updatePlatformSettingsSchema = z.object({
 	applicationBaseDomain: hostname,
 	defaultApplicationSubdomainEnabled: z.boolean(),
 	domainOwnershipVerificationEnabled: z.boolean(),
+	dnsProvider: z.literal('cloudflare'),
+	ingressIpv4: optionalIpv4,
+	ingressIpv6: optionalIpv6,
 	panelBaseUrl: httpsBaseUrl.nullable(),
 	panelDomainMode: z.enum(['same_domain', 'separate_domain']),
 	publicBaseUrl: httpsBaseUrl,

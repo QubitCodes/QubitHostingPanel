@@ -4,11 +4,11 @@ import { updatePlatformSettingsSchema } from '@schemas/platformSettings';
 
 describe('platform settings validation', () => {
 	it('accepts same-domain routing without a separate panel URL', () => {
-		expect(updatePlatformSettingsSchema.safeParse({ applicationBaseDomain: 'apps.example.com', defaultApplicationSubdomainEnabled: true, domainOwnershipVerificationEnabled: false, panelBaseUrl: null, panelDomainMode: 'same_domain', publicBaseUrl: 'https://example.com' }).success).toBe(true);
+		expect(updatePlatformSettingsSchema.safeParse({ applicationBaseDomain: 'apps.example.com', defaultApplicationSubdomainEnabled: true, dnsProvider: 'cloudflare', domainOwnershipVerificationEnabled: false, ingressIpv4: null, ingressIpv6: null, panelBaseUrl: null, panelDomainMode: 'same_domain', publicBaseUrl: 'https://example.com' }).success).toBe(true);
 	});
 
 	it('requires a distinct HTTPS URL for separate-domain routing', () => {
-		expect(updatePlatformSettingsSchema.safeParse({ applicationBaseDomain: 'apps.example.com', defaultApplicationSubdomainEnabled: true, domainOwnershipVerificationEnabled: true, panelBaseUrl: null, panelDomainMode: 'separate_domain', publicBaseUrl: 'https://example.com' }).success).toBe(false);
-		expect(updatePlatformSettingsSchema.safeParse({ applicationBaseDomain: 'apps.example.com', defaultApplicationSubdomainEnabled: true, domainOwnershipVerificationEnabled: true, panelBaseUrl: 'https://panel.example.com', panelDomainMode: 'separate_domain', publicBaseUrl: 'https://example.com' }).success).toBe(true);
+		expect(updatePlatformSettingsSchema.safeParse({ applicationBaseDomain: 'apps.example.com', defaultApplicationSubdomainEnabled: true, dnsProvider: 'cloudflare', domainOwnershipVerificationEnabled: true, ingressIpv4: null, ingressIpv6: null, panelBaseUrl: null, panelDomainMode: 'separate_domain', publicBaseUrl: 'https://example.com' }).success).toBe(false);
+		expect(updatePlatformSettingsSchema.safeParse({ applicationBaseDomain: 'apps.example.com', defaultApplicationSubdomainEnabled: true, dnsProvider: 'cloudflare', domainOwnershipVerificationEnabled: true, ingressIpv4: '203.0.113.10', ingressIpv6: null, panelBaseUrl: 'https://panel.example.com', panelDomainMode: 'separate_domain', publicBaseUrl: 'https://example.com' }).success).toBe(true);
 	});
 });

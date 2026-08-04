@@ -1,6 +1,7 @@
 import { resolve4, resolve6, resolveCname, resolveTxt } from 'node:dns/promises';
 import { and, asc, desc, eq, isNull, ne } from 'drizzle-orm';
 import { resp } from '@qubitcodes/qcresp';
+import { getDomain } from 'tldts';
 
 import { db } from '@db/client';
 import { applicationBuilds, applicationDomains, customers, domainAccessRequests, domainOwnerships, workspaceMemberships, workspaceResources, workspaces } from '@db/schema';
@@ -9,6 +10,7 @@ import { recordAuditLog } from '@services/auditLogService';
 import { authenticateSession } from '@services/auth/authenticatedSessionService';
 import { hostingProvider } from '@services/hosting/hostingProviderFactory';
 import { controllingOwnership, createOwnershipClaim } from '@services/domains/domainOwnershipService';
+import { ensureManagedApplicationDns, removeManagedApplicationDns } from '@services/domains/dnsManagementService';
 import type { RequestMetadata } from '@utils/request';
 
 /** Resolve an application only when it belongs to the authenticated customer's workspace. */
@@ -63,28 +65,16 @@ async function inspectTls(hostname: string): Promise<{ failureReason: string | n
 }
 
 export class ApplicationDomainController {
-	/** List every active domain and its connected application in an owned workspace. */
+	/** List only registrable domain ownerships; application-linked subdomains belong in domain detail. */
 	public static async workspaceIndex(request: Request, workspaceId: number, metadata: RequestMetadata): Promise<Response> {
 		try {
 			const workspace = await ownedWorkspace(request, workspaceId, metadata);
-			const rows = await db.select({
-				applicationId: applicationBuilds.id,
-				applicationName: applicationBuilds.metadata,
-				createdAt: applicationDomains.createdAt,
-				hostname: applicationDomains.hostname,
-				id: applicationDomains.id,
-				isEnabled: applicationDomains.isEnabled,
-				isPrimary: applicationDomains.isPrimary,
-				status: applicationDomains.status,
-				tlsCheckedAt: applicationDomains.tlsCheckedAt,
-				tlsFailureReason: applicationDomains.tlsFailureReason,
-				tlsStatus: applicationDomains.tlsStatus,
-				type: applicationDomains.type,
-				verificationToken: applicationDomains.verificationToken,
-			}).from(applicationDomains)
-				.innerJoin(applicationBuilds, and(eq(applicationBuilds.id, applicationDomains.applicationBuildId), eq(applicationBuilds.workspaceId, workspace.id), isNull(applicationBuilds.deletedAt)))
-				.where(isNull(applicationDomains.deletedAt)).orderBy(asc(applicationDomains.hostname));
-			return resp.success('Workspace domains retrieved.', rows.map(({ applicationName, ...row }) => ({ ...row, applicationName: String(applicationName?.name ?? 'Application') })));
+			const [ownerships, linked] = await Promise.all([
+				db.select().from(domainOwnerships).where(and(eq(domainOwnerships.workspaceId, workspace.id), isNull(domainOwnerships.deletedAt))).orderBy(asc(domainOwnerships.hostname)),
+				db.select({ hostname: applicationDomains.hostname }).from(applicationDomains).innerJoin(applicationBuilds, and(eq(applicationBuilds.id, applicationDomains.applicationBuildId), eq(applicationBuilds.workspaceId, workspace.id), isNull(applicationBuilds.deletedAt))).where(and(eq(applicationDomains.type, 'custom'), isNull(applicationDomains.deletedAt))),
+			]);
+			const roots = ownerships.filter((ownership) => getDomain(ownership.hostname, { allowPrivateDomains: true }) === ownership.hostname);
+			return resp.success('Workspace root domains retrieved.', roots.map((ownership) => ({ ...ownership, subdomainCount: linked.filter((item) => item.hostname.endsWith(`.${ownership.hostname}`)).length })));
 		} catch {
 			return resp.failure('Workspace not found.', resp.codes.RESOURCE_NOT_FOUND, undefined, null, undefined, 404);
 		}
@@ -140,6 +130,7 @@ export class ApplicationDomainController {
 			if (!record) return resp.failure('Domain access request not found.', resp.codes.RESOURCE_NOT_FOUND, undefined, null, undefined, 404);
 			if (action === 'approve') {
 				if (record.status !== 'pending') throw new Error('Only a pending request can be approved.');
+				await ensureManagedApplicationDns(workspace.id, record.domainId, record.hostname);
 				await synchronize(record.providerId, await enabledHostnames(record.applicationId, { domainId: record.domainId, enabled: true, verified: true }));
 				await db.transaction(async (transaction) => {
 					await transaction.update(applicationDomains).set({ status: 'verified', isEnabled: true, verifiedAt: new Date(), tlsStatus: 'provisioning', updatedAt: new Date() }).where(eq(applicationDomains.id, record.domainId));
@@ -184,7 +175,7 @@ export class ApplicationDomainController {
 			const [domain] = await db.insert(applicationDomains).values({ applicationBuildId: applicationId, hostname: input.hostname, type: 'custom', status: immediatelyVerified ? 'verified' : 'pending', isEnabled: immediatelyVerified, verifiedAt: immediatelyVerified ? new Date() : null, tlsStatus: immediatelyVerified ? 'provisioning' : 'pending', verificationToken: needsApproval ? null : claim.verificationToken }).returning();
 			if (!domain) throw new Error('Unable to add domain.');
 			if (needsApproval) await db.insert(domainAccessRequests).values({ ownershipId: claim.id, requestingWorkspaceId: application.workspaceId, applicationBuildId: applicationId, applicationDomainId: domain.id, hostname: input.hostname });
-			if (immediatelyVerified) await synchronize(application.resourceProviderId, await enabledHostnames(applicationId));
+			if (immediatelyVerified) { await ensureManagedApplicationDns(application.workspaceId, domain.id, input.hostname); await synchronize(application.resourceProviderId, await enabledHostnames(applicationId)); }
 			await recordAuditLog({ action: 'application_domain.created', actorUserId: application.actorUserId, ipAddress: metadata.ipAddress, metadata: { hostname: input.hostname }, resourceId: domain?.id, resourceType: 'application_domain', userAgent: metadata.userAgent });
 			return resp.success(needsApproval ? 'Domain access requested from its verified owner.' : immediatelyVerified ? 'Custom domain added and enabled.' : 'Custom domain added. Create the displayed TXT record before verification.', { ...domain, approvalRequired: Boolean(needsApproval) }, resp.codes.CREATED, undefined, 201);
 		} catch (error) {
@@ -209,6 +200,7 @@ export class ApplicationDomainController {
 				await db.update(domainOwnerships).set({ status: 'verified', verifiedAt: new Date(), updatedAt: new Date() }).where(eq(domainOwnerships.id, claim.id));
 			}
 			await synchronize(application.resourceProviderId, await enabledHostnames(applicationId, { domainId, enabled: true, verified: true }));
+			await ensureManagedApplicationDns(application.workspaceId, domain.id, domain.hostname);
 			await db.update(applicationDomains).set({ status: 'verified', isEnabled: true, verifiedAt: new Date(), tlsStatus: 'provisioning', tlsFailureReason: null, updatedAt: new Date() }).where(eq(applicationDomains.id, domain.id));
 			return resp.success('Custom domain verified and enabled. TLS provisioning has started.', { hostname: domain.hostname }, resp.codes.UPDATED);
 		} catch (error) {
@@ -266,6 +258,7 @@ export class ApplicationDomainController {
 			if (domain.type === 'platform' && !replacement) throw new Error('Verify and enable another domain before removing the platform subdomain.');
 			if (domain.isPrimary && !replacement) throw new Error('Choose or enable another primary domain before removing this domain.');
 			await synchronize(application.resourceProviderId, await enabledHostnames(applicationId, { domainId, remove: true }));
+			await removeManagedApplicationDns(domain.id);
 			await db.transaction(async (transaction) => {
 				await transaction.update(applicationDomains).set({ deletedAt: new Date(), deleteReason: 'Removed by customer.', isEnabled: false, isPrimary: false, updatedAt: new Date() }).where(eq(applicationDomains.id, domainId));
 				if (replacement) await transaction.update(applicationDomains).set({ isPrimary: true, updatedAt: new Date() }).where(eq(applicationDomains.id, replacement.id));
