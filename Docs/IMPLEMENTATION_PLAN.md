@@ -121,14 +121,21 @@ Gate: every user has a customer profile, purchased workspaces have isolated bill
 
 ## Phase 4 - Usage and restriction engine
 
-- Usage, capacity reservation, and observation models.
-- Count-based quota enforcement.
-- Measured disk/database usage snapshots.
-- Hard, soft, metered, and informational policies.
-- Transactional pending reservations.
-- Admin overrides and customer-visible freshness.
+- [x] Usage, capacity reservation, and observation models.
+- [x] Count-based quota enforcement.
+- [x] Measured disk/database usage snapshots.
+- [x] Hard, soft, metered, and informational policies.
+- [x] Transactional pending reservations.
+- [x] Admin overrides and customer-visible freshness.
 
-Gate: concurrent requests cannot exceed hard limits and stale observations are visible.
+Deployment status:
+
+- [x] Migration `0027` is applied and journaled in Supabase with reservations, observations, and override constraints verified.
+- [x] Live simultaneous hard-limit reservations produced exactly one accepted claim and one rejection for one available slot.
+- [x] Live override resolution changed the effective application limit and policy, and an expired freshness threshold was identified as stale.
+- [x] Live PostgreSQL/MySQL measurement collected three logical database sizes into fresh workspace-aggregated byte observations with zero failures.
+
+Gate: completed with live concurrency, override, stale-observation, PostgreSQL/MySQL measurement, and Supabase schema evidence.
 
 ## Phase 5 - Coolify read-only integration
 
@@ -198,4 +205,4 @@ Gate: production checklist is accepted with evidence.
 
 ## Next implementation approval
 
-Next task: implement Phase 4 usage, reservation, observation, quota, and override enforcement.
+Next task: implement Phase 5 database-managed Coolify connections, token rotation, imports, and scheduled reconciliation.

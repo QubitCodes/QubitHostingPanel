@@ -1,6 +1,6 @@
 import pg from 'pg';
 
-import type { CreateLogicalDatabaseInput, CreatedLogicalDatabase, SharedDatabaseProvisioner } from '@services/databases/SharedDatabaseProvisioner';
+import type { CreateLogicalDatabaseInput, CreatedLogicalDatabase, MeasureLogicalDatabaseInput, SharedDatabaseProvisioner } from '@services/databases/SharedDatabaseProvisioner';
 
 const identifier = (value: string): string => `"${value.replaceAll('"', '""')}"`;
 
@@ -12,6 +12,13 @@ export const postgresDatabaseIsolationDdl = (databaseName: string): string => `R
 
 /** Provisions one PostgreSQL database and a login that owns only that database. */
 export class PostgresSharedDatabaseProvisioner implements SharedDatabaseProvisioner {
+	public async measureLogicalDatabaseBytes(input: MeasureLogicalDatabaseInput): Promise<number> {
+		const admin = new pg.Client({ host: input.host, port: input.port, database: input.adminDatabase, user: input.adminUsername, password: input.adminPassword, ssl: input.tlsMode === 'disabled' ? false : { rejectUnauthorized: input.tlsMode === 'verify-full' }, connectionTimeoutMillis: 15_000 });
+		await admin.connect();
+		try { const result = await admin.query<{ bytes: string }>('SELECT pg_database_size($1)::text AS bytes', [input.databaseName]); return Number(result.rows[0]?.bytes ?? 0); }
+		finally { await admin.end(); }
+	}
+
 	public async createLogicalDatabase(input: CreateLogicalDatabaseInput): Promise<CreatedLogicalDatabase> {
 		const admin = new pg.Client({ host: input.host, port: input.port, database: input.adminDatabase, user: input.adminUsername, password: input.adminPassword, ssl: input.tlsMode === 'disabled' ? false : { rejectUnauthorized: input.tlsMode === 'verify-full' }, connectionTimeoutMillis: 15_000 });
 		await admin.connect();

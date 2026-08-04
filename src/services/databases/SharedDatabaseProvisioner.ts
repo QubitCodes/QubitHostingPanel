@@ -25,8 +25,19 @@ export interface CreatedLogicalDatabase {
 	username: string;
 }
 
+export interface MeasureLogicalDatabaseInput {
+	adminDatabase: string;
+	adminPassword: string;
+	adminUsername: string;
+	databaseName: string;
+	host: string;
+	port: number;
+	tlsMode: 'disabled' | 'require' | 'verify-full';
+}
+
 /** Creates restricted workspace databases inside shared engine clusters. */
 export interface SharedDatabaseProvisioner {
 	createLogicalDatabase(input: CreateLogicalDatabaseInput): Promise<CreatedLogicalDatabase>;
+	measureLogicalDatabaseBytes(input: MeasureLogicalDatabaseInput): Promise<number>;
 	rotateCredential(input: CreateLogicalDatabaseInput & { password: string }): Promise<void>;
 }
