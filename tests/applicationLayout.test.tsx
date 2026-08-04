@@ -104,8 +104,9 @@ describe('application layout SSR', () => {
 	});
 
 	it('server-renders authentication and profile views without session storage', () => {
-		expect(() =>
-			renderToString(
+		let verifyHtml = '';
+		expect(() => {
+			verifyHtml = renderToString(
 				<MemoryRouter
 					initialEntries={[
 						'/login/verify/00000000-0000-4000-8000-000000000000',
@@ -118,8 +119,12 @@ describe('application layout SSR', () => {
 						/>
 					</Routes>
 				</MemoryRouter>,
-			),
-		).not.toThrow();
+			);
+		}).not.toThrow();
+		expect(verifyHtml).toContain('aria-label="Resend OTP"');
+		expect(verifyHtml).toContain('grid-cols-[minmax(0,1fr)_4.5rem]');
+		expect(verifyHtml).toContain('min-h-[4.5rem]');
+		expect(verifyHtml).toContain('rounded-2xl');
 		expect(() => renderToString(<ProfilePage />)).not.toThrow();
 	});
 

@@ -57,7 +57,7 @@ export default function LoginPage() {
 				body: JSON.stringify(values),
 			});
 			const body = (await response.json()) as {
-				data?: { challengeId?: string; user?: { displayName?: string; hasAdminAccess?: boolean; hasCustomerDashboardAccess?: boolean; id: string } };
+				data?: { challengeId?: string; resendAvailableAt?: string; user?: { displayName?: string; hasAdminAccess?: boolean; hasCustomerDashboardAccess?: boolean; id: string } };
 				message: string;
 				misc?: { accessToken?: string; refreshToken?: string };
 				status: boolean;
@@ -80,6 +80,8 @@ export default function LoginPage() {
 				'pendingMobile',
 				`${values.countryCode ?? ''}${values.mobile}`,
 			);
+			sessionStorage.setItem('pendingOtpIdentity', JSON.stringify({ countryCode: values.countryCode, mobile: values.mobile }));
+			if (body.data.resendAvailableAt) sessionStorage.setItem('pendingOtpResendAvailableAt', body.data.resendAvailableAt);
 			navigate(`/login/verify/${body.data.challengeId}${returnTo ? `?returnTo=${encodeURIComponent(returnTo)}` : ''}`);
 		} catch (error) {
 			toast.error(
