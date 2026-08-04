@@ -17,7 +17,7 @@ import {
   workspaces,
   workspaceSubscriptions,
 } from "@db/schema";
-import type { CreateApplicationRequest } from "@schemas/application";
+import type { CreateApplicationRequest, UpdateApplicationRequest } from "@schemas/application";
 import { recordAuditLog } from "@services/auditLogService";
 import { authenticateSession } from "@services/auth/authenticatedSessionService";
 import { hostingProvider } from "@services/hosting/hostingProviderFactory";
@@ -81,6 +81,7 @@ const fields = {
   applicationPort: applicationBuilds.applicationPort,
   requestedDomain: applicationBuilds.requestedDomain,
   failureReason: applicationBuilds.failureReason,
+  metadata: applicationBuilds.metadata,
   createdAt: applicationBuilds.createdAt,
   runtimeCode: runtimeImages.code,
   runtimeLanguage: runtimeImages.language,
@@ -173,8 +174,13 @@ export class ApplicationController {
           ),
         )
         .orderBy(desc(applicationBuilds.createdAt));
-      const domains = rows.length ? await db.select().from(applicationDomains).where(and(inArray(applicationDomains.applicationBuildId, rows.map(({ id }) => id)), isNull(applicationDomains.deletedAt))).orderBy(asc(applicationDomains.createdAt)) : [];
-      return resp.success("Applications retrieved.", rows.map((row) => ({ ...row, domains: domains.filter((domain) => domain.applicationBuildId === row.id) })));
+      const ids = rows.map(({ id }) => id);
+      const [domains, bindings, deployments] = ids.length ? await Promise.all([
+		db.select().from(applicationDomains).where(and(inArray(applicationDomains.applicationBuildId, ids), isNull(applicationDomains.deletedAt))).orderBy(asc(applicationDomains.createdAt)),
+		db.select({ applicationBuildId: applicationDatabaseBindings.applicationBuildId, databaseId: logicalDatabases.id, databaseName: logicalDatabases.databaseName, environmentPrefix: applicationDatabaseBindings.environmentPrefix }).from(applicationDatabaseBindings).innerJoin(logicalDatabases, eq(logicalDatabases.id, applicationDatabaseBindings.logicalDatabaseId)).where(and(inArray(applicationDatabaseBindings.applicationBuildId, ids), isNull(applicationDatabaseBindings.deletedAt), isNull(logicalDatabases.deletedAt))),
+		db.select().from(applicationDeployments).where(and(inArray(applicationDeployments.applicationBuildId, ids), isNull(applicationDeployments.deletedAt))).orderBy(desc(applicationDeployments.createdAt)),
+	  ]) : [[], [], []];
+      return resp.success("Applications retrieved.", rows.map((row) => ({ ...row, name: String(row.metadata?.name ?? row.sourceRepository.split('/').pop() ?? 'Application'), buildPack: String(row.metadata?.buildPack ?? 'nixpacks'), domains: domains.filter((domain) => domain.applicationBuildId === row.id), databases: bindings.filter((binding) => binding.applicationBuildId === row.id), latestDeployment: deployments.find((deployment) => deployment.applicationBuildId === row.id) })));
     } catch {
       return resp.failure(
         "Workspace not found.",
@@ -185,6 +191,26 @@ export class ApplicationController {
         404,
       );
     }
+  }
+
+  /** Update an owned application's deployable configuration and queue a fresh deployment. */
+  public static async update(request: Request, workspacePublicId: number, applicationId: string, input: UpdateApplicationRequest, metadata: RequestMetadata): Promise<Response> {
+	try {
+		const workspace = await access(request, workspacePublicId, metadata);
+		const [application] = await db.select().from(applicationBuilds).where(and(eq(applicationBuilds.id, applicationId), eq(applicationBuilds.workspaceId, workspace.id), isNull(applicationBuilds.deletedAt))).limit(1);
+		if (!application) return resp.failure('Application not found.', resp.codes.RESOURCE_NOT_FOUND, undefined, null, undefined, 404);
+		const now = new Date();
+		const result = await db.transaction(async (transaction) => {
+			await transaction.update(applicationBuilds).set({ sourceRef: input.branch, installCommand: input.installCommand, buildCommand: input.buildCommand, startCommand: input.startCommand, baseDirectory: input.baseDirectory, publishDirectory: input.publishDirectory, applicationPort: input.port, status: 'queued', completedAt: null, failureReason: null, updatedAt: now }).where(eq(applicationBuilds.id, applicationId));
+			const [deployment] = await transaction.insert(applicationDeployments).values({ workspaceId: workspace.id, applicationBuildId: applicationId }).returning({ id: applicationDeployments.id });
+			const [job] = await transaction.insert(provisioningJobs).values({ workspaceId: workspace.id, subscriptionId: workspace.subscriptionId, provider: process.env.HOSTING_PROVIDER === 'coolify' ? 'coolify' : 'mock', idempotencyKey: `application:${applicationId}:update:${randomUUID()}`, input: { applicationBuildId: applicationId, deploymentId: deployment?.id } }).returning({ id: provisioningJobs.id });
+			return { deploymentId: deployment?.id, jobId: job?.id };
+		});
+		await recordAuditLog({ actorUserId: workspace.actorUserId, action: 'application.configuration_updated', resourceType: 'application_build', resourceId: applicationId, metadata: { workspacePublicId }, ipAddress: metadata.ipAddress, userAgent: metadata.userAgent });
+		return resp.success('Application updated and deployment queued.', result, resp.codes.ACCEPTED, undefined, 202);
+	} catch (error) {
+		return resp.failure(error instanceof Error ? error.message : 'Application update failed.', resp.codes.INTERNAL_SERVICE_ERROR, undefined, null, undefined, 500);
+	}
   }
   public static async create(
     request: Request,

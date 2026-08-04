@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { createApplicationDomainSchema, createApplicationSchema, updateApplicationDomainSchema } from '@schemas/application';
+import { createApplicationDomainSchema, createApplicationSchema, updateApplicationDomainSchema, updateApplicationSchema } from '@schemas/application';
 
 describe('application domain validation', () => {
 	it('accepts a customer-selected platform subdomain slug', () => {
@@ -13,5 +13,10 @@ describe('application domain validation', () => {
 		expect(updateApplicationDomainSchema.safeParse({ action: 'toggle_platform', enabled: false }).success).toBe(true);
 		expect(updateApplicationDomainSchema.safeParse({ action: 'refresh_tls' }).success).toBe(true);
 		expect(updateApplicationDomainSchema.safeParse({ action: 'delete' }).success).toBe(false);
+	});
+
+	it('validates application deployment edits', () => {
+		expect(updateApplicationSchema.safeParse({ branch: 'main', baseDirectory: '/', port: 3000 }).success).toBe(true);
+		expect(updateApplicationSchema.safeParse({ branch: 'main', baseDirectory: '../private', port: 70000 }).success).toBe(false);
 	});
 });

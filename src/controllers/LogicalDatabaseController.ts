@@ -1,9 +1,11 @@
 import { randomBytes, randomUUID } from "node:crypto";
-import { and, asc, count, eq, isNull, sql } from "drizzle-orm";
+import { and, asc, count, eq, inArray, isNull, sql } from "drizzle-orm";
 import { resp } from "@qubitcodes/qcresp";
 
 import { db } from "@db/client";
 import {
+  applicationBuilds,
+  applicationDatabaseBindings,
   customers,
   databaseClusters,
   logicalDatabases,
@@ -88,6 +90,7 @@ const logicalDatabasePublicFields = {
   storageQuotaMb: logicalDatabases.storageQuotaMb,
   connectionLimit: logicalDatabases.connectionLimit,
   createdAt: logicalDatabases.createdAt,
+  metadata: logicalDatabases.metadata,
 };
 const publicFields = {
   ...logicalDatabasePublicFields,
@@ -136,7 +139,9 @@ export class LogicalDatabaseController {
           ),
         )
         .orderBy(asc(logicalDatabases.createdAt));
-      return resp.success("Workspace databases retrieved.", rows);
+      const ids = rows.map(({ id }) => id);
+      const bindings = ids.length ? await db.select({ applicationId: applicationBuilds.id, applicationName: applicationBuilds.metadata, databaseId: applicationDatabaseBindings.logicalDatabaseId }).from(applicationDatabaseBindings).innerJoin(applicationBuilds, eq(applicationBuilds.id, applicationDatabaseBindings.applicationBuildId)).where(and(inArray(applicationDatabaseBindings.logicalDatabaseId, ids), isNull(applicationDatabaseBindings.deletedAt), isNull(applicationBuilds.deletedAt))) : [];
+      return resp.success("Workspace databases retrieved.", rows.map((row) => ({ ...row, displayName: String(row.metadata?.displayName ?? row.databaseName), connectedApplications: bindings.filter(({ databaseId }) => databaseId === row.id).map((binding) => ({ id: binding.applicationId, name: String(binding.applicationName?.name ?? 'Application') })) })));
     } catch {
       return resp.failure(
         "Workspace not found.",

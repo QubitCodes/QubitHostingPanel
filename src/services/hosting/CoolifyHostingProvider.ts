@@ -99,7 +99,7 @@ export class CoolifyHostingProvider implements HostingProvider {
 			: await this.request<{ uuid: string }>('/applications/dockerimage', { method: 'POST', body: JSON.stringify({ ...common, docker_registry_image_name: input.runtimeImage?.repository ?? this.environment.COOLIFY_STARTER_IMAGE, docker_registry_image_tag: input.runtimeImage?.tag ?? this.environment.COOLIFY_STARTER_IMAGE_TAG }) });
 		if (existing?.uuid && input.source) await this.request(`/applications/${encodeURIComponent(existing.uuid)}`, { method: 'PATCH', body: JSON.stringify({ build_pack: input.buildPack ?? 'nixpacks', install_command: input.installCommand ?? '', build_command: input.buildCommand ?? '', start_command: input.startCommand ?? '', base_directory: input.baseDirectory, publish_directory: input.publishDirectory ?? '', ports_exposes: runtimePort, domains, health_check_port: runtimePort }) });
 		for (const variable of input.databaseEnvironment ?? []) await this.upsertApplicationEnvironment(body.uuid, variable.key, variable.value);
-		if (existing?.uuid && shouldRedeployCoolifyApplication(existing.status)) await this.request('/deploy', { method: 'POST', body: JSON.stringify({ force: true, uuid: existing.uuid }) });
+		if (existing?.uuid && (input.source || shouldRedeployCoolifyApplication(existing.status))) await this.request('/deploy', { method: 'POST', body: JSON.stringify({ force: true, uuid: existing.uuid }) });
 		return { id: body.uuid, publicUrl: existing?.fqdn?.split(',')[0] ?? domains?.split(',')[0], status: 'pending' };
 	}
 
