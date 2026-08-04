@@ -9,6 +9,7 @@ import { authenticateSession } from '@services/auth/authenticatedSessionService'
 import type { PaymentProviderCode, VerifiedPayment } from '@services/payments/PaymentProvider';
 import { availablePaymentProviders, paymentProvider } from '@services/payments/paymentProviderFactory';
 import type { RequestMetadata } from '@utils/request';
+import { platformUrl } from '@services/platformUrlService';
 
 const sanitizedPayload = (payload: Record<string, unknown>) => Object.fromEntries(Object.entries(payload).filter(([key]) => !['hash', 'razorpay_signature', 'card', 'salt'].includes(key.toLowerCase())));
 
@@ -36,7 +37,7 @@ export class PaymentController {
 		try {
 			const verified = await paymentProvider(providerCode).verifyCallback(payload);
 			const result = await this.applyProviderResult(providerCode, verified);
-			if (providerCode === 'payu') return Response.redirect(new URL(result.success ? `/checkout/${result.checkoutPublicId}/setup` : `/checkout/${result.checkoutPublicId}/failed`, process.env.APP_URL ?? 'http://localhost:5173'), 303);
+			if (providerCode === 'payu') return Response.redirect(await platformUrl(result.success ? `/checkout/${result.checkoutPublicId}/setup` : `/checkout/${result.checkoutPublicId}/failed`, 'public'), 303);
 			return result.success ? resp.success('Payment verified.', { nextUrl: `/checkout/${result.checkoutPublicId}/setup` }) : resp.failure('Payment was not completed.', resp.codes.ORDER_CANNOT_BE_PROCESSED, undefined, { nextUrl: `/checkout/${result.checkoutPublicId}/failed` }, undefined, 422);
 		} catch (error) { console.error('Payment callback rejected.', error); return resp.failure('Payment verification failed.', resp.codes.AUTHORIZATION_ERROR, undefined, null, undefined, 400); }
 	}

@@ -135,6 +135,7 @@ const RESOURCES = [
 	'provisioning',
 	'database_clusters',
 	'audit_logs',
+	'platform_settings',
 ] as const;
 const ACTIONS = ['view', 'create', 'update', 'delete'] as const;
 const SPECIAL_PERMISSIONS = [

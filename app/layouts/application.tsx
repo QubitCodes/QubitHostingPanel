@@ -5,6 +5,7 @@ import {
 	ChevronRight,
 	EllipsisVertical,
 	Home,
+	Globe2,
 	LayoutDashboard,
 	LogOut,
 	Menu,
@@ -44,10 +45,12 @@ const navigation = [
 	{ label: 'Database clusters', path: '/admin/operations/database-clusters', icon: Database },
 	{ label: 'Runtime images', path: '/admin/operations/runtime-images', icon: PackageOpen },
 	{ label: 'Settings', path: '/settings/profile', icon: Settings },
+	{ label: 'Platform settings', path: '/admin/platform-settings', icon: Globe2 },
 ];
 
 const titles: Record<string, string> = {
 	'/admin/overview': 'Overview',
+	'/admin/platform-settings': 'Platform settings',
 	'/admin/packages': 'Packages',
 	'/admin/offers': 'Offers',
 	'/admin/administrators': 'Administrators',
