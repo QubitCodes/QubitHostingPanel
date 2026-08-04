@@ -19,6 +19,7 @@ import {
 	authenticatedFetch,
 	clearAuthentication,
 } from '@root/app/utils/authenticatedFetch';
+import { clearDashboardData, dashboardData } from '@root/app/utils/dashboardData';
 
 export interface WorkspaceSummary {
 	cancelAtPeriodEnd?: boolean | null;
@@ -36,6 +37,7 @@ export interface WorkspaceSummary {
 export default function CustomerLayout() {
 	const navigate = useNavigate();
 	const location = useLocation();
+	const [initialReturnTo] = useState(location.pathname);
 	const [workspaces, setWorkspaces] = useState<WorkspaceSummary[]>([]);
 	const [activeId, setActiveId] = useState('');
 	const [authUser, setAuthUser] = useState<{
@@ -62,39 +64,22 @@ export default function CustomerLayout() {
 
 	useEffect(() => {
 		if (!sessionStorage.getItem('accessToken')) {
-			navigate(`/login?returnTo=${encodeURIComponent(location.pathname)}`, {
+			navigate(`/login?returnTo=${encodeURIComponent(initialReturnTo)}`, {
 				replace: true,
 			});
 			return;
 		}
 		void Promise.all([
-			authenticatedFetch('/api/v1/auth/profile'),
-			authenticatedFetch('/api/v1/workspaces'),
+			dashboardData<typeof authUser>('/api/v1/auth/profile'),
+			dashboardData<WorkspaceSummary[]>('/api/v1/workspaces'),
 		])
-			.then(async ([profileResponse, workspaceResponse]) => {
-				const profileBody = (await profileResponse.json()) as {
-					data?: typeof authUser;
-					status: boolean;
-				};
-				const workspaceBody = (await workspaceResponse.json()) as {
-					data?: WorkspaceSummary[];
-					status: boolean;
-				};
-				if (
-					!profileResponse.ok ||
-					!profileBody.status ||
-					!profileBody.data ||
-					!workspaceResponse.ok ||
-					!workspaceBody.status
-				)
-					throw new Error();
-				if (!profileBody.data.hasCustomerDashboardAccess) {
+			.then(([profile, rows]) => {
+				if (!profile.hasCustomerDashboardAccess) {
 					navigate('/', { replace: true });
 					return;
 				}
-				sessionStorage.setItem('authUser', JSON.stringify(profileBody.data));
-				setAuthUser(profileBody.data);
-				const rows = workspaceBody.data ?? [];
+				sessionStorage.setItem('authUser', JSON.stringify(profile));
+				setAuthUser(profile);
 				setWorkspaces(rows);
 				const stored = localStorage.getItem('activeWorkspaceId');
 				const selected = rows.some(
@@ -107,7 +92,7 @@ export default function CustomerLayout() {
 				setActiveId(selected ?? '');
 			})
 			.catch(() => navigate('/login', { replace: true }));
-	}, [location.pathname, navigate]);
+	}, [initialReturnTo, navigate]);
 	useEffect(() => {
 		const timeout = window.setTimeout(() => {
 			const storedTheme = localStorage.getItem('theme');
@@ -128,6 +113,7 @@ export default function CustomerLayout() {
 			body: '{}',
 		});
 		clearAuthentication();
+		clearDashboardData();
 		navigate('/');
 	}
 	/** Persist and apply the customer's selected colour theme. */
