@@ -110,15 +110,20 @@ export class ApplicationDomainController {
 
 	/** List ownership scopes plus incoming and outgoing cross-workspace requests. */
 	public static async ownershipIndex(request: Request, workspaceId: number, metadata: RequestMetadata): Promise<Response> {
+		let workspace: Awaited<ReturnType<typeof ownedWorkspace>>;
 		try {
-			const workspace = await ownedWorkspace(request, workspaceId, metadata);
+			workspace = await ownedWorkspace(request, workspaceId, metadata);
+		} catch {
+			return resp.failure('Workspace not found.', resp.codes.RESOURCE_NOT_FOUND, undefined, null, undefined, 404);
+		}
+		try {
 			const [ownerships, incoming, outgoing] = await Promise.all([
 				db.select().from(domainOwnerships).where(and(eq(domainOwnerships.workspaceId, workspace.id), isNull(domainOwnerships.deletedAt))).orderBy(asc(domainOwnerships.hostname)),
 				db.select({ id: domainAccessRequests.id, hostname: domainAccessRequests.hostname, status: domainAccessRequests.status, createdAt: domainAccessRequests.createdAt, requestingWorkspaceId: workspaces.publicId, requestingWorkspaceName: workspaces.name, applicationDomainId: domainAccessRequests.applicationDomainId }).from(domainAccessRequests).innerJoin(domainOwnerships, eq(domainOwnerships.id, domainAccessRequests.ownershipId)).innerJoin(workspaces, eq(workspaces.id, domainAccessRequests.requestingWorkspaceId)).where(and(eq(domainOwnerships.workspaceId, workspace.id), isNull(domainAccessRequests.deletedAt))).orderBy(desc(domainAccessRequests.createdAt)),
 				db.select({ id: domainAccessRequests.id, hostname: domainAccessRequests.hostname, status: domainAccessRequests.status, createdAt: domainAccessRequests.createdAt, applicationId: domainAccessRequests.applicationBuildId, ownerHostname: domainOwnerships.hostname }).from(domainAccessRequests).innerJoin(domainOwnerships, eq(domainOwnerships.id, domainAccessRequests.ownershipId)).where(and(eq(domainAccessRequests.requestingWorkspaceId, workspace.id), isNull(domainAccessRequests.deletedAt))).orderBy(desc(domainAccessRequests.createdAt)),
 			]);
 			return resp.success('Domain ownership retrieved.', { ownerships, incoming, outgoing, canApprove: workspace.role === 'owner' });
-		} catch { return resp.failure('Workspace not found.', resp.codes.RESOURCE_NOT_FOUND, undefined, null, undefined, 404); }
+		} catch { return resp.failure('Unable to load domain ownership.', resp.codes.DATABASE_ERROR, undefined, null, undefined, 500); }
 	}
 
 	/** Approve, reject, or revoke one protected-subdomain request as the verified owner. */
