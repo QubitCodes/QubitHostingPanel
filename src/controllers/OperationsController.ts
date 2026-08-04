@@ -22,6 +22,6 @@ export class OperationsController {
 	}
 
 	public static async providerHealth(request: Request, metadata: RequestMetadata): Promise<Response> {
-		try { await authorizeAdmin(request, 'provisioning.view', metadata); return resp.success('Hosting provider connected.', await hostingProvider().validateConnection()); } catch (error) { return resp.failure(error instanceof Error ? error.message : 'Provider unavailable.', resp.codes.EXTERNAL_SERVICE_ERROR, undefined, null, undefined, 502); }
+		try { await authorizeAdmin(request, 'provisioning.view', metadata); return resp.success('Hosting provider connected.', await (await hostingProvider()).validateConnection()); } catch (error) { return resp.failure(error instanceof Error ? error.message : 'Provider unavailable.', resp.codes.EXTERNAL_SERVICE_ERROR, undefined, null, undefined, 502); }
 	}
 }

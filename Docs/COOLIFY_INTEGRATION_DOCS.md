@@ -353,3 +353,17 @@ If tenants upload files or media assets to a central S3 bucket:
 > **Document Version:** 1.1.0  
 > **Target Stack:** React Router 7 / Next.js SSR + Drizzle ORM + PostgreSQL + Tailwind v4 + Stripe Metered Billing  
 > **Author:** Antigravity AI Engine
+# Database-managed provider operations
+
+The environment variables remain bootstrap/fallback configuration. Run `npm run provider:bootstrap` once after migration `0028` to validate and persist the primary connection. API tokens are stored only as AES-256-GCM ciphertext with a fingerprint and display suffix.
+
+Use `/admin/operations/providers` to add connections, validate health, atomically rotate tokens, and trigger reconciliation. Candidate tokens are validated before activation; the prior token is retired only inside the successful database transaction.
+
+Schedule both commands at the desired operations interval:
+
+```bash
+npm run provider:reconcile
+npm run usage:observe
+```
+
+Reconciliation reads servers, applications, databases, services, and deployments. Snapshots remove credential-like fields recursively and only match existing `workspace_resources` by provider ID. They never create workspaces, subscriptions, customers, or ownership.

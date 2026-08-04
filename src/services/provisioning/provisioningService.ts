@@ -31,7 +31,7 @@ export async function processProvisioningJobs(limit = 5): Promise<{ failed: numb
 		processed += 1;
 		try {
 			const input = claimed.input as { applicationBuildId?: string; checkoutId?: string; deploymentId?: string; workspaceName?: string };
-			const provider = hostingProvider();
+			const provider = await hostingProvider();
 			const [configuredApplication] = input.applicationBuildId ? await db.select({ build: applicationBuilds, runtime: runtimeImages }).from(applicationBuilds).innerJoin(runtimeImages, eq(runtimeImages.id, applicationBuilds.runtimeImageId)).where(and(eq(applicationBuilds.id, input.applicationBuildId), eq(applicationBuilds.workspaceId, claimed.workspaceId), isNull(applicationBuilds.deletedAt))).limit(1) : [];
 			const applicationMetadata = configuredApplication?.build.metadata as { buildPack?: 'dockerfile' | 'nixpacks' | 'static'; name?: string } | undefined;
 			const resourceName = `${String(applicationMetadata?.name ?? input.workspaceName ?? 'workspace').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40)}-${claimed.workspaceId.slice(0, 8)}`;

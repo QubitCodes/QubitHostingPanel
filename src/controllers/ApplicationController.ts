@@ -393,7 +393,7 @@ export class ApplicationController {
           404,
         );
       return resp.success("Application logs retrieved.", {
-        logs: await hostingProvider().getApplicationLogs(
+        logs: await (await hostingProvider()).getApplicationLogs(
           record.providerResourceId,
           200,
         ),

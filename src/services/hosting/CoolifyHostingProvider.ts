@@ -4,6 +4,8 @@ import type { HostingProvider, ProviderConnectionResult, ProviderJob, ProviderJo
 interface CoolifyApplication { fqdn?: string | null; name?: string; status?: string; uuid?: string }
 interface CoolifyDatabase { name?: string; status?: string; uuid?: string }
 export interface CreateCoolifyDatabaseInput { engine: 'postgresql' | 'mysql'; name: string; password: string; username: string; databaseName: string; image: string; limitsMemory: string; limitsCpus: string }
+export interface CoolifyConnectionConfig { apiToken: string; baseUrl: string; defaultEnvironmentName?: string; defaultProjectUuid?: string | null; destinationUuid?: string | null; serverUuid?: string | null; wildcardDomain?: string | null }
+export type CoolifyImportKind = 'server' | 'application' | 'database' | 'service' | 'deployment';
 
 /** Converts a configured wildcard URL or hostname into a bare DNS suffix. */
 export function normalizeCoolifyWildcardDomain(domain: string): string {
@@ -16,10 +18,15 @@ export function reusableCoolifyApplication(applications: CoolifyApplication[], n
 /** Least-privilege Coolify v4 REST adapter for starter workload provisioning. */
 export class CoolifyHostingProvider implements HostingProvider {
 	private readonly environment = getEnvironment();
+	private readonly config: CoolifyConnectionConfig;
+
+	public constructor(config?: CoolifyConnectionConfig) {
+		this.config = config ?? { apiToken: this.environment.COOLIFY_API_TOKEN ?? '', baseUrl: this.environment.COOLIFY_BASE_URL ?? '', defaultEnvironmentName: this.environment.COOLIFY_DEFAULT_ENVIRONMENT_NAME, defaultProjectUuid: this.environment.COOLIFY_DEFAULT_PROJECT_UUID, destinationUuid: this.environment.COOLIFY_DESTINATION_UUID, serverUuid: this.environment.COOLIFY_SERVER_UUID, wildcardDomain: this.environment.COOLIFY_WILDCARD_DOMAIN };
+	}
 
 	private async request<T>(path: string, init?: RequestInit): Promise<T> {
-		if (!this.environment.COOLIFY_BASE_URL || !this.environment.COOLIFY_API_TOKEN) throw new Error('Coolify credentials are unavailable.');
-		const response = await fetch(`${this.environment.COOLIFY_BASE_URL.replace(/\/$/, '')}/api/v1${path}`, { ...init, headers: { authorization: `Bearer ${this.environment.COOLIFY_API_TOKEN}`, accept: 'application/json', ...(init?.body ? { 'content-type': 'application/json' } : {}), ...init?.headers }, signal: AbortSignal.timeout(20_000) });
+		if (!this.config.baseUrl || !this.config.apiToken) throw new Error('Coolify credentials are unavailable.');
+		const response = await fetch(`${this.config.baseUrl.replace(/\/$/, '')}/api/v1${path}`, { ...init, headers: { authorization: `Bearer ${this.config.apiToken}`, accept: 'application/json', ...(init?.body ? { 'content-type': 'application/json' } : {}), ...init?.headers }, signal: AbortSignal.timeout(20_000) });
 		const text = await response.text();
 		let body: unknown = {};
 		try { body = text ? JSON.parse(text) : {}; } catch { body = { message: text }; }
@@ -37,11 +44,20 @@ export class CoolifyHostingProvider implements HostingProvider {
 		return applications.filter((item) => item.uuid).map((item) => ({ id: item.uuid!, kind: 'application' as const, name: item.name ?? item.uuid! }));
 	}
 
+	/** Reads one supported Coolify inventory endpoint for connection-scoped reconciliation. */
+	public async listImportResources(kind: CoolifyImportKind): Promise<readonly Record<string, unknown>[]> {
+		const paths: Record<CoolifyImportKind, string> = { application: '/applications', database: '/databases', deployment: '/deployments', server: '/servers', service: '/services' };
+		const result = await this.request<unknown>(paths[kind]);
+		if (Array.isArray(result)) return result.filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object');
+		const data = (result as { data?: unknown } | null)?.data;
+		return Array.isArray(data) ? data.filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object') : [];
+	}
+
 	public async getUsage(): Promise<readonly ProviderUsage[]> { return []; }
 
 	public async createSharedDatabase(input: CreateCoolifyDatabaseInput): Promise<{ uuid: string }> {
-		if (!this.environment.COOLIFY_DEFAULT_PROJECT_UUID || !this.environment.COOLIFY_SERVER_UUID) throw new Error('Coolify placement is incomplete.');
-		const common = { server_uuid: this.environment.COOLIFY_SERVER_UUID, project_uuid: this.environment.COOLIFY_DEFAULT_PROJECT_UUID, environment_name: this.environment.COOLIFY_DEFAULT_ENVIRONMENT_NAME, destination_uuid: this.environment.COOLIFY_DESTINATION_UUID, name: input.name, description: 'Qubit shared database cluster', image: input.image, is_public: false, limits_memory: input.limitsMemory, limits_cpus: input.limitsCpus, instant_deploy: true };
+		if (!this.config.defaultProjectUuid || !this.config.serverUuid) throw new Error('Coolify placement is incomplete.');
+		const common = { server_uuid: this.config.serverUuid, project_uuid: this.config.defaultProjectUuid, environment_name: this.config.defaultEnvironmentName ?? 'production', destination_uuid: this.config.destinationUuid, name: input.name, description: 'Qubit shared database cluster', image: input.image, is_public: false, limits_memory: input.limitsMemory, limits_cpus: input.limitsCpus, instant_deploy: true };
 		const credentials = input.engine === 'postgresql' ? { postgres_user: input.username, postgres_password: input.password, postgres_db: input.databaseName } : { mysql_root_password: input.password, mysql_user: 'qubit_admin', mysql_password: input.password, mysql_database: input.databaseName };
 		return this.request<{ uuid: string }>(`/databases/${input.engine}`, { method: 'POST', body: JSON.stringify({ ...common, ...credentials }) });
 	}
@@ -53,14 +69,14 @@ export class CoolifyHostingProvider implements HostingProvider {
 	}
 
 	public async provisionApplication(input: ProvisionApplicationInput): Promise<ProviderJob> {
-		if (!this.environment.COOLIFY_DEFAULT_PROJECT_UUID || !this.environment.COOLIFY_SERVER_UUID) throw new Error('Coolify placement is incomplete.');
-		const wildcardDomain = this.environment.COOLIFY_WILDCARD_DOMAIN ? normalizeCoolifyWildcardDomain(this.environment.COOLIFY_WILDCARD_DOMAIN) : undefined;
+		if (!this.config.defaultProjectUuid || !this.config.serverUuid) throw new Error('Coolify placement is incomplete.');
+		const wildcardDomain = this.config.wildcardDomain ? normalizeCoolifyWildcardDomain(this.config.wildcardDomain) : undefined;
 		const runtimePort = String(input.runtimeImage?.port ?? this.environment.COOLIFY_STARTER_PORT);
 		const domains = input.domain ? `https://${input.domain}` : wildcardDomain ? `https://${input.name}.${wildcardDomain}` : undefined;
 		const applications = await this.request<CoolifyApplication[]>('/applications');
 		const existing = reusableCoolifyApplication(applications, input.name);
 		if (existing?.uuid) return { id: existing.uuid, publicUrl: existing.fqdn?.split(',')[0] ?? domains?.split(',')[0], status: 'pending' };
-		const common = { project_uuid: this.environment.COOLIFY_DEFAULT_PROJECT_UUID, server_uuid: this.environment.COOLIFY_SERVER_UUID, environment_name: this.environment.COOLIFY_DEFAULT_ENVIRONMENT_NAME, destination_uuid: this.environment.COOLIFY_DESTINATION_UUID, ports_exposes: runtimePort, name: input.name, description: `Qubit workspace ${input.workspaceId}`, autogenerate_domain: !domains, domains, health_check_enabled: true, health_check_path: '/', health_check_port: runtimePort, instant_deploy: true, force_domain_override: false };
+		const common = { project_uuid: this.config.defaultProjectUuid, server_uuid: this.config.serverUuid, environment_name: this.config.defaultEnvironmentName ?? 'production', destination_uuid: this.config.destinationUuid, ports_exposes: runtimePort, name: input.name, description: `Qubit workspace ${input.workspaceId}`, autogenerate_domain: !domains, domains, health_check_enabled: true, health_check_path: '/', health_check_port: runtimePort, instant_deploy: true, force_domain_override: false };
 		const body = input.source
 			? await this.request<{ uuid: string }>('/applications/public', { method: 'POST', body: JSON.stringify({ ...common, git_repository: input.source.repository, git_branch: input.source.branch, build_pack: input.buildPack ?? 'nixpacks', install_command: input.installCommand, build_command: input.buildCommand, start_command: input.startCommand, base_directory: input.baseDirectory, publish_directory: input.publishDirectory, is_static: input.buildPack === 'static' }) })
 			: await this.request<{ uuid: string }>('/applications/dockerimage', { method: 'POST', body: JSON.stringify({ ...common, docker_registry_image_name: input.runtimeImage?.repository ?? this.environment.COOLIFY_STARTER_IMAGE, docker_registry_image_tag: input.runtimeImage?.tag ?? this.environment.COOLIFY_STARTER_IMAGE_TAG }) });

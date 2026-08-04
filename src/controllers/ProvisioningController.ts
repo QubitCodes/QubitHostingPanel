@@ -28,6 +28,6 @@ export class ProvisioningController {
 	public static async health(request: Request): Promise<Response> {
 		const environment = getEnvironment(); const supplied = request.headers.get('x-internal-job-secret');
 		if (!environment.INTERNAL_JOB_SECRET || supplied !== environment.INTERNAL_JOB_SECRET) return resp.failure('Resource not found.', resp.codes.RESOURCE_NOT_FOUND, undefined, null, undefined, 404);
-		try { return resp.success('Hosting provider connected.', await hostingProvider().validateConnection()); } catch (error) { return resp.failure(error instanceof Error ? error.message : 'Hosting provider unavailable.', resp.codes.EXTERNAL_SERVICE_ERROR, undefined, null, undefined, 502); }
+		try { return resp.success('Hosting provider connected.', await (await hostingProvider()).validateConnection()); } catch (error) { return resp.failure(error instanceof Error ? error.message : 'Hosting provider unavailable.', resp.codes.EXTERNAL_SERVICE_ERROR, undefined, null, undefined, 502); }
 	}
 }

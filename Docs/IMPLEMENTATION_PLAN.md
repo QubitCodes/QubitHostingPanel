@@ -142,14 +142,17 @@ Gate: completed with live concurrency, override, stale-observation, PostgreSQL/M
 Prerequisite: dedicated staging Linux server. Completed on AWS EC2 with Coolify v4, a healthy Traefik proxy, and `*.apps-staging.qubit.codes` routing.
 
 - [x] Environment-secret single-connection configuration and least-privilege token contract.
-- [ ] Database-managed encrypted multi-connection records and token rotation workflow.
+- [x] Database-managed encrypted multi-connection records and token rotation workflow.
 - [x] Connection validation and protected admin provider-health view.
 - [x] Real staging API authentication and team-scoped placement discovery verified against `coolify.qubit.codes`.
-- Import servers, applications, databases, services, and deployments.
-- Scheduled reconciliation and usage snapshots.
+- [x] Import servers, applications, databases, services, and deployments.
+- [x] Scheduled reconciliation and usage snapshots.
 - [x] Provider retry and error isolation in durable provisioning jobs.
 
-Gate: imported state is accurate/team-scoped and provider outages cannot corrupt commercial ownership.
+- [x] Migration `0028` applied and the environment connection bootstrapped with AES-256-GCM token storage; live atomic rotation activated version 2 and retired version 1.
+- [x] Live reconciliation imported one server, four applications, two databases, zero services, and zero current deployments; three records matched existing workspace resources without creating ownership.
+
+Gate: completed with encrypted multi-connection storage, validated rotation rollback safety, successful scoped live reconciliation, sanitized snapshots, per-resource error isolation, and commercial-ownership protection.
 
 ## Phase 6 - Controlled provisioning
 

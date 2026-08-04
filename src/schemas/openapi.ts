@@ -279,6 +279,19 @@ export const OPENAPI_DOCUMENT = {
 		'/internal/provider/health': {
 			get: { summary: 'Validate the configured hosting provider', operationId: 'hostingProviderHealth', responses: { '200': { description: 'Provider connected.' }, '502': { description: 'Provider unavailable.' } } },
 		},
+		'/operations/provider/connections': {
+			get: { summary: 'List sanitized Coolify connections and imported inventory', operationId: 'listProviderConnections', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Connections, reconciliation runs, and inventory returned without token material.' }, '403': { description: 'provisioning.view permission required.' } } },
+			post: { summary: 'Validate and save an encrypted Coolify connection', operationId: 'createProviderConnection', security: [{ bearerAuth: [] }], responses: { '201': { description: 'Connection validated and encrypted token stored.' }, '403': { description: 'provisioning.create permission required.' }, '502': { description: 'Provider validation failed.' } } },
+		},
+		'/operations/provider/connections/{connectionId}/validate': {
+			post: { summary: 'Validate a database-managed Coolify connection', operationId: 'validateProviderConnection', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Connection validated.' }, '502': { description: 'Provider unavailable.' } } },
+		},
+		'/operations/provider/connections/{connectionId}/rotate': {
+			post: { summary: 'Validate and atomically activate a new encrypted API token', operationId: 'rotateProviderToken', security: [{ bearerAuth: [] }], responses: { '200': { description: 'New token activated and previous token retired.' }, '502': { description: 'Candidate token validation failed; previous token remains active.' } } },
+		},
+		'/operations/provider/connections/{connectionId}/reconcile': {
+			post: { summary: 'Import and reconcile scoped Coolify inventory', operationId: 'reconcileProviderConnection', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Servers, applications, databases, services, and deployments reconciled without creating commercial ownership.' }, '502': { description: 'Reconciliation failed.' } } },
+		},
 		'/workspaces/{workspaceId}': {
 			get: {
 				summary: 'View an authorized workspace by its six-digit public ID',
