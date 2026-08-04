@@ -5,6 +5,10 @@ export const requestOtpSchema = z.object({
 	mobile: z.string().trim().regex(/^(?:~~)?\d{4,20}$/, 'Enter a valid mobile number.')
 }).strict();
 
+export const resolveMobileCountrySchema = z.object({
+	mobile: z.string().trim().regex(/^\d{8,15}$/, 'Enter a valid mobile number.')
+}).strict();
+
 export const verifyOtpSchema = z.object({
 	challengeId: z.uuid(),
 	otp: z.string().regex(/^\d{6}$/, 'OTP must contain exactly 6 digits.')
@@ -26,4 +30,5 @@ export const updateSessionLabelSchema = z.object({
 }).strict();
 
 export type RequestOtpInput = z.infer<typeof requestOtpSchema>;
+export type ResolveMobileCountryInput = z.infer<typeof resolveMobileCountrySchema>;
 export type VerifyOtpInput = z.infer<typeof verifyOtpSchema>;

@@ -41,6 +41,15 @@ export const OPENAPI_DOCUMENT = {
 				},
 			},
 		},
+		'/auth/mobile-country': {
+			post: {
+				description: 'Resolves whether an unprefixed national mobile number requires explicit country selection. The response never returns customer or account details.',
+				summary: 'Resolve mobile country requirement',
+				operationId: 'resolveMobileCountry',
+				requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', additionalProperties: false, required: ['mobile'], properties: { mobile: { type: 'string', pattern: '^\\d{8,15}$', example: '7907577655' } } } } } },
+				responses: { '200': { description: 'Returns only whether country selection is required and a visitor-country suggestion.' }, '400': { description: 'Validation error.' } },
+			},
+		},
 		'/auth/otp/verify': {
 			post: {
 				summary: 'Verify a WhatsApp OTP and create a session',

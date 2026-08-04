@@ -1,5 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { ArrowRight, MessageCircle, ShieldCheck } from 'lucide-react';
+import { useEffect } from 'react';
 import { Controller, useForm, useWatch } from 'react-hook-form';
 import { useNavigate, useSearchParams } from 'react-router';
 import { toast } from 'sonner';
@@ -23,6 +24,30 @@ export default function LoginPage() {
 		defaultValues: { countryCode: undefined, mobile: '~~9400143527' },
 	});
 	const countryCode = useWatch({ control: form.control, name: 'countryCode' });
+	const mobile = useWatch({ control: form.control, name: 'mobile' });
+
+	useEffect(() => {
+		const nationalNumber = mobile.replace(/^~~/, '').replace(/\D/g, '');
+		if (countryCode || nationalNumber.length < 8) return;
+		const controller = new AbortController();
+		const timeout = window.setTimeout(async () => {
+			try {
+				const response = await fetch('/api/v1/auth/mobile-country', {
+					body: JSON.stringify({ mobile: nationalNumber }),
+					headers: { 'content-type': 'application/json' },
+					method: 'POST',
+					signal: controller.signal,
+				});
+				const body = await response.json() as { data?: { countryCodeRequired?: boolean; suggestedCountryCode?: string }; status: boolean };
+				if (response.ok && body.status && body.data?.countryCodeRequired && body.data.suggestedCountryCode) {
+					form.setValue('countryCode', body.data.suggestedCountryCode, { shouldValidate: true });
+				}
+			} catch (error) {
+				if (!(error instanceof DOMException && error.name === 'AbortError')) console.warn('Unable to resolve mobile country.');
+			}
+		}, 350);
+		return () => { window.clearTimeout(timeout); controller.abort(); };
+	}, [countryCode, form, mobile]);
 
 	async function requestOtp(values: LoginForm): Promise<void> {
 		try {

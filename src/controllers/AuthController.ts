@@ -1,11 +1,12 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { and, eq, gt, isNotNull, isNull, or, sql } from 'drizzle-orm';
 import { resp } from '@qubitcodes/qcresp';
+import { getCountryCallingCode, isSupportedCountry, type CountryCode } from 'libphonenumber-js';
 
 import { getEnvironment } from '@config/env';
 import { db } from '@db/client';
 import { authenticationEvents, authenticationHandoffs, otpChallenges, platformUserRoles, userSessions, users } from '@db/schema';
-import type { CreateAuthenticationHandoffInput, ConsumeAuthenticationHandoffInput, RequestOtpInput, VerifyOtpInput } from '@schemas/auth';
+import type { CreateAuthenticationHandoffInput, ConsumeAuthenticationHandoffInput, RequestOtpInput, ResolveMobileCountryInput, VerifyOtpInput } from '@schemas/auth';
 import { Msg91OtpProvider, type OtpDeliveryProvider } from '@services/auth/Msg91OtpProvider';
 import { canUseDevelopmentAuthBypass, parseDevelopmentAuthMobile } from '@services/auth/developmentAuthBypassService';
 import { createOtpSalt, hashOtp, hashSensitiveValue, verifyOtpHash } from '@services/auth/otpCryptoService';
@@ -77,6 +78,25 @@ async function createSession(userId: string, tokenVersion: number, metadata: Req
 }
 
 export class AuthController {
+	/** Determines whether an unprefixed national number needs an explicit country selection. */
+	public static async resolveMobileCountry(input: ResolveMobileCountryInput, metadata: RequestMetadata): Promise<Response> {
+		try {
+			const candidates = await db.select({ id: users.id }).from(users).where(and(
+				eq(users.mobile, input.mobile),
+				eq(users.status, 'active'),
+				isNull(users.deletedAt),
+			)).limit(2);
+			const detectedCountry = metadata.sessionClient.countryCode?.toUpperCase();
+			const country = detectedCountry && isSupportedCountry(detectedCountry) ? detectedCountry as CountryCode : 'IN';
+			return resp.success('Mobile country requirement resolved.', {
+				countryCodeRequired: candidates.length !== 1,
+				suggestedCountryCode: `+${getCountryCallingCode(country)}`,
+			});
+		} catch {
+			return resp.failure('Unable to resolve mobile country.', resp.codes.DATABASE_ERROR, undefined, null, undefined, 500);
+		}
+	}
+
 	/** Creates a generic, enumeration-safe WhatsApp OTP challenge. */
 	public static async requestOtp(input: RequestOtpInput, metadata: RequestMetadata, provider: OtpDeliveryProvider = new Msg91OtpProvider(), request?: Request): Promise<Response> {
 		try {

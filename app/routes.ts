@@ -91,6 +91,7 @@ export default [
 		route('health', 'api/v1/health.ts'),
 		route('openapi.json', 'api/v1/openapi.ts'),
 		route('auth/otp/request', 'api/v1/auth/otp-request.ts'),
+		route('auth/mobile-country', 'api/v1/auth/mobile-country.ts'),
 		route('auth/otp/verify', 'api/v1/auth/otp-verify.ts'),
 		route('auth/refresh', 'api/v1/auth/refresh.ts'),
 		route('auth/logout', 'api/v1/auth/logout.ts'),

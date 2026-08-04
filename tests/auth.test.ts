@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { requestOtpSchema, switchContextSchema, verifyOtpSchema } from '@schemas/auth';
+import { requestOtpSchema, resolveMobileCountrySchema, switchContextSchema, verifyOtpSchema } from '@schemas/auth';
 import { createMsg91Client } from '@qubitcodes/msg91';
 
 import { createOtpSalt, hashOtp, verifyOtpHash } from '@services/auth/otpCryptoService';
@@ -23,6 +23,9 @@ describe('WhatsApp OTP security primitives', () => {
 		expect(requestOtpSchema.safeParse({ countryCode: '+91', mobile: '~~9876543210' }).success).toBe(true);
 		expect(requestOtpSchema.safeParse({ mobile: '9~~876543210' }).success).toBe(false);
 		expect(requestOtpSchema.safeParse({ mobile: '~9876543210' }).success).toBe(false);
+		expect(resolveMobileCountrySchema.safeParse({ mobile: '7907577655' }).success).toBe(true);
+		expect(resolveMobileCountrySchema.safeParse({ mobile: '7907577' }).success).toBe(false);
+		expect(resolveMobileCountrySchema.safeParse({ mobile: '+917907577655' }).success).toBe(false);
 		expect(verifyOtpSchema.safeParse({ challengeId: crypto.randomUUID(), otp: '123456' }).success).toBe(true);
 		expect(verifyOtpSchema.safeParse({ challengeId: crypto.randomUUID(), otp: '12345' }).success).toBe(false);
 		expect(switchContextSchema.safeParse({ context: 'organisation' }).success).toBe(false);
