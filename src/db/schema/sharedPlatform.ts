@@ -8,6 +8,8 @@ export const runtimeLanguageEnum = pgEnum('runtime_language', ['static', 'php', 
 export const runtimeImageStatusEnum = pgEnum('runtime_image_status', ['active', 'deprecated', 'disabled']);
 export const applicationBuildStatusEnum = pgEnum('application_build_status', ['queued', 'building', 'succeeded', 'failed', 'cancelled']);
 export const applicationDeploymentStatusEnum = pgEnum('application_deployment_status', ['queued', 'deploying', 'running', 'failed', 'stopped']);
+export const applicationDomainTypeEnum = pgEnum('application_domain_type', ['platform', 'custom']);
+export const applicationDomainStatusEnum = pgEnum('application_domain_status', ['pending', 'verified', 'failed']);
 export const databaseEngineEnum = pgEnum('database_engine', ['postgresql', 'mysql']);
 export const databaseClusterStatusEnum = pgEnum('database_cluster_status', ['provisioning', 'active', 'maintenance', 'unavailable', 'retired']);
 export const databaseTlsModeEnum = pgEnum('database_tls_mode', ['disabled', 'require', 'verify-full']);
@@ -74,6 +76,28 @@ export const applicationBuilds = pgTable('application_builds', {
 	index('application_builds_resource_created_idx').on(table.resourceId, table.createdAt),
 	check('application_builds_completion_check', sql`${table.completedAt} IS NULL OR ${table.startedAt} IS NOT NULL`),
 	check('application_builds_port_check', sql`${table.applicationPort} BETWEEN 1 AND 65535`),
+]);
+
+/** Hostnames attached to a stable customer application configuration. */
+export const applicationDomains = pgTable('application_domains', {
+	id: uuid('id').primaryKey().defaultRandom(),
+	applicationBuildId: uuid('application_build_id').notNull().references(() => applicationBuilds.id, { onDelete: 'cascade' }),
+	hostname: varchar('hostname', { length: 255 }).notNull(),
+	type: applicationDomainTypeEnum('type').notNull(),
+	status: applicationDomainStatusEnum('status').notNull().default('pending'),
+	isPrimary: boolean('is_primary').notNull().default(false),
+	isEnabled: boolean('is_enabled').notNull().default(true),
+	verificationToken: varchar('verification_token', { length: 120 }),
+	verifiedAt: timestamp('verified_at', { withTimezone: true }),
+	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+	updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+	deletedAt: timestamp('deleted_at', { withTimezone: true }),
+	deleteReason: varchar('delete_reason', { length: 500 }),
+}, (table) => [
+	uniqueIndex('application_domains_hostname_active_unique').on(table.hostname).where(sql`${table.deletedAt} IS NULL`),
+	uniqueIndex('application_domains_platform_application_unique').on(table.applicationBuildId).where(sql`${table.type} = 'platform' AND ${table.deletedAt} IS NULL`),
+	uniqueIndex('application_domains_primary_application_unique').on(table.applicationBuildId).where(sql`${table.isPrimary} = true AND ${table.deletedAt} IS NULL`),
+	index('application_domains_application_status_idx').on(table.applicationBuildId, table.status),
 ]);
 
 /** One selected logical database exposed to an application through server-managed environment variables. */
@@ -209,7 +233,8 @@ export const databaseBackups = pgTable('database_backups', {
 ]);
 
 export const runtimeImageRelations = relations(runtimeImages, ({ many }) => ({ builds: many(applicationBuilds) }));
-export const applicationBuildRelations = relations(applicationBuilds, ({ one, many }) => ({ workspace: one(workspaces, { fields: [applicationBuilds.workspaceId], references: [workspaces.id] }), resource: one(workspaceResources, { fields: [applicationBuilds.resourceId], references: [workspaceResources.id] }), runtimeImage: one(runtimeImages, { fields: [applicationBuilds.runtimeImageId], references: [runtimeImages.id] }), databaseBindings: many(applicationDatabaseBindings), deployments: many(applicationDeployments) }));
+export const applicationBuildRelations = relations(applicationBuilds, ({ one, many }) => ({ workspace: one(workspaces, { fields: [applicationBuilds.workspaceId], references: [workspaces.id] }), resource: one(workspaceResources, { fields: [applicationBuilds.resourceId], references: [workspaceResources.id] }), runtimeImage: one(runtimeImages, { fields: [applicationBuilds.runtimeImageId], references: [runtimeImages.id] }), databaseBindings: many(applicationDatabaseBindings), deployments: many(applicationDeployments), domains: many(applicationDomains) }));
+export const applicationDomainRelations = relations(applicationDomains, ({ one }) => ({ application: one(applicationBuilds, { fields: [applicationDomains.applicationBuildId], references: [applicationBuilds.id] }) }));
 export const applicationDatabaseBindingRelations = relations(applicationDatabaseBindings, ({ one }) => ({ applicationBuild: one(applicationBuilds, { fields: [applicationDatabaseBindings.applicationBuildId], references: [applicationBuilds.id] }), logicalDatabase: one(logicalDatabases, { fields: [applicationDatabaseBindings.logicalDatabaseId], references: [logicalDatabases.id] }) }));
 export const applicationDeploymentRelations = relations(applicationDeployments, ({ one }) => ({ workspace: one(workspaces, { fields: [applicationDeployments.workspaceId], references: [workspaces.id] }), applicationBuild: one(applicationBuilds, { fields: [applicationDeployments.applicationBuildId], references: [applicationBuilds.id] }), resource: one(workspaceResources, { fields: [applicationDeployments.resourceId], references: [workspaceResources.id] }) }));
 export const databaseClusterRelations = relations(databaseClusters, ({ many }) => ({ databases: many(logicalDatabases) }));
@@ -218,6 +243,7 @@ export const databaseBackupRelations = relations(databaseBackups, ({ one }) => (
 
 export type RuntimeImage = typeof runtimeImages.$inferSelect;
 export type ApplicationBuild = typeof applicationBuilds.$inferSelect;
+export type ApplicationDomain = typeof applicationDomains.$inferSelect;
 export type ApplicationDeployment = typeof applicationDeployments.$inferSelect;
 export type DatabaseCluster = typeof databaseClusters.$inferSelect;
 export type LogicalDatabase = typeof logicalDatabases.$inferSelect;

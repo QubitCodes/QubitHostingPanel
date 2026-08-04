@@ -32,4 +32,6 @@ export class MockHostingProvider implements HostingProvider {
 	}
 
 	public async getApplicationLogs(): Promise<string> { return 'Mock application is running.'; }
+
+	public async updateApplicationDomains(): Promise<void> { return Promise.resolve(); }
 }

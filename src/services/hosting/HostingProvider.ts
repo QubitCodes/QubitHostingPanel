@@ -28,7 +28,7 @@ export interface ProvisionApplicationInput {
 	buildCommand?: string;
 	buildPack?: 'dockerfile' | 'nixpacks' | 'static';
 	databaseEnvironment?: Array<{ key: string; value: string }>;
-	domain?: string;
+	domains?: string[];
 	installCommand?: string;
 	name: string;
 	publishDirectory?: string;
@@ -50,4 +50,5 @@ export interface HostingProvider {
 	provisionApplication(input: ProvisionApplicationInput): Promise<ProviderJob>;
 	getDeployment(jobId: string): Promise<ProviderJobStatus>;
 	getApplicationLogs(applicationId: string, lines?: number): Promise<string>;
+	updateApplicationDomains(applicationId: string, domains: string[]): Promise<void>;
 }

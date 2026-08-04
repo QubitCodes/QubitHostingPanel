@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { and, asc, count, desc, eq, isNull, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { resp } from "@qubitcodes/qcresp";
 
 import { db } from "@db/client";
@@ -7,6 +7,7 @@ import {
   applicationBuilds,
   applicationDatabaseBindings,
   applicationDeployments,
+  applicationDomains,
   customers,
   logicalDatabases,
   provisioningJobs,
@@ -20,6 +21,7 @@ import type { CreateApplicationRequest } from "@schemas/application";
 import { recordAuditLog } from "@services/auditLogService";
 import { authenticateSession } from "@services/auth/authenticatedSessionService";
 import { hostingProvider } from "@services/hosting/hostingProviderFactory";
+import { getEffectivePlatformUrls } from '@services/platformUrlService';
 import { commitUsageReservation, releaseUsageReservation, reserveWorkspaceUsage } from "@services/usage/quotaEngine";
 import type { RequestMetadata } from "@utils/request";
 
@@ -128,9 +130,12 @@ export class ApplicationController {
           )
           .orderBy(asc(logicalDatabases.databaseName)),
       ]);
+      const platform = await getEffectivePlatformUrls();
       return resp.success("Application options retrieved.", {
         runtimes,
         databases,
+        applicationBaseDomain: platform.applicationBaseDomain,
+        applicationDomainReady: platform.applicationDomainReady,
       });
     } catch {
       return resp.failure(
@@ -168,7 +173,8 @@ export class ApplicationController {
           ),
         )
         .orderBy(desc(applicationBuilds.createdAt));
-      return resp.success("Applications retrieved.", rows);
+      const domains = rows.length ? await db.select().from(applicationDomains).where(and(inArray(applicationDomains.applicationBuildId, rows.map(({ id }) => id)), isNull(applicationDomains.deletedAt))).orderBy(asc(applicationDomains.createdAt)) : [];
+      return resp.success("Applications retrieved.", rows.map((row) => ({ ...row, domains: domains.filter((domain) => domain.applicationBuildId === row.id) })));
     } catch {
       return resp.failure(
         "Workspace not found.",
@@ -255,11 +261,12 @@ export class ApplicationController {
       if (input.domain) {
         const [conflict] = await db
           .select({ id: applicationBuilds.id })
-          .from(applicationBuilds)
+          .from(applicationDomains)
+          .innerJoin(applicationBuilds, eq(applicationBuilds.id, applicationDomains.applicationBuildId))
           .where(
             and(
-              eq(applicationBuilds.requestedDomain, input.domain),
-              isNull(applicationBuilds.deletedAt),
+              eq(applicationDomains.hostname, input.domain),
+              isNull(applicationDomains.deletedAt),
             ),
           )
           .limit(1);
@@ -277,6 +284,11 @@ export class ApplicationController {
       reservationId = reservation.reservationId;
       if (!reservation.allowed || !reservationId)
         return resp.failure("Workspace application limit reached.", resp.codes.ORDER_CANNOT_BE_PROCESSED, undefined, { quota: reservation }, undefined, 422);
+      const platform = await getEffectivePlatformUrls();
+      const subdomain = input.subdomain ?? input.name.toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-|-$/g, '').slice(0, 50);
+      const platformHostname = `${subdomain}.${platform.applicationBaseDomain}`;
+      const [hostnameConflict] = await db.select({ id: applicationDomains.id }).from(applicationDomains).where(and(eq(applicationDomains.hostname, platformHostname), isNull(applicationDomains.deletedAt))).limit(1);
+      if (hostnameConflict) return resp.failure('Application subdomain is already assigned.', resp.codes.RESOURCE_ALREADY_EXISTS, undefined, null, undefined, 409);
       const result = await db.transaction(async (transaction) => {
         const [build] = await transaction
           .insert(applicationBuilds)
@@ -297,6 +309,10 @@ export class ApplicationController {
           })
           .returning({ id: applicationBuilds.id });
         if (!build) throw new Error("Unable to persist application.");
+        await transaction.insert(applicationDomains).values([
+          { applicationBuildId: build.id, hostname: platformHostname, type: 'platform', status: platform.applicationDomainReady ? 'verified' : 'pending', isPrimary: true, isEnabled: true, verifiedAt: platform.applicationDomainReady ? new Date() : null },
+          ...(input.domain ? [{ applicationBuildId: build.id, hostname: input.domain, type: 'custom' as const, status: 'pending' as const, isPrimary: false, isEnabled: false, verificationToken: randomUUID() }] : []),
+        ]);
         if (input.databases.length)
           await transaction
             .insert(applicationDatabaseBindings)

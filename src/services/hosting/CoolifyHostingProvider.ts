@@ -90,7 +90,7 @@ export class CoolifyHostingProvider implements HostingProvider {
 		if (!this.config.defaultProjectUuid || !this.config.serverUuid) throw new Error('Coolify placement is incomplete.');
 		const wildcardDomain = this.config.wildcardDomain ? normalizeCoolifyWildcardDomain(this.config.wildcardDomain) : undefined;
 		const runtimePort = String(input.runtimeImage?.port ?? this.environment.COOLIFY_STARTER_PORT);
-		const domains = input.domain ? `https://${input.domain}` : wildcardDomain ? `https://${input.name}.${wildcardDomain}` : undefined;
+		const domains = input.domains?.length ? input.domains.map((domain) => `https://${domain}`).join(',') : wildcardDomain ? `https://${input.name}.${wildcardDomain}` : undefined;
 		const applications = await this.request<CoolifyApplication[]>('/applications');
 		const existing = reusableCoolifyApplication(applications, input.name);
 		const common = { project_uuid: this.config.defaultProjectUuid, server_uuid: this.config.serverUuid, environment_name: this.config.defaultEnvironmentName ?? 'production', destination_uuid: this.config.destinationUuid, ports_exposes: runtimePort, name: input.name, description: `Qubit workspace ${input.workspaceId}`, autogenerate_domain: !domains, domains, health_check_enabled: true, health_check_path: '/', health_check_port: runtimePort, instant_deploy: true, force_domain_override: false };
@@ -112,4 +112,6 @@ export class CoolifyHostingProvider implements HostingProvider {
 	}
 
 	public async getApplicationLogs(applicationId: string, lines = 100): Promise<string> { const result = await this.request<{ logs?: string }>(`/applications/${encodeURIComponent(applicationId)}/logs?lines=${Math.max(1, Math.min(1000, Math.trunc(lines)))}`); return result.logs ?? ''; }
+
+	public async updateApplicationDomains(applicationId: string, domains: string[]): Promise<void> { await this.request(`/applications/${encodeURIComponent(applicationId)}`, { method: 'PATCH', body: JSON.stringify({ domains: domains.map((domain) => `https://${domain}`).join(','), force_domain_override: true }) }); }
 }

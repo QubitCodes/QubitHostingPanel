@@ -27,6 +27,7 @@ export default [
 		route('dashboard/applications', 'pages/customer/applications.tsx'),
 		route('dashboard/applications/create', 'pages/customer/application-create.tsx'),
 		route('dashboard/applications/:applicationId', 'pages/customer/application-detail.tsx'),
+		route('dashboard/applications/:applicationId/domains', 'pages/customer/application-domains.tsx'),
 		route('dashboard/workspaces/create', 'pages/customer/create-workspace-modal.tsx'),
 	]),
 	layout('layouts/application.tsx', [
@@ -116,6 +117,9 @@ export default [
 		route('workspaces/:workspaceId/applications', 'api/v1/workspaces/applications/index.ts'),
 		route('workspaces/:workspaceId/applications/options', 'api/v1/workspaces/applications/options.ts'),
 		route('workspaces/:workspaceId/applications/:applicationId/logs', 'api/v1/workspaces/applications/logs.ts'),
+		route('workspaces/:workspaceId/applications/:applicationId/domains', 'api/v1/workspaces/applications/domains.ts'),
+		route('workspaces/:workspaceId/applications/:applicationId/domains/:domainId', 'api/v1/workspaces/applications/domain-detail.ts'),
+		route('workspaces/:workspaceId/applications/:applicationId/domains/:domainId/verify', 'api/v1/workspaces/applications/domain-verify.ts'),
 		route('checkouts', 'api/v1/checkouts/index.ts'),
 		route('checkouts/:checkoutId', 'api/v1/checkouts/detail.ts'),
 		route('checkouts/:checkoutId/payment', 'api/v1/payments/initiate.ts'),

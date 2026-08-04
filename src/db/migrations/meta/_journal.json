@@ -211,6 +211,13 @@
       "when": 1785841934200,
       "tag": "0029_perpetual_doctor_octopus",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1785843241000,
+      "tag": "0030_ancient_doctor_faustus",
+      "breakpoints": true
     }
   ]
 }
