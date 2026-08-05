@@ -4,7 +4,7 @@ import { bigint, boolean, check, index, integer, jsonb, pgEnum, pgTable, text, t
 import { workspaceResources } from './provisioning';
 import { workspaces } from './tenancy';
 
-export const runtimeLanguageEnum = pgEnum('runtime_language', ['static', 'php', 'node', 'python']);
+export const runtimeLanguageEnum = pgEnum('runtime_language', ['static', 'php', 'node', 'python', 'ruby']);
 export const runtimeImageStatusEnum = pgEnum('runtime_image_status', ['active', 'deprecated', 'disabled']);
 export const applicationBuildStatusEnum = pgEnum('application_build_status', ['queued', 'building', 'succeeded', 'failed', 'cancelled']);
 export const applicationEnvironmentEnum = pgEnum('application_environment', ['development', 'testing', 'staging', 'production']);

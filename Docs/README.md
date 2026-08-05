@@ -21,6 +21,7 @@
 9. `DATABASE_AND_PORTABILITY.md` - Supabase-first database strategy and later migration path.
 10. `INFRASTRUCTURE_REQUIREMENTS.md` - local, staging, and production infrastructure requirements.
 11. `SHARED_PLATFORM_ARCHITECTURE.md` - shared runtimes, isolated application containers, logical databases, credentials, quotas, and backup boundaries.
+12. `FRAMEWORK_SUPPORT.md` - supported framework catalogue, source detection, runtime mapping, persistence requirements, and verification contract.
 12. `IMPLEMENTATION_PLAN.md` - delivery phases, verification gates, and deferred work.
 13. `GHOST_DEPLOY_CUTOVER.md` - production/staging domains, provider changes, compatibility, and secret-rotation guidance.
 14. `future-plans/README.md` - explicitly non-MVA roadmap covering hosted email, organisation/deployment/database expansion, and server consolidation.

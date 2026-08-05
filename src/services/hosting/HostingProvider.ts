@@ -37,6 +37,7 @@ export interface ProvisionApplicationInput {
   domains?: string[];
   installCommand?: string;
   name: string;
+  persistentStorages?: Array<{ mountPath: string; name: string }>;
   publishDirectory?: string;
   runtimeImage?: {
     port: number;

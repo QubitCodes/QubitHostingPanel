@@ -20,6 +20,7 @@ const RUNTIME_SEEDS = [
 	{ code: 'php-8.5', language: 'php', version: '8.5.8', repository: 'qubitcodes/runtime-php', tag: '8.5.8', defaultPort: 80, isDefault: true },
 	{ code: 'python-3.12', language: 'python', version: '3.12.13', repository: 'qubitcodes/runtime-python', tag: '3.12.13', defaultPort: 8000, isDefault: false },
 	{ code: 'python-3.13', language: 'python', version: '3.13.14', repository: 'qubitcodes/runtime-python', tag: '3.13.14', defaultPort: 8000, isDefault: true },
+	{ code: 'ruby-3.4', language: 'ruby', version: '3.4.10', repository: 'qubitcodes/runtime-ruby', tag: '3.4.10', defaultPort: 3000, isDefault: true },
 	{ code: 'static-nginx', language: 'static', version: '1.30.4', repository: 'qubitcodes/runtime-static', tag: '1.30.4', defaultPort: 80, isDefault: true },
 ] as const;
 

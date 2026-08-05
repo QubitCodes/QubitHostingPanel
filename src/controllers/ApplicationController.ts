@@ -2,6 +2,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { and, asc, count, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { resp } from "@qubitcodes/qcresp";
 
+import { frameworkDefinition } from "@config/frameworkCatalog";
 import { db } from "@db/client";
 import {
   applicationBuilds,
@@ -9,6 +10,7 @@ import {
   applicationDeployments,
   applicationDomains,
   customers,
+  databaseClusters,
   domainAccessRequests,
   domainOwnerships,
   logicalDatabases,
@@ -499,6 +501,25 @@ export class ApplicationController {
           undefined,
           404,
         );
+      const selectedFramework = frameworkDefinition(input.framework);
+      if (input.framework && !selectedFramework)
+        return resp.failure(
+          "Framework is unsupported.",
+          resp.codes.INVALID_INPUT_DATA,
+          undefined,
+          null,
+          undefined,
+          422,
+        );
+      if (selectedFramework && selectedFramework.language !== runtime.language)
+        return resp.failure(
+          "Framework does not match the selected runtime.",
+          resp.codes.INVALID_INPUT_DATA,
+          undefined,
+          null,
+          undefined,
+          422,
+        );
       let githubConnection:
         typeof workspaceGithubConnections.$inferSelect | undefined;
       if (input.githubConnectionId) {
@@ -568,8 +589,9 @@ export class ApplicationController {
         );
       if (input.databases.length) {
         const selected = await db
-          .select({ id: logicalDatabases.id })
+          .select({ id: logicalDatabases.id, engine: databaseClusters.engine })
           .from(logicalDatabases)
+          .innerJoin(databaseClusters, eq(databaseClusters.id, logicalDatabases.clusterId))
           .where(
             and(
               eq(logicalDatabases.workspaceId, workspace.id),
@@ -586,6 +608,22 @@ export class ApplicationController {
             null,
             undefined,
             404,
+          );
+        if (
+          selectedFramework &&
+          selected.some(
+            ({ id, engine }) =>
+              input.databases.some(({ databaseId }) => databaseId === id) &&
+              !selectedFramework.databaseEngines.includes(engine),
+          )
+        )
+          return resp.failure(
+            "Selected database engine is incompatible with the framework.",
+            resp.codes.INVALID_INPUT_DATA,
+            undefined,
+            null,
+            undefined,
+            422,
           );
       }
       const customHostnames = [

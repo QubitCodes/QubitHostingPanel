@@ -35,13 +35,15 @@ Applications remain isolated containers. Customers sharing a runtime version reu
 - Active, deprecated, or disabled lifecycle state.
 - Default selection per product policy.
 
-Initial target images are maintained in GitHub Container Registry as `ghcr.io/qubitcodes/runtime-{node,php,python,static}`. The approved versions are Node.js 22.23.1 and 24.18.0, PHP 8.3.32 and 8.5.8, Python 3.12.13 and 3.13.14, and nginx 1.30.4. Node.js 22.23.1 replaces the requested 22.23.2 because the latter is not an upstream release.
+Initial target images are maintained in GitHub Container Registry as `ghcr.io/qubitcodes/runtime-{node,php,python,ruby,static}`. The approved versions are Node.js 22.23.1 and 24.18.0, PHP 8.3.32 and 8.5.8, Python 3.12.13 and 3.13.14, Ruby 3.4.10, and nginx 1.30.4. Node.js 22.23.1 replaces the requested 22.23.2 because the latter is not an upstream release.
 
 The runtime workflow builds `linux/amd64` images for the current EC2 architecture, performs version smoke checks and fixable-critical vulnerability scanning, and publishes exact, channel, and source-revision tags only from `main` or manual dispatch. GitHub Actions dependencies are pinned to immutable commits. Published artifacts include provenance and an SBOM. Customer deployments should pin an approved digest when reproducibility is required. Runtime removal is a staged lifecycle: stop new selections, mark deprecated, notify affected workspaces, rebuild or migrate applications, then disable.
 
 `application_builds` records source repository/ref, commit, selected runtime, build status, generated image reference, provider build identifier, and failure state. GitHub Actions should build and publish customer images so the Coolify host spends its capacity running workloads rather than compiling them.
 
 Customers configure public Git or workspace-owned GitHub App sources under `/dashboard/applications`. Approved repository manifests drive suggestions for stack, version, framework, project/output directories and environment-template keys; users review every suggestion. The panel validates the repository, branch, build method, commands, directories, runtime and port; encrypts application variables at rest; enforces workspace entitlements; rejects domain conflicts; persists database bindings without copying plaintext credentials; and queues an idempotent deployment. Private repositories use short-lived GitHub installation tokens for inspection. Each GitHub installation is idempotently synchronized to its own Coolify Source UUID using the shared platform App credentials and private-key record; failed provider synchronization remains retryable and blocks private deployment without weakening repository isolation. Dockerfile deployment remains disabled until package-scoped isolation policy is available.
+
+Framework-required writable paths are reconciled as provider volumes before the first deployment. Volume names are application-scoped, retries detect existing mounts, and WordPress, Laravel, CakePHP, Symfony, CodeIgniter, Yii, Django, and Rails retain their declared state across replacements.
 
 ## Application isolation
 

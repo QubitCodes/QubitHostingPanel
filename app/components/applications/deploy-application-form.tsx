@@ -18,12 +18,17 @@ import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { authenticatedFetch } from "@root/app/utils/authenticatedFetch";
+import {
+  frameworkDefinition,
+  frameworksForLanguage,
+  type RuntimeLanguage,
+} from "@config/frameworkCatalog";
 
 interface RuntimeOption {
   code: string;
   defaultPort: number;
   isDefault: boolean;
-  language: "node" | "php" | "python" | "static";
+  language: RuntimeLanguage;
   version: string;
 }
 interface DatabaseOption {
@@ -111,43 +116,13 @@ const STACKS: Array<{
     mark: "</>",
     color: "bg-amber-500/15 text-amber-700 dark:text-amber-300",
   },
+  {
+    code: "ruby",
+    label: "Ruby",
+    mark: "Rb",
+    color: "bg-red-500/15 text-red-700 dark:text-red-300",
+  },
 ];
-const FRAMEWORKS: Record<
-  RuntimeOption["language"],
-  Array<{ code: string; label: string }>
-> = {
-  node: [
-    { code: "react-router", label: "React Router" },
-    { code: "nextjs", label: "Next.js" },
-    { code: "nestjs", label: "NestJS" },
-    { code: "express", label: "Express" },
-    { code: "fastify", label: "Fastify" },
-    { code: "remix", label: "Remix" },
-    { code: "nuxt", label: "Nuxt" },
-    { code: "sveltekit", label: "SvelteKit" },
-  ],
-  php: [
-    { code: "laravel", label: "Laravel" },
-    { code: "cakephp", label: "CakePHP" },
-    { code: "symfony", label: "Symfony" },
-    { code: "codeigniter", label: "CodeIgniter" },
-    { code: "yii", label: "Yii" },
-    { code: "slim", label: "Slim" },
-  ],
-  python: [
-    { code: "django", label: "Django" },
-    { code: "fastapi", label: "FastAPI" },
-    { code: "flask", label: "Flask" },
-    { code: "litestar", label: "Litestar" },
-  ],
-  static: [
-    { code: "react", label: "React" },
-    { code: "vite", label: "Vite" },
-    { code: "vue", label: "Vue" },
-    { code: "angular", label: "Angular" },
-  ],
-};
-
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await authenticatedFetch(path, init);
   const body = (await response.json()) as ApiBody<T>;
@@ -245,6 +220,7 @@ export function DeployApplicationForm({
     options.runtimes.find((runtime) => runtime.code === runtimeCode) ??
     stackRuntimes.find((runtime) => runtime.isDefault) ??
     stackRuntimes[0];
+  const selectedFramework = frameworkDefinition(framework);
 
   useEffect(() => {
     void request<GithubConnection[]>(
@@ -337,6 +313,19 @@ export function DeployApplicationForm({
     );
     setFramework("");
   }
+  function selectFramework(code: string): void {
+    setFramework(code);
+    const definition = frameworkDefinition(code);
+    if (!definition) return;
+    if (definition.outputDirectory) setOutputDirectory(definition.outputDirectory);
+    if (definition.databaseEngines.length === 0) setDatabaseMode("none");
+    else if (databaseMode === "none") setDatabaseMode("new");
+    if (
+      definition.databaseEngines.length === 1 &&
+      definition.databaseEngines[0]
+    )
+      setDatabaseEngine(definition.databaseEngines[0]);
+  }
   async function inspectSource(): Promise<void> {
     setAnalyzing(true);
     try {
@@ -358,7 +347,7 @@ export function DeployApplicationForm({
       if (candidate) {
         selectStack(candidate.stack);
         setProjectDirectory(candidate.projectDirectory);
-        setFramework(candidate.framework ?? "");
+        if (candidate.framework) selectFramework(candidate.framework);
       }
       setOutputDirectory(result.outputDirectory ?? "");
       setVariables(
@@ -786,17 +775,25 @@ export function DeployApplicationForm({
               >
                 None
               </button>
-              {FRAMEWORKS[stack].map((item) => (
+              {frameworksForLanguage(stack).map((item) => (
                 <button
                   className={`rounded-xl border px-3 py-2 text-sm font-bold ${framework === item.code ? "border-brand-action bg-brand-action/10" : "border-brand-primary/10"}`}
                   key={item.code}
-                  onClick={() => setFramework(item.code)}
+                  onClick={() => selectFramework(item.code)}
                   type="button"
                 >
                   {item.label}
                 </button>
               ))}
             </div>
+            {selectedFramework && (
+              <p className="mt-3 text-xs text-app-muted">
+                {selectedFramework.description}
+                {selectedFramework.persistentDirectories?.length
+                  ? ` Persistent data: ${selectedFramework.persistentDirectories.join(", ")}.`
+                  : ""}
+              </p>
+            )}
           </fieldset>
           <label className="grid gap-2 font-semibold">
             Project directory
@@ -1027,6 +1024,10 @@ export function DeployApplicationForm({
                   <button
                     className={`rounded-2xl border p-4 text-left ${databaseEngine === "postgresql" ? "border-brand-action bg-brand-action/10" : "border-brand-primary/10"}`}
                     onClick={() => setDatabaseEngine("postgresql")}
+                    disabled={
+                      selectedFramework !== undefined &&
+                      !selectedFramework.databaseEngines.includes("postgresql")
+                    }
                     type="button"
                   >
                     <span className="grid size-11 place-items-center rounded-xl bg-blue-500/15 font-black text-blue-700 dark:text-blue-300">
@@ -1040,6 +1041,10 @@ export function DeployApplicationForm({
                   <button
                     className={`rounded-2xl border p-4 text-left ${databaseEngine === "mysql" ? "border-brand-action bg-brand-action/10" : "border-brand-primary/10"}`}
                     onClick={() => setDatabaseEngine("mysql")}
+                    disabled={
+                      selectedFramework !== undefined &&
+                      !selectedFramework.databaseEngines.includes("mysql")
+                    }
                     type="button"
                   >
                     <span className="grid size-11 place-items-center rounded-xl bg-orange-500/15 font-black text-orange-700 dark:text-orange-300">
@@ -1196,8 +1201,7 @@ export function DeployApplicationForm({
             <div>
               <dt className="text-app-muted">Framework</dt>
               <dd className="font-bold">
-                {FRAMEWORKS[stack].find((item) => item.code === framework)
-                  ?.label ?? "None"}
+                {frameworkDefinition(framework)?.label ?? "None"}
               </dd>
             </div>
             <div>

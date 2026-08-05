@@ -274,6 +274,13 @@
       "when": 1785904535652,
       "tag": "0038_workable_hulk",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1785945165284,
+      "tag": "0039_fat_franklin_storm",
+      "breakpoints": true
     }
   ]
 }

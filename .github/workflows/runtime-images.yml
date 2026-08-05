@@ -51,6 +51,10 @@ jobs:
             version: 3.13.14
             channel: '3.13'
             context: runtimes/python
+          - runtime: ruby
+            version: 3.4.10
+            channel: '3.4'
+            context: runtimes/ruby
           - runtime: static
             version: 1.30.4
             channel: stable
@@ -105,11 +109,14 @@ jobs:
               docker run --rm "$image" node -p "require('/usr/local/lib/node_modules/npm/node_modules/tar/package.json').version" | grep -Fx '7.5.19'
               ;;
             python) docker run --rm "$image" python --version | grep -Fx 'Python ${{ matrix.version }}' ;;
+            ruby) docker run --rm "$image" ruby --version | grep -F 'ruby ${{ matrix.version }}' ;;
             php)
               docker run --rm "$image" php -r 'echo PHP_VERSION, PHP_EOL;' | grep -Fx '${{ matrix.version }}'
               docker run --rm "$image" php -m | grep -Fx 'intl'
               docker run --rm "$image" php -m | grep -Fx 'pdo_mysql'
               docker run --rm "$image" php -m | grep -Fx 'pdo_pgsql'
+              docker run --rm "$image" php -m | grep -Fx 'mysqli'
+              docker run --rm "$image" composer --version | grep -F 'Composer version 2.'
               ;;
             static) docker run --rm "$image" nginx -v 2>&1 | grep -F 'nginx/${{ matrix.version }}' ;;
           esac

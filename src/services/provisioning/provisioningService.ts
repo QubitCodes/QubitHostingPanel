@@ -1,6 +1,7 @@
 import { and, asc, eq, inArray, isNull, lte } from "drizzle-orm";
 
 import { getEnvironment } from "@config/env";
+import { frameworkDefinition } from "@config/frameworkCatalog";
 import { db } from "@db/client";
 import {
   applicationBuilds,
@@ -188,7 +189,7 @@ export async function processProvisioningJobs(
                 decryptCredential(database.credentialCiphertext),
               ) as { databaseName: string; password: string; username: string };
               const endpoint = databaseClusterEndpoint(cluster);
-              return [
+              const common = [
                 { key: `${prefix}_ENGINE`, value: cluster.engine },
                 { key: `${prefix}_HOST`, value: endpoint.host },
                 { key: `${prefix}_PORT`, value: String(endpoint.port) },
@@ -196,6 +197,35 @@ export async function processProvisioningJobs(
                 { key: `${prefix}_USERNAME`, value: credential.username },
                 { key: `${prefix}_PASSWORD`, value: credential.password },
               ];
+              if (configuredApplication.build.framework === "laravel")
+                return [
+                  ...common,
+                  { key: "DB_CONNECTION", value: cluster.engine === "postgresql" ? "pgsql" : "mysql" },
+                  { key: "DB_HOST", value: endpoint.host },
+                  { key: "DB_PORT", value: String(endpoint.port) },
+                  { key: "DB_DATABASE", value: credential.databaseName },
+                  { key: "DB_USERNAME", value: credential.username },
+                  { key: "DB_PASSWORD", value: credential.password },
+                ];
+              if (configuredApplication.build.framework === "wordpress")
+                return [
+                  ...common,
+                  { key: "WORDPRESS_DB_HOST", value: `${endpoint.host}:${endpoint.port}` },
+                  { key: "WORDPRESS_DB_NAME", value: credential.databaseName },
+                  { key: "WORDPRESS_DB_USER", value: credential.username },
+                  { key: "WORDPRESS_DB_PASSWORD", value: credential.password },
+                ];
+              if (configuredApplication.build.framework === "rails") {
+                const protocol = cluster.engine === "postgresql" ? "postgres" : "mysql2";
+                return [
+                  ...common,
+                  {
+                    key: "DATABASE_URL",
+                    value: `${protocol}://${encodeURIComponent(credential.username)}:${encodeURIComponent(credential.password)}@${endpoint.host}:${endpoint.port}/${encodeURIComponent(credential.databaseName)}`,
+                  },
+                ];
+              }
+              return common;
             },
           );
           const runtimeVersionVariable =
@@ -203,8 +233,10 @@ export async function processProvisioningJobs(
               ? "NIXPACKS_NODE_VERSION"
               : configuredApplication.runtime.language === "python"
                 ? "NIXPACKS_PYTHON_VERSION"
-                : configuredApplication.runtime.language === "php"
+              : configuredApplication.runtime.language === "php"
                   ? "NIXPACKS_PHP_VERSION"
+                  : configuredApplication.runtime.language === "ruby"
+                    ? "NIXPACKS_RUBY_VERSION"
                   : undefined;
           if (runtimeVersionVariable)
             databaseEnvironment.push({
@@ -245,6 +277,16 @@ export async function processProvisioningJobs(
           : [];
         return {
           name: resourceName,
+          persistentStorages: frameworkDefinition(
+            configuredApplication?.build.framework,
+          )?.persistentDirectories?.map((directory) => ({
+            mountPath: `/app/${directory.replace(/^\/+/, "")}`,
+            name: `${resourceName}-${directory}`
+              .toLowerCase()
+              .replace(/[^a-z0-9]+/g, "-")
+              .replace(/^-|-$/g, "")
+              .slice(0, 63),
+          })),
           workspaceId: claimed.workspaceId,
           source: configuredApplication
             ? {

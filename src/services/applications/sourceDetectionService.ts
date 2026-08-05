@@ -1,3 +1,5 @@
+import { frameworkDefinition, type RuntimeLanguage } from '@config/frameworkCatalog';
+
 interface GitHubRepository {
   owner: string;
   repository: string;
@@ -19,7 +21,7 @@ interface ComposerManifest {
 export interface SourceCandidate {
   framework?: string;
   projectDirectory: string;
-  stack: "node" | "php" | "python" | "static";
+  stack: RuntimeLanguage;
   versionHint?: string;
 }
 export interface SourceAnalysis {
@@ -103,6 +105,8 @@ function nodeFramework(manifest: PackageManifest): string | undefined {
   if (dependency(manifest, "@nestjs/core")) return "nestjs";
   if (dependency(manifest, "nuxt")) return "nuxt";
   if (dependency(manifest, "@sveltejs/kit")) return "sveltekit";
+  if (dependency(manifest, "astro")) return "astro";
+  if (dependency(manifest, "gatsby")) return "gatsby";
   if (dependency(manifest, "@angular/core")) return "angular";
   if (dependency(manifest, "fastify")) return "fastify";
   if (dependency(manifest, "express")) return "express";
@@ -132,9 +136,7 @@ function pythonFramework(requirements: string): string | undefined {
 }
 
 function outputDirectory(framework?: string): string | undefined {
-  if (["react", "vite", "vue"].includes(framework ?? "")) return "dist";
-  if (framework === "angular") return "dist";
-  return undefined;
+  return frameworkDefinition(framework)?.outputDirectory;
 }
 
 /** Inspects public GitHub trees and safe template files; it never reads real .env files. */
@@ -159,6 +161,12 @@ export async function analyzeApplicationSource(
     .map((item) => item.path!);
   const candidates: SourceCandidate[] = [];
   const evidence: string[] = [];
+  const wordpressMarker = paths.find((path) => /(^|\/)wp-includes\/version\.php$/.test(path));
+  if (wordpressMarker) {
+    const directory = projectDirectory(wordpressMarker).replace(/(?:^|\/)wp-includes$/, "") || "/";
+    candidates.push({ projectDirectory: directory, stack: "php", framework: "wordpress" });
+    evidence.push(`${wordpressMarker} identifies WordPress`);
+  }
   for (const path of paths
     .filter((item) => item.endsWith("package.json"))
     .slice(0, 20)) {
@@ -170,7 +178,7 @@ export async function analyzeApplicationSource(
       candidates.push({
         projectDirectory: projectDirectory(path),
         stack:
-          framework && ["react", "vite", "vue", "angular"].includes(framework)
+          framework && ["react", "vite", "vue", "angular", "astro", "gatsby"].includes(framework)
             ? "static"
             : "node",
         framework,
@@ -200,6 +208,15 @@ export async function analyzeApplicationSource(
     } catch {
       /* Ignore malformed manifests. */
     }
+  }
+  for (const path of paths
+    .filter((item) => /(^|\/)Gemfile$/.test(item))
+    .slice(0, 20)) {
+    const raw = await rawFile(repository, branch, path, token);
+    if (!raw) continue;
+    const framework = /^\s*gem\s+["']rails["']/m.test(raw) ? "rails" : undefined;
+    candidates.push({ projectDirectory: projectDirectory(path), stack: "ruby", framework });
+    evidence.push(`${path}${framework ? " identifies Ruby on Rails" : " identifies Ruby"}`);
   }
   for (const path of paths
     .filter((item) => /(?:requirements\.txt|pyproject\.toml)$/.test(item))

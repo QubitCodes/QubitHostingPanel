@@ -295,7 +295,7 @@ export class CoolifyHostingProvider implements HostingProvider {
       health_check_enabled: true,
       health_check_path: "/",
       health_check_port: runtimePort,
-      instant_deploy: true,
+      instant_deploy: !input.persistentStorages?.length,
       force_domain_override: false,
     };
     const sourcePayload = input.source
@@ -370,13 +370,38 @@ export class CoolifyHostingProvider implements HostingProvider {
         variable.value,
         variable.scope,
       );
+    if (input.persistentStorages?.length) {
+      const currentStorages = await this.request<{
+        persistent_storages?: Array<{ mount_path?: string; name?: string }>;
+      }>(`/applications/${encodeURIComponent(body.uuid)}/storages`);
+      for (const storage of input.persistentStorages)
+        if (
+          !currentStorages.persistent_storages?.some(
+            (current) =>
+              current.name === storage.name ||
+              current.mount_path === storage.mountPath,
+          )
+        )
+        await this.request(
+          `/applications/${encodeURIComponent(body.uuid)}/storages`,
+          {
+            method: "POST",
+            body: JSON.stringify({
+              type: "persistent",
+              name: storage.name,
+              mount_path: storage.mountPath,
+            }),
+          },
+        );
+    }
     if (
-      existing?.uuid &&
-      (input.source || shouldRedeployCoolifyApplication(existing.status))
+      (existing?.uuid &&
+        (input.source || shouldRedeployCoolifyApplication(existing.status))) ||
+      (!existing?.uuid && Boolean(input.persistentStorages?.length))
     )
       await this.request("/deploy", {
         method: "POST",
-        body: JSON.stringify({ force: true, uuid: existing.uuid }),
+        body: JSON.stringify({ force: true, uuid: body.uuid }),
       });
     return {
       id: body.uuid,

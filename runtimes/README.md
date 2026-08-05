@@ -12,13 +12,14 @@ Ghost Deploy publishes reusable `linux/amd64` application runtime images to GitH
 | PHP | 8.5.8 | `ghcr.io/qubitcodes/runtime-php:8.5.8` | 80 |
 | Python | 3.12.13 | `ghcr.io/qubitcodes/runtime-python:3.12.13` | 8000 |
 | Python | 3.13.14 | `ghcr.io/qubitcodes/runtime-python:3.13.14` | 8000 |
+| Ruby | 3.4.10 | `ghcr.io/qubitcodes/runtime-ruby:3.4.10` | 3000 |
 | Static/nginx | 1.30.4 | `ghcr.io/qubitcodes/runtime-static:1.30.4` | 80 |
 
 Node.js `22.23.2` is not an upstream release, so the catalogue uses the latest verified Node.js 22 patch, `22.23.1`.
 
 Node images pin npm 12.0.2, including patched `tar` 7.5.19, instead of retaining the vulnerable npm bundle shipped by the upstream runtime image.
 
-PHP images contain nginx and PHP-FPM within the application container. Coolify's shared Traefik proxy remains the public ingress and routes traffic to port 80. Node.js and Python images intentionally provide only a runtime foundation; customer builds supply the application entrypoint.
+PHP images contain nginx, PHP-FPM, Composer 2, PostgreSQL/MySQL drivers, and the common Laravel, WordPress, CakePHP, and Symfony extensions within the application container. Coolify's shared Traefik proxy remains the public ingress and routes traffic to port 80. Node.js, Python, and Ruby images intentionally provide only a runtime foundation; customer builds supply the application entrypoint.
 
 ## Publication policy
 
