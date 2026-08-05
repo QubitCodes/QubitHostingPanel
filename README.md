@@ -160,12 +160,13 @@ Initial publication policy: Launch, Growth, and Business may be public after the
 - `/api/v1/workspaces/:workspaceId/applications/:applicationId/domains` - custom-domain registration and domain/TLS state.
 - `/api/v1/workspaces/:workspaceId/applications/:applicationId/domains/:domainId` - primary selection, platform-domain toggle, TLS refresh, and custom-domain removal.
 - `/api/v1/workspaces/:workspaceId/domains/:domainId/dns` - root-domain DNS draft, Cloudflare provisioning, and delegation refresh.
-- `/api/v1/workspaces/:workspaceId/domains/:domainId/dns/import` - credential-free public scan, BIND import, or one-time GoDaddy/Hostinger capture.
+- `/api/v1/workspaces/:workspaceId/domains/:domainId/dns/import` - credential-free public scan, BIND import, or GoDaddy/Hostinger capture using a one-time customer token or the platform connection.
 - `/api/v1/workspaces/:workspaceId/domains/:domainId/dns/records` - customer DNS record creation and management.
 - `/api/v1/auth/profile` - server-authorized profile and dashboard capabilities.
 - `/api/v1/auth/handoff` - short-lived, single-use session transfer to an optional separate panel origin.
 - `/api/v1/public/platform` - effective public, panel, and application-domain URL configuration.
 - `/api/v1/operations/platform-settings` - permission-protected platform-domain configuration.
+- `/api/v1/operations/platform-settings/dns-providers` - masked, permission-protected Cloudflare, GoDaddy, and Hostinger connection management. Tokens are encrypted at rest; database connections take precedence over Cloudflare environment fallback.
 - `/api/v1/workspaces/:workspaceId/databases/:databaseId/backups` - list and create encrypted logical-database recovery points.
 - `/api/v1/workspaces/:workspaceId/databases/:databaseId/backups/:backupId/restore` - exact-name-confirmed destructive restore.
 - `/api/v1/workspaces/:workspaceId/databases/:databaseId/backups/:backupId/download` - authorized, audited decrypted dump download.

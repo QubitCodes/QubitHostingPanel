@@ -5,7 +5,6 @@ export const createDnsRecordSchema = dnsRecordSchema;
 export const updateDnsRecordSchema = dnsRecordSchema.partial().strict();
 export const importDnsSchema = z.object({ source: z.enum(['public_scan', 'zone_file', 'godaddy', 'hostinger']), zoneFile: z.string().max(262144).optional(), apiToken: z.string().min(8).max(4096).optional() }).strict().superRefine((value, context) => {
 	if (value.source === 'zone_file' && !value.zoneFile) context.addIssue({ code: 'custom', message: 'Zone file content is required.', path: ['zoneFile'] });
-	if ((value.source === 'godaddy' || value.source === 'hostinger') && !value.apiToken) context.addIssue({ code: 'custom', message: 'Provider API token is required.', path: ['apiToken'] });
 });
 export const dnsZoneActionSchema = z.object({ action: z.enum(['provision', 'refresh']) }).strict();
 export type CreateDnsRecordInput = z.infer<typeof createDnsRecordSchema>;

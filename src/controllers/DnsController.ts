@@ -44,7 +44,7 @@ export class DnsController {
 	public static async import(request: Request, workspaceId: number, ownershipId: string, input: ImportDnsInput, metadata: RequestMetadata): Promise<Response> {
 		try {
 			const domain = await ownedDomain(request, workspaceId, ownershipId, metadata); const zone = await zoneFor(domain, true); if (!zone) throw new Error('Unable to create DNS draft.');
-			const result = input.source === 'public_scan' ? await scanPublicDns(domain.hostname) : input.source === 'zone_file' ? parseZoneFile(input.zoneFile!, domain.hostname) : await importProviderDns(input.source, domain.hostname, input.apiToken!);
+			const result = input.source === 'public_scan' ? await scanPublicDns(domain.hostname) : input.source === 'zone_file' ? parseZoneFile(input.zoneFile!, domain.hostname) : await importProviderDns(input.source, domain.hostname, input.apiToken);
 			await db.transaction(async (transaction) => {
 				for (const record of result.records) await transaction.insert(dnsRecords).values({ zoneId: zone.id, name: record.name, type: record.type, content: record.content, ttl: record.ttl, priority: record.priority, proxied: record.proxied, source: record.source }).onConflictDoNothing();
 				await transaction.insert(dnsImportRuns).values({ zoneId: zone.id, source: input.source === 'public_scan' || input.source === 'zone_file' ? 'manual' : input.source, status: 'succeeded', discoveredCount: result.records.length, warnings: result.warnings });

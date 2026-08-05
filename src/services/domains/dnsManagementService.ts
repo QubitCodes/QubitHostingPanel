@@ -6,6 +6,7 @@ import { getDomain } from 'tldts';
 import { db } from '@db/client';
 import { dnsRecords, dnsZones, domainOwnerships, platformSettings } from '@db/schema';
 import { createCloudflareRecord, deleteCloudflareRecord } from '@services/domains/cloudflareDnsProvider';
+import { dnsProviderCredential } from '@services/domains/dnsProviderCredentialService';
 
 export interface DiscoveredDnsRecord extends CreateDnsRecordInput { source: 'discovered' | 'imported' }
 
@@ -43,7 +44,9 @@ export function parseZoneFile(zoneFile: string, hostname: string): { records: Di
 }
 
 /** Imports a complete zone through an authenticated registrar/DNS API. Tokens are used in memory only. */
-export async function importProviderDns(provider: 'godaddy' | 'hostinger', hostname: string, token: string): Promise<{ records: DiscoveredDnsRecord[]; warnings: string[] }> {
+export async function importProviderDns(provider: 'godaddy' | 'hostinger', hostname: string, suppliedToken?: string): Promise<{ records: DiscoveredDnsRecord[]; warnings: string[] }> {
+	const token = suppliedToken ?? (await dnsProviderCredential(provider))?.token;
+	if (!token) throw new Error(`${provider} credentials are not configured.`);
 	const url = provider === 'godaddy' ? `https://api.godaddy.com/v3/domains/zones/${encodeURIComponent(hostname)}/dns-records` : `https://developers.hostinger.com/api/dns/v1/zones/${encodeURIComponent(hostname)}`;
 	const response = await fetch(url, { headers: { accept: 'application/json', authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(15_000) });
 	if (!response.ok) throw new Error(`${provider} returned HTTP ${response.status}.`);

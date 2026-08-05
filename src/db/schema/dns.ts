@@ -4,6 +4,7 @@ import { boolean, index, integer, jsonb, pgEnum, pgTable, text, timestamp, uniqu
 import { applicationDomains } from './sharedPlatform';
 import { domainOwnerships } from './domainOwnership';
 import { workspaces } from './tenancy';
+import { users } from './identity';
 
 export const dnsZoneStatusEnum = pgEnum('dns_zone_status', ['draft', 'pending_delegation', 'active', 'failed']);
 export const dnsProviderEnum = pgEnum('dns_provider', ['cloudflare', 'godaddy', 'hostinger', 'route53', 'manual']);
@@ -52,6 +53,24 @@ export const dnsRecords = pgTable('dns_records', {
 export const dnsImportRuns = pgTable('dns_import_runs', {
 	id: uuid('id').primaryKey().defaultRandom(), zoneId: uuid('zone_id').notNull().references(() => dnsZones.id, { onDelete: 'restrict' }), source: dnsProviderEnum('source').notNull(), status: varchar('status', { length: 32 }).notNull(), discoveredCount: integer('discovered_count').notNull().default(0), warnings: jsonb('warnings').$type<string[]>().notNull().default([]), createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(), updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(), deletedAt: timestamp('deleted_at', { withTimezone: true }), deleteReason: varchar('delete_reason', { length: 500 }),
 });
+
+/** Platform-owned DNS/registrar API credentials encrypted at rest. */
+export const dnsProviderConnections = pgTable('dns_provider_connections', {
+	id: uuid('id').primaryKey().defaultRandom(),
+	provider: dnsProviderEnum('provider').notNull(),
+	accountIdentifier: varchar('account_identifier', { length: 255 }),
+	tokenCiphertext: text('token_ciphertext').notNull(),
+	tokenSuffix: varchar('token_suffix', { length: 12 }).notNull(),
+	status: varchar('status', { length: 32 }).notNull().default('active'),
+	lastValidatedAt: timestamp('last_validated_at', { withTimezone: true }),
+	lastError: text('last_error'),
+	createdByUserId: uuid('created_by_user_id').references(() => users.id, { onDelete: 'restrict' }),
+	updatedByUserId: uuid('updated_by_user_id').references(() => users.id, { onDelete: 'restrict' }),
+	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+	updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+	deletedAt: timestamp('deleted_at', { withTimezone: true }),
+	deleteReason: varchar('delete_reason', { length: 500 }),
+}, (table) => [uniqueIndex('dns_provider_connections_active_unique').on(table.provider).where(sql`${table.deletedAt} IS NULL`), index('dns_provider_connections_status_idx').on(table.provider, table.status)]);
 
 export const dnsZoneRelations = relations(dnsZones, ({ many, one }) => ({ ownership: one(domainOwnerships, { fields: [dnsZones.ownershipId], references: [domainOwnerships.id] }), records: many(dnsRecords), workspace: one(workspaces, { fields: [dnsZones.workspaceId], references: [workspaces.id] }) }));
 export const dnsRecordRelations = relations(dnsRecords, ({ one }) => ({ zone: one(dnsZones, { fields: [dnsRecords.zoneId], references: [dnsZones.id] }), applicationDomain: one(applicationDomains, { fields: [dnsRecords.applicationDomainId], references: [applicationDomains.id] }) }));

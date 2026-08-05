@@ -3,6 +3,7 @@ import { getDomain } from 'tldts';
 
 import { parseZoneFile } from '@services/domains/dnsManagementService';
 import { createDnsRecordSchema, importDnsSchema } from '@schemas/dns';
+import { saveDnsProviderSchema } from '@schemas/dnsProvider';
 
 describe('managed DNS validation and import', () => {
 	it('classifies registrable roots without treating external subdomains as root domains', () => {
@@ -19,10 +20,16 @@ describe('managed DNS validation and import', () => {
 		]));
 	});
 
-	it('requires credentials only for authenticated provider capture', () => {
+	it('accepts platform-managed or one-time credentials for provider capture', () => {
 		expect(importDnsSchema.safeParse({ source: 'public_scan' }).success).toBe(true);
-		expect(importDnsSchema.safeParse({ source: 'godaddy' }).success).toBe(false);
+		expect(importDnsSchema.safeParse({ source: 'godaddy' }).success).toBe(true);
 		expect(importDnsSchema.safeParse({ source: 'hostinger', apiToken: 'secure-token' }).success).toBe(true);
 		expect(createDnsRecordSchema.safeParse({ name: '*', type: 'A', content: '203.0.113.2', ttl: 300, proxied: false }).success).toBe(true);
+	});
+
+	it('validates provider connection rotation without requiring the retained token', () => {
+		expect(saveDnsProviderSchema.safeParse({ accountIdentifier: 'account-id', token: 'secure-token' }).success).toBe(true);
+		expect(saveDnsProviderSchema.safeParse({ accountIdentifier: 'account-id' }).success).toBe(true);
+		expect(saveDnsProviderSchema.safeParse({ token: 'short' }).success).toBe(false);
 	});
 });
