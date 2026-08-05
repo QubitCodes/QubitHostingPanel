@@ -467,6 +467,7 @@ export class ApplicationController {
     metadata: RequestMetadata,
   ): Promise<Response> {
     let reservationId: string | undefined;
+    let domainReservationId: string | undefined;
     try {
       const workspace = await access(request, workspacePublicId, metadata);
       const [{ used }] = await db
@@ -703,6 +704,45 @@ export class ApplicationController {
           409,
         );
       }
+      if (customHostnames.length) {
+        const [{ usedDomains }] = await db
+          .select({ usedDomains: count() })
+          .from(applicationDomains)
+          .innerJoin(
+            applicationBuilds,
+            eq(applicationBuilds.id, applicationDomains.applicationBuildId),
+          )
+          .where(
+            and(
+              eq(applicationBuilds.workspaceId, workspace.id),
+              eq(applicationDomains.type, "custom"),
+              isNull(applicationDomains.deletedAt),
+              isNull(applicationBuilds.deletedAt),
+            ),
+          );
+        const domainReservation = await reserveWorkspaceUsage({
+          workspaceId: workspace.id,
+          code: "domains.count",
+          current: Number(usedDomains),
+          quantity: customHostnames.length,
+          idempotencyKey: `application-domains:${randomUUID()}`,
+        });
+        domainReservationId = domainReservation.reservationId;
+        if (!domainReservation.allowed || !domainReservationId) {
+          await releaseUsageReservation(
+            reservationId,
+            "Workspace custom-domain limit reached.",
+          );
+          return resp.failure(
+            "Workspace custom-domain limit reached.",
+            resp.codes.ORDER_CANNOT_BE_PROCESSED,
+            undefined,
+            { quota: domainReservation },
+            undefined,
+            422,
+          );
+        }
+      }
       const result = await db.transaction(async (transaction) => {
         const [build] = await transaction
           .insert(applicationBuilds)
@@ -780,28 +820,24 @@ export class ApplicationController {
           );
           if (!domain) throw new Error("Unable to persist custom domain.");
           if (!policy.ownership) {
-            await transaction
-              .insert(domainOwnerships)
-              .values({
-                workspaceId: workspace.id,
-                hostname: policy.hostname,
-                status: verificationRequired ? "pending" : "verified",
-                verificationToken: domain.verificationToken,
-                verificationMethod: verificationRequired
-                  ? "dns_txt"
-                  : "platform_bypass",
-                verifiedAt: verificationRequired ? null : new Date(),
-              });
+            await transaction.insert(domainOwnerships).values({
+              workspaceId: workspace.id,
+              hostname: policy.hostname,
+              status: verificationRequired ? "pending" : "verified",
+              verificationToken: domain.verificationToken,
+              verificationMethod: verificationRequired
+                ? "dns_txt"
+                : "platform_bypass",
+              verifiedAt: verificationRequired ? null : new Date(),
+            });
           } else if (policy.ownership.workspaceId !== workspace.id) {
-            await transaction
-              .insert(domainAccessRequests)
-              .values({
-                ownershipId: policy.ownership.id,
-                requestingWorkspaceId: workspace.id,
-                applicationBuildId: build.id,
-                applicationDomainId: domain.id,
-                hostname: policy.hostname,
-              });
+            await transaction.insert(domainAccessRequests).values({
+              ownershipId: policy.ownership.id,
+              requestingWorkspaceId: workspace.id,
+              applicationBuildId: build.id,
+              applicationDomainId: domain.id,
+              hostname: policy.hostname,
+            });
           }
         }
         if (input.databases.length)
@@ -837,6 +873,12 @@ export class ApplicationController {
         "application_build",
         result.id,
       );
+      if (domainReservationId)
+        await commitUsageReservation(
+          domainReservationId,
+          "application_build",
+          result.id,
+        );
       await recordAuditLog({
         actorUserId: workspace.actorUserId,
         action: "application.deployment_queued",
@@ -862,6 +904,13 @@ export class ApplicationController {
       if (reservationId)
         await releaseUsageReservation(
           reservationId,
+          error instanceof Error
+            ? error.message
+            : "Application creation failed.",
+        );
+      if (domainReservationId)
+        await releaseUsageReservation(
+          domainReservationId,
           error instanceof Error
             ? error.message
             : "Application creation failed.",
