@@ -165,7 +165,7 @@ Planned capabilities:
 - Domain portfolio search, tagging, and bulk actions.
 - Automated mail-related DNS provisioning for hosted email.
 
-Ghost Deploy remains a DNS-management control plane using provider APIs unless authoritative DNS hosting is separately designed and approved.
+Ghost Deploy now exposes provider-neutral authoritative DNS hosting backed by a platform-managed adapter. The items above extend that delivered control plane; customers do not interact with or receive identifiers from the backing provider.
 
 ## 12. Server consolidation and host operations
 

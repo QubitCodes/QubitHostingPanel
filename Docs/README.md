@@ -22,9 +22,10 @@
 10. `INFRASTRUCTURE_REQUIREMENTS.md` - local, staging, and production infrastructure requirements.
 11. `SHARED_PLATFORM_ARCHITECTURE.md` - shared runtimes, isolated application containers, logical databases, credentials, quotas, and backup boundaries.
 12. `FRAMEWORK_SUPPORT.md` - supported framework catalogue, source detection, runtime mapping, persistence requirements, and verification contract.
-12. `IMPLEMENTATION_PLAN.md` - delivery phases, verification gates, and deferred work.
-13. `GHOST_DEPLOY_CUTOVER.md` - production/staging domains, provider changes, compatibility, and secret-rotation guidance.
-14. `future-plans/README.md` - explicitly non-MVA roadmap covering hosted email, organisation/deployment/database expansion, and server consolidation.
+13. `DNS_HOSTING.md` - provider-neutral authoritative DNS, record lifecycle, imports, and delegation workflow.
+14. `IMPLEMENTATION_PLAN.md` - delivery phases, verification gates, and deferred work.
+15. `GHOST_DEPLOY_CUTOVER.md` - production/staging domains, provider changes, compatibility, and secret-rotation guidance.
+16. `future-plans/README.md` - explicitly non-MVA roadmap covering hosted email, organisation/deployment/database expansion, and server consolidation.
 
 ## Fixed decisions
 
