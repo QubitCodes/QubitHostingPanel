@@ -20,7 +20,7 @@ This audit maps the authoritative MVA requirements to the current application su
 | Runtime-backed applications | Admin runtime catalogue; application create/view/edit, Git source, runtime selection, database bindings, domains, logs, deployments | Implemented |
 | Shared logical databases | Cluster management, PostgreSQL/MySQL allocation, restricted credentials, reveal/rotation, customer views, backups/restores | Implemented |
 | Domain ownership and routing | Workspace ownership registry, parent protection, cross-workspace subdomain approval, multi-domain applications, platform fallback, TLS state | Implemented; live acceptance pending |
-| DNS management | Root-domain inventory, public/BIND/provider capture, encrypted platform credentials, Cloudflare provisioning, delegation refresh, managed A/AAAA lifecycle | Implemented; live acceptance pending |
+| DNS management | Root-domain inventory, public/BIND/provider capture, encrypted PowerDNS/Cloudflare credentials, self-hosted authoritative provisioning, delegation refresh, managed A/AAAA lifecycle | Implemented; Ghost Deploy apex authority verified, customer-domain acceptance pending |
 | Production operations | Readiness report, reconciliation/usage/job commands, backup and incident runbooks, monitoring thresholds, ingress limit policy, owner matrix | Source-control preparation complete; activation pending |
 
 ## Deliberately pending verification

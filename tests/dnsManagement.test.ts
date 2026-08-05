@@ -3,7 +3,7 @@ import { getDomain } from 'tldts';
 
 import { parseZoneFile } from '@services/domains/dnsManagementService';
 import { createDnsRecordSchema, importDnsSchema } from '@schemas/dns';
-import { saveDnsProviderSchema } from '@schemas/dnsProvider';
+import { dnsProviderCodeSchema, saveDnsProviderSchema } from '@schemas/dnsProvider';
 
 describe('managed DNS validation and import', () => {
 	it('classifies registrable roots without treating external subdomains as root domains', () => {
@@ -28,6 +28,7 @@ describe('managed DNS validation and import', () => {
 	});
 
 	it('validates provider connection rotation without requiring the retained token', () => {
+		expect(dnsProviderCodeSchema.safeParse('powerdns').success).toBe(true);
 		expect(saveDnsProviderSchema.safeParse({ accountIdentifier: 'account-id', token: 'secure-token' }).success).toBe(true);
 		expect(saveDnsProviderSchema.safeParse({ accountIdentifier: 'account-id' }).success).toBe(true);
 		expect(saveDnsProviderSchema.safeParse({ token: 'short' }).success).toBe(false);

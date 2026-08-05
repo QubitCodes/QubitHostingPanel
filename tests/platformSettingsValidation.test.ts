@@ -21,6 +21,23 @@ describe("platform settings validation", () => {
     ).toBe(true);
   });
 
+  it("accepts self-hosted PowerDNS as the authoritative provider", () => {
+    const result = updatePlatformSettingsSchema.safeParse({
+      blockedDomainKeywords: [],
+      applicationBaseDomain: "apps.ghostdeploy.com",
+      defaultApplicationSubdomainEnabled: true,
+      dnsProvider: "powerdns",
+      domainOwnershipVerificationEnabled: true,
+      ingressIpv4: "3.6.77.89",
+      ingressIpv6: null,
+      panelBaseUrl: null,
+      panelDomainMode: "same_domain",
+      publicBaseUrl: "https://ghostdeploy.com",
+      reservedDomainLabels: [],
+    });
+    expect(result.success).toBe(true);
+  });
+
   it("requires a distinct HTTPS URL for separate-domain routing", () => {
     expect(
       updatePlatformSettingsSchema.safeParse({

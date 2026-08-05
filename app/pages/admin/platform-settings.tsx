@@ -245,7 +245,14 @@ export default function PlatformSettingsPage() {
           <legend className="px-2 text-sm font-semibold">
             Managed DNS ingress
           </legend>
-          <input type="hidden" {...register("dnsProvider")} />
+          <label className="grid gap-2 text-sm font-semibold sm:col-span-2">
+            Authoritative DNS provider
+            <select className={inputClass} {...register("dnsProvider")}>
+              <option value="powerdns">Self-hosted PowerDNS</option>
+              <option value="cloudflare">Cloudflare</option>
+            </select>
+            <span className="text-xs font-normal text-app-muted">New managed zones use this provider. Existing zones stay with their original provider.</span>
+          </label>
           <label className="grid gap-2 text-sm font-semibold">
             Ingress IPv4
             <input
@@ -326,7 +333,7 @@ export default function PlatformSettingsPage() {
   );
 }
 
-type ProviderCode = 'cloudflare' | 'godaddy' | 'hostinger';
+type ProviderCode = 'cloudflare' | 'powerdns' | 'godaddy' | 'hostinger';
 interface ProviderConnection {
   accountIdentifier: string | null;
   lastError: string | null;
@@ -338,6 +345,7 @@ interface ProviderConnection {
 
 const PROVIDERS: Array<{ code: ProviderCode; name: string; tokenLabel: string }> = [
   { code: 'cloudflare', name: 'Cloudflare', tokenLabel: 'API token' },
+  { code: 'powerdns', name: 'PowerDNS', tokenLabel: 'API key' },
   { code: 'godaddy', name: 'GoDaddy', tokenLabel: 'Personal access token' },
   { code: 'hostinger', name: 'Hostinger', tokenLabel: 'API token' },
 ];
@@ -379,11 +387,12 @@ function DnsProviderSettings() {
 
   return <section className="mt-8 rounded-3xl border border-brand-primary/10 bg-app-surface p-6 sm:p-8">
     <div className="flex items-start gap-3"><KeyRound className="mt-1 size-5 text-brand-primary dark:text-brand-action" /><div><h3 className="text-xl font-black">DNS provider connections</h3><p className="mt-1 text-sm text-app-muted">Encrypted platform credentials are used when a customer does not supply a one-time token. Tokens are never displayed after saving.</p></div></div>
-    <div className="mt-6 grid gap-5 lg:grid-cols-3">{PROVIDERS.map((provider) => {
+    <div className="mt-6 grid gap-5 lg:grid-cols-2 xl:grid-cols-4">{PROVIDERS.map((provider) => {
       const connection = connections.find((item) => item.provider === provider.code);
-      return <form className="grid content-start gap-4 rounded-2xl border border-brand-primary/10 p-5" key={provider.code} onSubmit={(event) => { event.preventDefault(); const data = new FormData(event.currentTarget); const token = String(data.get('token') ?? '').trim(); const accountIdentifier = String(data.get('accountIdentifier') ?? '').trim(); void mutate(provider.code, 'POST', '', { ...(token ? { token } : {}), ...(provider.code === 'cloudflare' ? { accountIdentifier } : {}) }); }}>
+      return <form className="grid content-start gap-4 rounded-2xl border border-brand-primary/10 p-5" key={provider.code} onSubmit={(event) => { event.preventDefault(); const data = new FormData(event.currentTarget); const token = String(data.get('token') ?? '').trim(); const accountIdentifier = String(data.get('accountIdentifier') ?? '').trim(); void mutate(provider.code, 'POST', '', { ...(token ? { token } : {}), ...(['cloudflare', 'powerdns'].includes(provider.code) ? { accountIdentifier } : {}) }); }}>
         <div><h4 className="font-black">{provider.name}</h4><p className="mt-1 text-xs text-app-muted">{connection ? `Status: ${connection.status} · Token ending ${connection.tokenSuffix}` : 'Not configured'}</p></div>
         {provider.code === 'cloudflare' && <label className="grid gap-2 text-sm font-semibold">Account ID<input className={inputClass} defaultValue={connection?.accountIdentifier ?? ''} name="accountIdentifier" placeholder="Cloudflare account ID" required /></label>}
+        {provider.code === 'powerdns' && <label className="grid gap-2 text-sm font-semibold">API URL<input className={inputClass} defaultValue={connection?.accountIdentifier ?? ''} name="accountIdentifier" placeholder="http://172.31.33.141:8081" required type="url" /></label>}
         <label className="grid gap-2 text-sm font-semibold">{provider.tokenLabel}<input autoComplete="new-password" className={inputClass} name="token" placeholder={connection ? 'Leave blank to retain current token' : provider.tokenLabel} required={!connection} type="password" /></label>
         {connection?.lastValidatedAt && <p className="text-xs text-app-muted">Last validated: {new Date(connection.lastValidatedAt).toLocaleString()}</p>}
         {connection?.lastError && <p className="text-xs text-rose-500">{connection.lastError}</p>}

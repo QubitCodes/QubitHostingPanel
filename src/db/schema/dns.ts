@@ -7,7 +7,7 @@ import { workspaces } from './tenancy';
 import { users } from './identity';
 
 export const dnsZoneStatusEnum = pgEnum('dns_zone_status', ['draft', 'pending_delegation', 'active', 'failed']);
-export const dnsProviderEnum = pgEnum('dns_provider', ['cloudflare', 'godaddy', 'hostinger', 'route53', 'manual']);
+export const dnsProviderEnum = pgEnum('dns_provider', ['cloudflare', 'powerdns', 'godaddy', 'hostinger', 'route53', 'manual']);
 export const dnsRecordSourceEnum = pgEnum('dns_record_source', ['discovered', 'imported', 'user', 'platform_managed']);
 
 /** One authoritative DNS zone controlled by a verified workspace domain owner. */

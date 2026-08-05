@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const dnsProviderCodeSchema = z.enum(['cloudflare', 'godaddy', 'hostinger']);
+export const dnsProviderCodeSchema = z.enum(['cloudflare', 'powerdns', 'godaddy', 'hostinger']);
 export const saveDnsProviderSchema = z.object({
 	accountIdentifier: z.string().trim().max(255).nullable().optional(),
 	token: z.string().trim().min(8).max(4096).optional(),

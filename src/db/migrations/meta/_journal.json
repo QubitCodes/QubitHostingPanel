@@ -288,6 +288,13 @@
       "when": 1785952958339,
       "tag": "0040_foamy_talon",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1785958468275,
+      "tag": "0041_fresh_mister_sinister",
+      "breakpoints": true
     }
   ]
 }

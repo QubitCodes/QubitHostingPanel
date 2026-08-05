@@ -11,6 +11,7 @@ import {
 	dnsRecords,
 	dnsZones,
 	domainOwnerships,
+	platformSettings,
 	workspaceMemberships,
 	workspaces,
 } from '@db/schema';
@@ -21,12 +22,7 @@ import type {
 } from '@schemas/dns';
 import { recordAuditLog } from '@services/auditLogService';
 import { authenticateSession } from '@services/auth/authenticatedSessionService';
-import {
-	createCloudflareRecord,
-	createCloudflareZone,
-	deleteCloudflareRecord,
-	updateCloudflareRecord,
-} from '@services/domains/cloudflareDnsProvider';
+import { createAuthoritativeRecord, createAuthoritativeZone, deleteAuthoritativeRecord, updateAuthoritativeRecord, type AuthoritativeDnsProvider } from '@services/domains/authoritativeDnsProvider';
 import {
 	ensureManagedApplicationDns,
 	importProviderDns,
@@ -136,6 +132,7 @@ export function customerDnsRecord(record: typeof dnsRecords.$inferSelect) {
 
 async function publishRecord(
 	zoneId: string,
+	provider: AuthoritativeDnsProvider,
 	providerZoneId: string,
 	hostname: string,
 	record: typeof dnsRecords.$inferSelect,
@@ -143,7 +140,7 @@ async function publishRecord(
 	if (record.type === 'NS' && record.name === '@') return null;
 	let providerRecordId: string;
 	try {
-		providerRecordId = await createCloudflareRecord(providerZoneId, {
+		providerRecordId = await createAuthoritativeRecord(provider, providerZoneId, {
 			content: record.content,
 			name: qualifiedDnsRecordName(record.name, hostname),
 			priority: record.priority,
@@ -358,10 +355,13 @@ export class DnsController {
 				throw new Error('Verify domain ownership before DNS provisioning.');
 			const zone = await zoneFor(domain, true);
 			if (!zone) throw new Error('Unable to create DNS draft.');
+			const [settings] = await db.select({ dnsProvider: platformSettings.dnsProvider }).from(platformSettings).where(and(eq(platformSettings.key, 'default'), isNull(platformSettings.deletedAt))).limit(1);
+			const provider = settings?.dnsProvider === 'powerdns' ? 'powerdns' : 'cloudflare';
+			if (zone.providerZoneId && zone.provider !== provider) throw new Error(`This zone is already provisioned through ${zone.provider}. Remove it there before changing authoritative providers.`);
 			let providerZoneId = zone.providerZoneId;
 			let nameservers = zone.nameservers;
 			if (!providerZoneId) {
-				const created = await createCloudflareZone(domain.hostname);
+				const created = await createAuthoritativeZone(provider, domain.hostname);
 				providerZoneId = created.id;
 				nameservers = created.nameservers;
 			}
@@ -398,11 +398,11 @@ export class DnsController {
 				);
 			for (const record of records)
 				if (!record.providerRecordId)
-					await publishRecord(zone.id, providerZoneId, domain.hostname, record);
+					await publishRecord(zone.id, provider, providerZoneId, domain.hostname, record);
 			await db
 				.update(dnsZones)
 				.set({
-					provider: 'cloudflare',
+					provider,
 					providerZoneId,
 					nameservers,
 					status: zone.status === 'active' ? 'active' : 'pending_delegation',
@@ -509,6 +509,7 @@ export class DnsController {
 			if (zone.providerZoneId) {
 				const providerRecordId = await publishRecord(
 					zone.id,
+					zone.provider as AuthoritativeDnsProvider,
 					zone.providerZoneId,
 					domain.hostname,
 					record,
@@ -592,7 +593,8 @@ export class DnsController {
 				);
 			if (!input) {
 				if (zone.providerZoneId && record.providerRecordId)
-					await deleteCloudflareRecord(
+					await deleteAuthoritativeRecord(
+						zone.provider as AuthoritativeDnsProvider,
 						zone.providerZoneId,
 						record.providerRecordId,
 					);
@@ -623,7 +625,8 @@ export class DnsController {
 			const updated = { ...record, ...input };
 			let providerRecordId = record.providerRecordId;
 			if (zone.providerZoneId && record.providerRecordId)
-				await updateCloudflareRecord(
+				providerRecordId = await updateAuthoritativeRecord(
+					zone.provider as AuthoritativeDnsProvider,
 					zone.providerZoneId,
 					record.providerRecordId,
 					{
@@ -638,6 +641,7 @@ export class DnsController {
 			else if (zone.providerZoneId)
 				providerRecordId = await publishRecord(
 					zone.id,
+					zone.provider as AuthoritativeDnsProvider,
 					zone.providerZoneId,
 					domain.hostname,
 					updated,

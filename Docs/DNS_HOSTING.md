@@ -15,7 +15,11 @@ Application subdomains owned by the platform receive managed A and AAAA records 
 
 ## Platform operations
 
-The authoritative adapter currently uses the platform Cloudflare connection configured under platform settings. Credentials are encrypted at rest and may fall back to environment configuration for recovery. GoDaddy and Hostinger connections are import sources and registrar integrations, not customer-visible authoritative infrastructure.
+The authoritative adapter supports self-hosted PowerDNS and Cloudflare. Ghost Deploy currently uses PowerDNS on the platform server, controlled through a private API whose key is encrypted at rest. GoDaddy and Hostinger connections are import sources and registrar integrations, not customer-visible authoritative infrastructure.
+
+The MVA exposes `ns1.ghostdeploy.com` and `ns2.ghostdeploy.com`, currently backed by the same Elastic IP. This avoids a second server during controlled testing but is not redundant: a host, network, or region outage makes both nameservers unavailable. A separate secondary DNS node remains required before offering a high-availability DNS commitment.
+
+PowerDNS state resides in the `ghostdeploy-pdns-data` Docker volume. The root-only API-key file is `/opt/ghostdeploy-dns/pdns.env`; neither it nor the private API port may be exposed publicly. Backups must include the PowerDNS volume and the API-key file. Public access is limited to TCP/UDP port 53.
 
 Platform-managed records cannot be edited manually. Customer API responses expose publication and synchronization status but exclude backing-provider names and identifiers.
 

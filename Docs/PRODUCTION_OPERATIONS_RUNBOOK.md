@@ -12,6 +12,7 @@ For the isolated staging control plane, run `npm run staging:deploy:panel` from 
 - Every 15 minutes: `npm run provider:reconcile` and `npm run usage:observe`.
 - Every 15 minutes: `npm run operations:readiness`; exit code `2` means an actionable anomaly.
 - Daily: database backups, encrypted artifact verification, expired-backup cleanup, payment pending-age review, and provider reconciliation review.
+- Daily: back up the `ghostdeploy-pdns-data` volume and `/opt/ghostdeploy-dns/pdns.env`; verify an authoritative SOA response from an external resolver.
 - Weekly: restore a disposable PostgreSQL and MySQL logical database, validate public HTTPS, and review audit logs/admin overrides.
 - Quarterly: create a new Coolify token, rotate it in the panel, verify reconciliation, then revoke the retired token at Coolify.
 

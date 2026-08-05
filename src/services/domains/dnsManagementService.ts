@@ -5,7 +5,7 @@ import { and, eq, isNull } from 'drizzle-orm';
 import { getDomain } from 'tldts';
 import { db } from '@db/client';
 import { dnsRecords, dnsZones, domainOwnerships, platformSettings } from '@db/schema';
-import { createCloudflareRecord, deleteCloudflareRecord } from '@services/domains/cloudflareDnsProvider';
+import { createAuthoritativeRecord, deleteAuthoritativeRecord, type AuthoritativeDnsProvider } from '@services/domains/authoritativeDnsProvider';
 import { dnsProviderCredential } from '@services/domains/dnsProviderCredentialService';
 
 export interface DiscoveredDnsRecord extends CreateDnsRecordInput { source: 'discovered' | 'imported' }
@@ -68,20 +68,20 @@ function unique(records: DiscoveredDnsRecord[]): DiscoveredDnsRecord[] {
 /** Adds explicit application address records unless an enabled wildcard already covers the hostname. */
 export async function ensureManagedApplicationDns(workspaceId: string, applicationDomainId: string, hostname: string): Promise<void> {
 	const root = getDomain(hostname, { allowPrivateDomains: true }); if (!root || root === hostname) return;
-	const [zone] = await db.select({ id: dnsZones.id, providerZoneId: dnsZones.providerZoneId }).from(dnsZones).innerJoin(domainOwnerships, and(eq(domainOwnerships.id, dnsZones.ownershipId), eq(domainOwnerships.hostname, root), eq(domainOwnerships.workspaceId, workspaceId), eq(domainOwnerships.status, 'verified'), isNull(domainOwnerships.deletedAt))).where(isNull(dnsZones.deletedAt)).limit(1);
+	const [zone] = await db.select({ id: dnsZones.id, provider: dnsZones.provider, providerZoneId: dnsZones.providerZoneId }).from(dnsZones).innerJoin(domainOwnerships, and(eq(domainOwnerships.id, dnsZones.ownershipId), eq(domainOwnerships.hostname, root), eq(domainOwnerships.workspaceId, workspaceId), eq(domainOwnerships.status, 'verified'), isNull(domainOwnerships.deletedAt))).where(isNull(dnsZones.deletedAt)).limit(1);
 	if (!zone) return;
 	const relative = hostname.slice(0, -(root.length + 1));
 	const [wildcard] = await db.select({ id: dnsRecords.id }).from(dnsRecords).where(and(eq(dnsRecords.zoneId, zone.id), eq(dnsRecords.name, '*'), eq(dnsRecords.type, 'A'), eq(dnsRecords.isEnabled, true), isNull(dnsRecords.deletedAt))).limit(1);
 	if (wildcard) return;
 	const [settings] = await db.select({ ingressIpv4: platformSettings.ingressIpv4, ingressIpv6: platformSettings.ingressIpv6 }).from(platformSettings).where(and(eq(platformSettings.key, 'default'), isNull(platformSettings.deletedAt))).limit(1);
 	for (const [type, content] of [['A', settings?.ingressIpv4], ['AAAA', settings?.ingressIpv6]] as const) if (content) {
-		let providerRecordId: string | undefined; if (zone.providerZoneId) providerRecordId = await createCloudflareRecord(zone.providerZoneId, { name: hostname, type, content, ttl: 300, proxied: false });
+		let providerRecordId: string | undefined; if (zone.providerZoneId) providerRecordId = await createAuthoritativeRecord(zone.provider as AuthoritativeDnsProvider, zone.providerZoneId, { name: hostname, type, content, ttl: 300, proxied: false });
 		await db.insert(dnsRecords).values({ zoneId: zone.id, applicationDomainId, name: relative, type, content, ttl: 300, proxied: false, source: 'platform_managed', providerRecordId }).onConflictDoNothing();
 	}
 }
 
 /** Deletes only records created for one application-domain binding. */
 export async function removeManagedApplicationDns(applicationDomainId: string): Promise<void> {
-	const records = await db.select({ id: dnsRecords.id, providerRecordId: dnsRecords.providerRecordId, providerZoneId: dnsZones.providerZoneId }).from(dnsRecords).innerJoin(dnsZones, eq(dnsZones.id, dnsRecords.zoneId)).where(and(eq(dnsRecords.applicationDomainId, applicationDomainId), eq(dnsRecords.source, 'platform_managed'), isNull(dnsRecords.deletedAt)));
-	for (const record of records) { if (record.providerZoneId && record.providerRecordId) await deleteCloudflareRecord(record.providerZoneId, record.providerRecordId); await db.update(dnsRecords).set({ deletedAt: new Date(), deleteReason: 'Application subdomain removed.', isEnabled: false, updatedAt: new Date() }).where(eq(dnsRecords.id, record.id)); }
+	const records = await db.select({ id: dnsRecords.id, provider: dnsZones.provider, providerRecordId: dnsRecords.providerRecordId, providerZoneId: dnsZones.providerZoneId }).from(dnsRecords).innerJoin(dnsZones, eq(dnsZones.id, dnsRecords.zoneId)).where(and(eq(dnsRecords.applicationDomainId, applicationDomainId), eq(dnsRecords.source, 'platform_managed'), isNull(dnsRecords.deletedAt)));
+	for (const record of records) { if (record.providerZoneId && record.providerRecordId) await deleteAuthoritativeRecord(record.provider as AuthoritativeDnsProvider, record.providerZoneId, record.providerRecordId); await db.update(dnsRecords).set({ deletedAt: new Date(), deleteReason: 'Application subdomain removed.', isEnabled: false, updatedAt: new Date() }).where(eq(dnsRecords.id, record.id)); }
 }
