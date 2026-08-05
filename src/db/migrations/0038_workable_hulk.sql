@@ -1,0 +1,2 @@
+ALTER TABLE "workspace_github_connections" ADD COLUMN "provider_sync_status" varchar(32) DEFAULT 'pending' NOT NULL;--> statement-breakpoint
+ALTER TABLE "workspace_github_connections" ADD COLUMN "provider_sync_error" text;

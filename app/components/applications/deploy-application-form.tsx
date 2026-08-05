@@ -62,11 +62,13 @@ interface GithubConnection {
   avatarUrl?: string;
   id: string;
   reviewUrl: string;
+  providerSyncError?: string;
+  providerSyncStatus: "pending" | "ready" | "failed";
 }
 interface GithubRepository {
   defaultBranch: string;
   fullName: string;
-  private: boolean;
+  isPrivate: boolean;
   url: string;
 }
 interface ApiBody<T> {
@@ -284,6 +286,38 @@ export function DeployApplicationForm({
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "Unable to connect GitHub.",
+      );
+    }
+  }
+
+  async function syncGithubProvider(): Promise<void> {
+    if (!githubConnectionId) return;
+    try {
+      await request<{ providerSyncStatus: "ready" }>(
+        `/api/v1/workspaces/${workspaceId}/applications/github-connections/${githubConnectionId}/sync`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: "{}",
+        },
+      );
+      setGithubConnections((connections) =>
+        connections.map((connection) =>
+          connection.id === githubConnectionId
+            ? {
+                ...connection,
+                providerSyncStatus: "ready",
+                providerSyncError: undefined,
+              }
+            : connection,
+        ),
+      );
+      toast.success("GitHub deployment provider is ready.");
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Provider synchronization failed.",
       );
     }
   }
@@ -554,6 +588,26 @@ export function DeployApplicationForm({
                       Connect another account
                     </button>
                   </div>
+                  {githubConnections.find(
+                    (item) => item.id === githubConnectionId,
+                  )?.providerSyncStatus !== "ready" && (
+                    <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm">
+                      <p className="font-bold">
+                        GitHub connected; deployment provider setup pending.
+                      </p>
+                      <p className="mt-1 text-xs text-app-muted">
+                        Retry synchronization before deploying a private
+                        repository.
+                      </p>
+                      <button
+                        className="mt-3 rounded-lg border border-amber-500/40 px-3 py-2 font-bold"
+                        onClick={() => void syncGithubProvider()}
+                        type="button"
+                      >
+                        Retry provider setup
+                      </button>
+                    </div>
+                  )}
                   <label className="grid gap-2 font-semibold">
                     Permitted repository
                     <select
@@ -573,7 +627,7 @@ export function DeployApplicationForm({
                       {githubRepositories.map((item) => (
                         <option key={item.fullName} value={item.url}>
                           {item.fullName}
-                          {item.private ? " (private)" : ""}
+                            {item.isPrivate ? " (private)" : ""}
                         </option>
                       ))}
                     </select>

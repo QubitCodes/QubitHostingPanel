@@ -2,7 +2,6 @@ import { and, eq, isNull } from "drizzle-orm";
 import { resp } from "@qubitcodes/qcresp";
 
 import { db } from "@db/client";
-import { getEnvironment } from "@config/env";
 import { workspaceGithubConnections } from "@db/schema";
 import { applicationWorkspaceAccess } from "@controllers/ApplicationController";
 import {
@@ -13,6 +12,7 @@ import {
   verifyGithubInstallationState,
 } from "@services/github/githubAppService";
 import { recordAuditLog } from "@services/auditLogService";
+import { syncCoolifyGithubSource } from "@services/github/coolifyGithubSourceService";
 import type { RequestMetadata } from "@utils/request";
 
 const publicFields = {
@@ -23,6 +23,8 @@ const publicFields = {
   avatarUrl: workspaceGithubConnections.avatarUrl,
   installationId: workspaceGithubConnections.installationId,
   status: workspaceGithubConnections.status,
+  providerSyncStatus: workspaceGithubConnections.providerSyncStatus,
+  providerSyncError: workspaceGithubConnections.providerSyncError,
   updatedAt: workspaceGithubConnections.updatedAt,
 };
 
@@ -136,7 +138,8 @@ export class GithubConnectionController {
         accountName: installation.account.name ?? installation.account.login,
         accountType: installation.account.type,
         avatarUrl: installation.account.avatar_url ?? null,
-        coolifyGithubAppUuid: getEnvironment().COOLIFY_GITHUB_APP_UUID ?? null,
+        providerSyncStatus: "pending",
+        providerSyncError: null,
         status: "active",
         updatedAt: new Date(),
       };
@@ -155,20 +158,54 @@ export class GithubConnectionController {
               createdByUserId: context.actorUserId,
             })
             .returning({ id: workspaceGithubConnections.id });
+      const connectionId = connection[0]?.id;
+      if (!connectionId)
+        throw new Error("Unable to persist GitHub connection.");
+      let providerSyncStatus = "ready";
+      try {
+        const sourceUuid = await syncCoolifyGithubSource({
+          accountLogin: installation.account.login,
+          accountType: installation.account.type,
+          installationId,
+          workspacePublicId: context.workspacePublicId,
+        });
+        await db
+          .update(workspaceGithubConnections)
+          .set({
+            coolifyGithubAppUuid: sourceUuid,
+            providerSyncStatus: "ready",
+            providerSyncError: null,
+            updatedAt: new Date(),
+          })
+          .where(eq(workspaceGithubConnections.id, connectionId));
+      } catch (error) {
+        providerSyncStatus = "failed";
+        await db
+          .update(workspaceGithubConnections)
+          .set({
+            providerSyncStatus: "failed",
+            providerSyncError:
+              error instanceof Error
+                ? error.message.slice(0, 2000)
+                : "Provider synchronization failed.",
+            updatedAt: new Date(),
+          })
+          .where(eq(workspaceGithubConnections.id, connectionId));
+      }
       await recordAuditLog({
         action: "github_connection.connected",
         actorUserId: context.actorUserId,
         resourceType: "workspace_github_connection",
-        resourceId: connection[0]?.id,
+        resourceId: connectionId,
         metadata: {
           workspacePublicId: context.workspacePublicId,
           accountLogin: installation.account.login,
         },
       });
-      return Response.redirect(
-        new URL(`/dashboard/applications/create?github=connected`, url.origin),
-        302,
-      );
+      const target = new URL(`/dashboard/applications/create`, url.origin);
+      target.searchParams.set("github", "connected");
+      target.searchParams.set("provider", providerSyncStatus);
+      return Response.redirect(target, 302);
     } catch (error) {
       const target = new URL("/dashboard/applications/create", url.origin);
       target.searchParams.set(
@@ -220,6 +257,96 @@ export class GithubConnectionController {
         error instanceof Error
           ? error.message
           : "Unable to load GitHub repositories.",
+        resp.codes.EXTERNAL_SERVICE_ERROR,
+        undefined,
+        null,
+        undefined,
+        502,
+      );
+    }
+  }
+
+  public static async sync(
+    request: Request,
+    workspacePublicId: number,
+    connectionId: string,
+    metadata: RequestMetadata,
+  ): Promise<Response> {
+    let ownedConnectionId: string | undefined;
+    try {
+      const workspace = await applicationWorkspaceAccess(
+        request,
+        workspacePublicId,
+        metadata,
+      );
+      const [connection] = await db
+        .select()
+        .from(workspaceGithubConnections)
+        .where(
+          and(
+            eq(workspaceGithubConnections.id, connectionId),
+            eq(workspaceGithubConnections.workspaceId, workspace.id),
+            eq(workspaceGithubConnections.status, "active"),
+            isNull(workspaceGithubConnections.deletedAt),
+          ),
+        )
+        .limit(1);
+      if (!connection)
+        return resp.failure(
+          "GitHub connection not found.",
+          resp.codes.RESOURCE_NOT_FOUND,
+          undefined,
+          null,
+          undefined,
+          404,
+        );
+      ownedConnectionId = connection.id;
+      const sourceUuid = await syncCoolifyGithubSource({
+        accountLogin: connection.accountLogin,
+        accountType: connection.accountType,
+        installationId: connection.installationId,
+        workspacePublicId,
+      });
+      await db
+        .update(workspaceGithubConnections)
+        .set({
+          coolifyGithubAppUuid: sourceUuid,
+          providerSyncStatus: "ready",
+          providerSyncError: null,
+          updatedAt: new Date(),
+        })
+        .where(eq(workspaceGithubConnections.id, connection.id));
+      await recordAuditLog({
+        action: "github_connection.provider_synced",
+        actorUserId: workspace.actorUserId,
+        resourceType: "workspace_github_connection",
+        resourceId: connection.id,
+        metadata: { workspacePublicId },
+        ipAddress: metadata.ipAddress,
+        userAgent: metadata.userAgent,
+      });
+      return resp.success(
+        "GitHub deployment provider synchronized.",
+        { providerSyncStatus: "ready" },
+        resp.codes.UPDATED,
+      );
+    } catch (error) {
+      if (ownedConnectionId)
+        await db
+          .update(workspaceGithubConnections)
+          .set({
+            providerSyncStatus: "failed",
+            providerSyncError:
+              error instanceof Error
+                ? error.message.slice(0, 2000)
+                : "Provider synchronization failed.",
+            updatedAt: new Date(),
+          })
+          .where(eq(workspaceGithubConnections.id, ownedConnectionId));
+      return resp.failure(
+        error instanceof Error
+          ? error.message
+          : "Provider synchronization failed.",
         resp.codes.EXTERNAL_SERVICE_ERROR,
         undefined,
         null,

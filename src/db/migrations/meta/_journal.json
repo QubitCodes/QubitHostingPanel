@@ -267,6 +267,13 @@
       "when": 1785895887290,
       "tag": "0037_motionless_the_leader",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1785904535652,
+      "tag": "0038_workable_hulk",
+      "breakpoints": true
     }
   ]
 }

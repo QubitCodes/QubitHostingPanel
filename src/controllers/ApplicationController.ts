@@ -523,6 +523,18 @@ export class ApplicationController {
             undefined,
             404,
           );
+        if (
+          githubConnection.providerSyncStatus !== "ready" ||
+          !githubConnection.coolifyGithubAppUuid
+        )
+          return resp.failure(
+            "GitHub is connected, but its deployment provider setup is not ready.",
+            resp.codes.ORDER_CANNOT_BE_PROCESSED,
+            undefined,
+            { providerSyncStatus: githubConnection.providerSyncStatus },
+            undefined,
+            422,
+          );
         const allowedRepositories = await githubInstallationRepositories(
           githubConnection.installationId,
         );

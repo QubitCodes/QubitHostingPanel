@@ -136,6 +136,7 @@ Local endpoints:
 - `/api/v1/public/checkout-quotes` - server-calculated, signed, short-lived checkout quote.
 
 Initial publication policy: Launch, Growth, and Business may be public after their pooled-capacity cost reviews; Managed Cloud tiers stay draft until exact dedicated AWS quotations are approved.
+
 - `/admin/administrators/create` - URL-addressed create drawer.
 - `/admin/administrators/:adminId/:section` - URL-addressed administrator detail section.
 - `/settings/profile` - identity and context settings.
@@ -179,9 +180,10 @@ Initial publication policy: Launch, Growth, and Business may be public after the
 
 ### GitHub App setup
 
-Create a GitHub App with repository `Contents: Read-only` and `Metadata: Read-only` permissions. Set its setup/callback URL to `/api/v1/github/callback`, enable installation on user and organisation accounts, and configure `GITHUB_APP_ID`, `GITHUB_APP_SLUG`, `GITHUB_APP_PRIVATE_KEY`, and `GITHUB_APP_STATE_SECRET`. `COOLIFY_GITHUB_APP_UUID` links the installation flow to the corresponding GitHub App configured in Coolify for private deployments. Repository access remains selectable and reviewable in GitHub. Real `.env` files are never fetched; only environment templates such as `.env.example` are inspected.
+Create one public GitHub App with repository `Contents: Read-only` and `Metadata: Read-only` permissions. Set its setup URL to `/api/v1/github/callback`, enable installation on user and organisation accounts, and configure the `GITHUB_APP_*` values plus `COOLIFY_GITHUB_PRIVATE_KEY_UUID`. Each workspace installation is reconciled idempotently to its own Coolify GitHub Source; no Source UUID is shared globally. PKCS#1 keys downloaded by GitHub are normalized internally. Repository access remains selectable and reviewable in GitHub. Real `.env` files are never fetched; only environment templates such as `.env.example` are inspected.
 
 Dockerfile deployments are intentionally disabled until package entitlements and workload isolation policies are enabled.
+
 - `/api/v1/auth/sessions/:sessionId` - inspect, label, or revoke one owned session.
 - `/api/v1/auth/sessions/others` - revoke every other active session.
 - `/settings/sessions` - mobile-first Devices & Sessions management page.
