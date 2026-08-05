@@ -13,6 +13,7 @@ import type {
 
 /** Deterministic local provider used until the read-only Coolify staging phase. */
 export class MockHostingProvider implements HostingProvider {
+	public async controlApplication(_applicationId: string, action: 'redeploy' | 'restart' | 'start' | 'stop'): Promise<{ deploymentId?: string }> { return { deploymentId: `mock-${action}` }; }
 	public async validateConnection(): Promise<ProviderConnectionResult> {
 		return Promise.resolve({ connected: true, provider: 'mock' });
 	}

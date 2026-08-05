@@ -11,3 +11,8 @@ export async function recordAuditLog(input: AuditLogInput): Promise<void> {
 
 	await db.insert(auditLogs).values(input);
 }
+
+/** Records a security-sensitive administrator event regardless of optional general audit configuration. */
+export async function recordRequiredAdminAuditLog(input: AuditLogInput): Promise<void> {
+	await db.insert(auditLogs).values(input);
+}

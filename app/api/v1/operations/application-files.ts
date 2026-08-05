@@ -1,0 +1,9 @@
+import { AdminApplicationFileController } from '@controllers/AdminApplicationFileController';
+import { resp } from '@qubitcodes/qcresp';
+import { adminApplicationFileReadSchema, adminUserPublicIdSchema } from '@schemas/adminCustomerControl';
+import { workspacePublicIdSchema } from '@schemas/workspace';
+import { getRequestMetadata, parseJson } from '@utils/request';
+
+function identifiers(params: { applicationId?: string; userId?: string; workspaceId?: string }) { const userId = adminUserPublicIdSchema.safeParse(params.userId); const workspaceId = workspacePublicIdSchema.safeParse(Number(params.workspaceId)); return userId.success && workspaceId.success && params.applicationId ? { userId: userId.data, workspaceId: workspaceId.data, applicationId: params.applicationId } : null; }
+export function loader({ params, request }: { params: { applicationId?: string; userId?: string; workspaceId?: string }; request: Request }): Promise<Response> { const ids = identifiers(params); return ids ? AdminApplicationFileController.index(request, ids.userId, ids.workspaceId, ids.applicationId, getRequestMetadata(request)) : Promise.resolve(resp.failure('Application not found.', resp.codes.RESOURCE_NOT_FOUND, undefined, null, undefined, 404)); }
+export async function action({ params, request }: { params: { applicationId?: string; userId?: string; workspaceId?: string }; request: Request }): Promise<Response> { const ids = identifiers(params); if (!ids) return resp.failure('Application not found.', resp.codes.RESOURCE_NOT_FOUND, undefined, null, undefined, 404); const input = await parseJson(request, adminApplicationFileReadSchema); return input instanceof Response ? input : AdminApplicationFileController.read(request, ids.userId, ids.workspaceId, ids.applicationId, input, getRequestMetadata(request)); }

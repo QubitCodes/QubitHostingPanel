@@ -66,6 +66,9 @@ export default [
     ),
     route("admin/administrators", "pages/admin/admins.tsx"),
     route("admin/customers", "pages/admin/customers.tsx"),
+    route("admin/customers/users/:userId", "pages/admin/customer-user.tsx"),
+    route("admin/customers/users/:userId/workspaces/:workspaceId", "pages/admin/customer-resources.tsx"),
+    route("admin/customers/users/:userId/workspaces/:workspaceId/applications/:applicationId/files", "pages/admin/customer-application-files.tsx"),
     route("admin/customers/:workspaceId", "pages/admin/customer-workspace.tsx"),
     route(
       "admin/customers/:workspaceId/usage",
@@ -341,6 +344,12 @@ export default [
       "operations/customer-workspaces",
       "api/v1/operations/customer-workspaces.ts",
     ),
+    route("operations/users", "api/v1/operations/users.ts"),
+    route("operations/users/:userId", "api/v1/operations/user.ts"),
+    route("operations/users/:userId/workspaces/:workspaceId", "api/v1/operations/user-workspace.ts"),
+    route("operations/users/:userId/sessions/:sessionId", "api/v1/operations/user-session.ts"),
+    route("operations/users/:userId/workspaces/:workspaceId/applications/:applicationId/files", "api/v1/operations/application-files.ts"),
+    route("operations/users/:userId/workspaces/:workspaceId/applications/:applicationId/control", "api/v1/operations/application-control.ts"),
     route(
       "operations/customer-workspaces/:workspaceId",
       "api/v1/operations/customer-workspace.ts",

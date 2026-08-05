@@ -1768,6 +1768,25 @@ export const OPENAPI_DOCUMENT = {
 				},
 			},
 		},
+		'/operations/users': {
+			get: { summary: 'List users for customer resource administration', operationId: 'listAdminControlledUsers', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Audited user inventory.' }, '403': { description: 'Missing customers.view permission.' } } },
+		},
+		'/operations/users/{userId}': {
+			get: { summary: 'Read one user, workspaces, sessions and authentication events', operationId: 'showAdminControlledUser', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Permission-filtered and audited user control record.' }, '403': { description: 'Permission denied.' }, '404': { description: 'User not found.' } } },
+		},
+		'/operations/users/{userId}/workspaces/{workspaceId}': {
+			get: { summary: 'Read workspace applications and related customer resources', operationId: 'showAdminControlledWorkspace', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Permission-filtered, audited workspace resource inventory.' }, '404': { description: 'Workspace is not associated with this user.' } } },
+		},
+		'/operations/users/{userId}/sessions/{sessionId}': {
+			post: { summary: 'Revoke a customer session', operationId: 'revokeAdminControlledUserSession', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Session revoked and audited.' }, '403': { description: 'Missing user_sessions.revoke permission.' } } },
+		},
+		'/operations/users/{userId}/workspaces/{workspaceId}/applications/{applicationId}/files': {
+			get: { summary: 'List an application repository tree', operationId: 'listAdminApplicationFiles', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Bounded repository tree; access audited.' }, '403': { description: 'Permission or repository access denied.' } } },
+			post: { summary: 'Read an application source file', operationId: 'readAdminApplicationFile', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Bounded UTF-8 file preview; access audited without contents.' }, '403': { description: 'Missing normal or sensitive file permission.' } } },
+		},
+		'/operations/users/{userId}/workspaces/{workspaceId}/applications/{applicationId}/control': {
+			post: { summary: 'Start, stop, restart, or redeploy a customer application', operationId: 'controlAdminCustomerApplication', security: [{ bearerAuth: [] }], responses: { '202': { description: 'Provider lifecycle action accepted and audited.' }, '403': { description: 'Missing action-specific permission.' }, '404': { description: 'Application is not associated with the selected customer workspace.' }, '502': { description: 'Hosting provider rejected the lifecycle request.' } } },
+		},
 		'/operations/platform-settings': {
 			get: {
 				summary: 'Retrieve platform domain settings',

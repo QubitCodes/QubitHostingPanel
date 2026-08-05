@@ -176,3 +176,27 @@ export async function githubRepositoryBranches(
   );
   return rows.map(({ name }) => name);
 }
+
+export interface GitHubRepositoryTreeItem { path: string; size?: number; type: 'blob' | 'tree' }
+
+/** Lists one repository revision without persisting its short-lived installation token. */
+export async function githubRepositoryTree(input: { branch: string; installationId?: string; owner: string; repository: string }): Promise<GitHubRepositoryTreeItem[]> {
+	const token = input.installationId ? await githubInstallationToken(input.installationId) : undefined;
+	const response = await fetch(`https://api.github.com/repos/${encodeURIComponent(input.owner)}/${encodeURIComponent(input.repository)}/git/trees/${encodeURIComponent(input.branch)}?recursive=1`, { headers: { accept: 'application/vnd.github+json', 'user-agent': 'GhostDeploy', ...(token ? { authorization: `Bearer ${token}` } : {}) }, signal: AbortSignal.timeout(15_000) });
+	if (!response.ok) throw new Error(`GitHub repository tree returned HTTP ${response.status}.`);
+	const body = await response.json() as { tree?: Array<{ path?: string; size?: number; type?: string }> };
+	return (body.tree ?? []).filter((item): item is { path: string; size?: number; type: 'blob' | 'tree' } => Boolean(item.path) && (item.type === 'blob' || item.type === 'tree')).map(({ path, size, type }) => ({ path, size, type }));
+}
+
+/** Reads a bounded UTF-8 source file from GitHub; binary and oversized files are rejected. */
+export async function githubRepositoryFile(input: { branch: string; installationId?: string; owner: string; path: string; repository: string }): Promise<{ content: string; size: number }> {
+	const token = input.installationId ? await githubInstallationToken(input.installationId) : undefined;
+	const response = await fetch(`https://api.github.com/repos/${encodeURIComponent(input.owner)}/${encodeURIComponent(input.repository)}/contents/${input.path.split('/').map(encodeURIComponent).join('/')}?ref=${encodeURIComponent(input.branch)}`, { headers: { accept: 'application/vnd.github+json', 'user-agent': 'GhostDeploy', ...(token ? { authorization: `Bearer ${token}` } : {}) }, signal: AbortSignal.timeout(15_000) });
+	if (!response.ok) throw new Error(`GitHub file inspection returned HTTP ${response.status}.`);
+	const body = await response.json() as { content?: string; encoding?: string; size?: number; type?: string };
+	if (body.type !== 'file' || body.encoding !== 'base64' || !body.content) throw new Error('Requested path is not a readable file.');
+	if (Number(body.size ?? 0) > 512_000) throw new Error('File exceeds the 500 KB administrator preview limit.');
+	const buffer = Buffer.from(body.content.replace(/\s/g, ''), 'base64');
+	if (buffer.includes(0)) throw new Error('Binary files cannot be previewed.');
+	return { content: buffer.toString('utf8'), size: buffer.length };
+}

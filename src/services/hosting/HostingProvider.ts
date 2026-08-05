@@ -73,6 +73,7 @@ export interface ProviderScheduledTaskExecution {
 
 /** Provider boundary keeping Coolify-specific contracts out of commercial logic. */
 export interface HostingProvider {
+	controlApplication(applicationId: string, action: 'redeploy' | 'restart' | 'start' | 'stop'): Promise<{ deploymentId?: string }>;
   validateConnection(): Promise<ProviderConnectionResult>;
   listResources(): Promise<readonly ProviderResource[]>;
   getUsage(): Promise<readonly ProviderUsage[]>;

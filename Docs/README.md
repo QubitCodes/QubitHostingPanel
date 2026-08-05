@@ -26,6 +26,7 @@
 14. `IMPLEMENTATION_PLAN.md` - delivery phases, verification gates, and deferred work.
 15. `GHOST_DEPLOY_CUTOVER.md` - production/staging domains, provider changes, compatibility, and secret-rotation guidance.
 16. `future-plans/README.md` - explicitly non-MVA roadmap covering hosted email, organisation/deployment/database expansion, and server consolidation.
+17. `ADMIN_CUSTOMER_CONTROL.md` - granular administrator permissions, mandatory read auditing, customer resource hierarchy, and secure project source inspection.
 
 ## Fixed decisions
 

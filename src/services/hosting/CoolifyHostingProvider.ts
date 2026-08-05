@@ -129,6 +129,12 @@ export class CoolifyHostingProvider implements HostingProvider {
     return { connected: true, provider: "coolify" };
   }
 
+	public async controlApplication(applicationId: string, action: 'redeploy' | 'restart' | 'start' | 'stop'): Promise<{ deploymentId?: string }> {
+		const endpoint = action === 'redeploy' ? 'start?force=true' : action;
+		const result = await this.request<{ deployment_uuid?: string }>(`/applications/${encodeURIComponent(applicationId)}/${endpoint}`, { method: 'POST' });
+		return { deploymentId: result.deployment_uuid };
+	}
+
   public async listResources(): Promise<readonly ProviderResource[]> {
     const applications =
       await this.request<CoolifyApplication[]>("/applications");
