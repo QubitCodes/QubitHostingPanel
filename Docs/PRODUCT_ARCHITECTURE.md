@@ -2,17 +2,16 @@
 
 ## 1. Product boundary
 
-Qubit Hosting Panel is a standalone customer and operations application. It must have its own repository, deployment, database configuration, secrets, API, and release process.
+Qubit Hosting Panel is the standalone hosting-commerce and operations application. Its public landing, authentication, checkout, customer dashboard, and admin dashboard share one origin by default. It retains its own repository, deployment, database configuration, secrets, API, and release process; Platform Settings may optionally move authenticated panel routes to another verified origin.
 
 ```text
-qubit.codes
-  Marketing, public package catalogue, purchase entry points
+abc.com
+  Marketing, catalogue, login, registration, and checkout
         |
-        | Versioned public API and signed checkout handoff
+        | One application and one identity session
         v
-panel.qubit.codes
-  Identity, customers, workspaces, organisations, checkout, subscriptions,
-  entitlements, usage, administration, and customer resources
+abc.com/dashboard and abc.com/admin
+  Customer resources and authorized platform administration
         |
         | Private provider adapter
         v
@@ -24,13 +23,13 @@ The public website must never hold Coolify credentials, calculate authoritative 
 
 ## 2. Application responsibilities
 
-### Public Qubit Codes website
+### Public landing surface
 
 - Present marketing content.
 - Read published packages and current public prices from the panel API.
 - Initiate a signed, short-lived checkout handoff.
-- Redirect users to `panel.qubit.codes` for authentication and purchase completion.
-- Link authenticated customers to their panel.
+- Authenticate and complete purchases on the same origin by default.
+- Link authorized users to `/dashboard` and/or `/admin` from the account menu.
 
 ### Qubit Hosting Panel
 
@@ -45,6 +44,7 @@ The public website must never hold Coolify credentials, calculate authoritative 
 - Maintain approved shared runtime images and customer build artifacts.
 - Allocate restricted logical databases inside shared PostgreSQL/MySQL clusters.
 - Record usage, reconciliation results, operational jobs, and audit events.
+- Optionally serve authenticated routes from a separately configured and verified panel origin without changing identity, authorization, or commercial ownership.
 
 ### Coolify
 
@@ -127,3 +127,5 @@ See `SHARED_PLATFORM_ARCHITECTURE.md` for runtime images, application isolation,
 - Require audit records and authorization for mutations.
 - Never derive permissions solely from client-side context.
 - Keep development, staging, and production databases and credentials separate.
+- A verified root domain belongs to one workspace. Cross-workspace use of its subdomains requires the root owner's recorded approval.
+- Encrypt platform-managed Cloudflare, GoDaddy, and Hostinger credentials at rest and return masked metadata only.

@@ -106,7 +106,7 @@ Shared-volume snapshots protect the cluster but are not sufficient for customer-
 
 1. Apply migration `0021` and seed the approved runtime catalogue.
 2. Publish the first signed/versioned Qubit runtime images through GitHub Actions and record their verified digests.
-3. Add admin runtime-catalogue and database-cluster management. Database cluster management is complete; runtime catalogue editing remains pending.
+3. Add admin runtime-catalogue and database-cluster management. Both management surfaces are complete.
 4. Provision one shared PostgreSQL 18.4 and one shared MySQL 8.0.46 staging service after migration `0022` is applied and the deployed Coolify token has read/write scope.
 5. Implement encrypted cluster registration and engine-specific logical database provisioners.
 6. Add customer application/runtime selection and database management UI/API.

@@ -4,21 +4,20 @@ Standalone hosting commerce and management application for Qubit Codes.
 
 ## Status
 
-Phases 0 through 2 are complete. Phase 3 includes purchase-first customer/workspace onboarding, persistent subscriptions, mock/PayU/Razorpay payment boundaries, verified webhook processing, and customer/admin dashboards. Coolify staging support includes connection validation, idempotent starter-workload provisioning, reconciliation, retries, and operational visibility. See `Docs/PAYMENTS_AND_PROVISIONING.md` for the staging purchase runbook.
+The MVA feature scope through controlled provisioning is implemented. Staging domain acceptance remains deliberately pending; production activation remains environment/operator work. Coolify support includes connection validation, idempotent provisioning, reconciliation, retries, runtime-backed Node/Laravel deployments, logical databases, backups, domains, and operational visibility. See `docs/SRS_TRACEABILITY.md` for the feature audit and `docs/PAYMENTS_AND_PROVISIONING.md` for the staging purchase runbook.
 
 ## Product boundary
 
-Qubit Hosting Panel is separate from the public Qubit Codes website:
+Qubit Hosting Panel owns the hosting landing page and authenticated panel routes on one domain by default:
 
 ```text
-qubit.codes
-  Marketing, public packages, and purchase entry points
+abc.com
+  Marketing, public packages, authentication, and purchase entry points
         |
-        | Versioned APIs and signed checkout handoff
+        | Same application and server-authorized context
         v
-panel.qubit.codes
-  Authentication, customers, workspaces, organisations, subscriptions,
-  entitlements, usage, administration, and customer resources
+abc.com/dashboard and abc.com/admin
+  Customer resources, subscriptions, usage, and platform administration
         |
         | Private provider adapter
         v
@@ -26,7 +25,7 @@ Coolify API
   Servers, applications, databases, and deployments
 ```
 
-The public website may display packages and initiate purchases, but the panel remains the source of truth for prices, offers, subscriptions, permissions, entitlements, and resource ownership.
+The landing page and panel normally share one domain. Platform Settings may optionally move authenticated panel routes to a separate verified origin. In either mode, this application remains the source of truth for prices, offers, subscriptions, permissions, entitlements, and resource ownership.
 
 ## Fixed MVA decisions
 

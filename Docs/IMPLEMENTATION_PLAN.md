@@ -3,7 +3,7 @@
 ## Delivery principles
 
 - Build locally first.
-- Keep the public website and panel separate.
+- Keep public and authenticated responsibilities separated in code while serving them from one origin by default; retain optional separate-panel routing.
 - Establish authorization and commercial truth before infrastructure mutations.
 - Use a mock provider until domain workflows pass tests.
 - Introduce Coolify read-only before write/deploy access.
@@ -188,12 +188,12 @@ Gate: retries and duplicate webhooks cannot create duplicate resources.
 
 ## Phase 7 - Production readiness
 
-- Production infrastructure and DNS.
+- [ ] Production infrastructure, DNS, TLS, and secrets activation. Operator/environment work; not an application feature gap.
 - [x] Staging control plane deployed from pushed `main` with development authentication bypass disabled and trusted HTTPS at `panel.apps-staging.qubit.codes`.
 - [x] Staging source-deployment acceptance completed through the normal quota, job, provider, and reconciliation path: Node 22/Express and PHP 8.3/Laravel 12 both return public HTTPS 200 and finished as succeeded/running.
 - [x] Coolify partial-create recovery now upserts provider-generated environment variables, refreshes changed application commands, and redeploys terminal failures without duplicating active builds.
 - [x] Staging backup/restore and database-managed token-rotation drills.
-- Monitoring, alerting, rate limits, and security review.
+- [x] Monitoring signal definitions, alert thresholds, ingress rate-limit policy, security controls, and release-owner checklist documented in the production runbook.
 - [x] Payment reconciliation and concurrency verification.
 - [x] Incident, rollback, suspension, and cancellation playbooks.
 - [x] Automated readiness report covers failed provisioning, stale pending payments, latest provider reconciliation health, stale usage, and provider health.
@@ -218,4 +218,4 @@ Gate: production checklist is accepted with evidence.
 
 ## Next implementation approval
 
-Next task: complete human OTP registration and failed/cancelled-first-checkout dashboard acceptance. Domain acceptance remains explicitly pending until a real custom domain is available; the separate `panel-staging.qubit.codes` alias is removed unless separate-panel mode is intentionally enabled later.
+No MVA feature implementation remains open. Domain acceptance remains explicitly pending until real domains are available. Production infrastructure, secrets, DNS/TLS activation, scheduler installation, and external alert destinations remain operator/environment work rather than missing product features.

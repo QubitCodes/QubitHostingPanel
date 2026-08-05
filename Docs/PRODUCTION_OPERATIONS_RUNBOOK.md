@@ -19,7 +19,47 @@ Alert when any provider is unhealthy/stale for one hour, reconciliation is parti
 
 ## Application domain operations
 
-Authoritative DNS provisioning uses `CLOUDFLARE_DNS_API_TOKEN` and `CLOUDFLARE_DNS_ACCOUNT_ID`. Keep both server-side. Configure stable ingress IPv4/IPv6 values in Platform Settings before expecting managed subdomain A/AAAA creation. GoDaddy and Hostinger capture tokens are accepted for one request only and are never persisted.
+Authoritative DNS provisioning resolves encrypted database-managed Cloudflare credentials first and uses `CLOUDFLARE_DNS_API_TOKEN` plus `CLOUDFLARE_DNS_ACCOUNT_ID` only as a recovery fallback. Platform Settings stores masked Cloudflare, GoDaddy, and Hostinger connections encrypted at rest. A customer may instead supply a one-time GoDaddy/Hostinger token, which is used for that request only and never persisted. Configure stable ingress IPv4/IPv6 values before expecting managed subdomain A/AAAA creation.
+
+## Monitoring and alert delivery
+
+The application emits durable state through provisioning jobs, provider reconciliation runs, payment attempts/checkouts, usage observations, backup records, and audit logs. The deployment owner must connect `npm run operations:readiness` and scheduler exit failures to one external on-call destination before production traffic. Supported deployment-neutral destinations are an HTTPS webhook handled by the operator's monitoring service, an uptime monitor for `/api/v1/health`, and centralized process/reverse-proxy logs.
+
+Required alert ownership:
+
+- Primary: platform operations on call.
+- Secondary: billing owner for payment anomalies; infrastructure owner for provider, backup, DNS, TLS, or capacity anomalies.
+- Every alert must include environment, affected provider/workspace/resource where safe, first observation time, current state, runbook link, and correlation/job ID. Never include credentials, OTP values, authorization headers, database passwords, or decrypted backups.
+- Warning alerts may group for fifteen minutes. Failed backups, exhausted provisioning retries, public health failure, and payment-signature anomalies page immediately.
+- Recovery notifications must use the same incident correlation key so the destination closes the active incident rather than opening another.
+
+## Ingress rate-limit policy
+
+Rate limiting is enforced at the production reverse proxy or edge so rejected traffic does not consume application workers. Preserve standard JSON responses for `/api/**`, return HTTP 429, retain the client IP through a trusted-proxy configuration, and key authenticated limits by both session/user and IP where supported.
+
+Minimum starting limits per source IP:
+
+- OTP request and resend: 5 requests per 15 minutes, burst 2; application identity cooldown remains authoritative.
+- OTP verification: 10 attempts per 15 minutes, burst 3; challenge attempt caps remain authoritative.
+- Login/session refresh: 30 requests per minute.
+- Checkout initiation and payment callbacks: customer initiation 10 per minute; provider callbacks use signature verification and a provider allowlist where published, not a shared customer bucket.
+- Upload and DNS import: 10 requests per minute with body-size and execution-time limits.
+- Authenticated JSON APIs: 120 requests per minute, burst 30.
+- Public catalogue/health: 300 requests per minute, burst 60; health monitoring must use a separately allowlisted probe where necessary.
+- Internal job endpoints: network allowlist plus internal secret, 30 requests per minute.
+
+Record aggregate rejection counts and route classes, not sensitive request bodies. Review limits after observing legitimate staging traffic; an adjustment requires an operations change record.
+
+## Production activation ownership
+
+The following cannot be completed safely in source control and remain assigned deployment actions:
+
+- Infrastructure owner: production Coolify capacity, DNS, TLS, private database management ports, off-site backup storage, reverse-proxy limits, schedulers, log retention, uptime monitor, and alert transport.
+- Billing owner: production PayU/Razorpay credentials, callback URLs, webhook secrets, and settlement/refund operating access.
+- Platform owner: production MSG91 credentials/templates, encryption/JWT/internal secrets, DNS-provider connections, Super Admin bootstrap, and final readiness acceptance.
+- Security owner: least-privilege review, network allowlists, secret rotation evidence, dependency/container findings, and incident-contact validation.
+
+Do not mark an item complete from configuration text alone. Activation evidence must include the effective environment, public/direct health where applicable, scheduler execution, alert receipt, and restore/rollback ownership. These checks remain deliberately outside the present no-testing scope.
 
 - DNS TXT verification proves ownership only. A verified custom hostname enters `provisioning` TLS state after Coolify accepts the proposed hostname set.
 - Use the customer `Check TLS` action after DNS and certificate issuance settle. Any HTTPS response proves the TLS handshake; the application response code does not need to be successful.

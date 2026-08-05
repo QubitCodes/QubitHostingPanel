@@ -12,7 +12,6 @@ Required:
 
 - Node.js, npm, Git, and an isolated PostgreSQL database.
 - A Supabase development project when shared remote development is needed.
-- Firebase development project and phone-auth test configuration.
 - MSG91 test credentials when available.
 - `MockHostingProvider` fixtures.
 
@@ -46,8 +45,8 @@ Do not install Coolify on the existing aaPanel production server. Both systems m
 ## Suggested domains
 
 ```text
-qubit.codes                 Public website
-panel.qubit.codes           Production panel
+abc.com                     Public website and same-origin panel
+panel.abc.com               Optional separate panel origin
 panel.apps-staging.qubit.codes Staging panel
 coolify.qubit.codes         Production Coolify
 coolify-staging.qubit.codes Staging Coolify
@@ -61,7 +60,6 @@ coolify-staging.qubit.codes Staging Coolify
 - Automated encrypted off-site backups with tested recovery.
 - Monitoring, alerting, and log retention.
 - Production payment account and verified webhooks.
-- Firebase production configuration.
 - MSG91 approved WhatsApp templates and credentials.
 - Secret management and rotation process.
 - Usage, cleanup, quota, and reconciliation jobs.
