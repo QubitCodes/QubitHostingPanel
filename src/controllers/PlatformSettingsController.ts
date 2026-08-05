@@ -11,7 +11,7 @@ import { verifyPlatformHostname } from '@services/platformDomainVerificationServ
 import type { RequestMetadata } from '@utils/request';
 
 export class PlatformSettingsController {
-	public static async publicConfiguration(): Promise<Response> { return resp.success('Public platform configuration retrieved.', await getEffectivePlatformUrls()); }
+	public static async publicConfiguration(): Promise<Response> { const { blockedDomainKeywords, reservedDomainLabels, ...configuration } = await getEffectivePlatformUrls(); void blockedDomainKeywords; void reservedDomainLabels; return resp.success('Public platform configuration retrieved.', configuration); }
 
 	public static async show(request: Request, metadata: RequestMetadata): Promise<Response> {
 		try {

@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { boolean, check, pgEnum, pgTable, timestamp, uniqueIndex, uuid, varchar } from 'drizzle-orm/pg-core';
+import { boolean, check, jsonb, pgEnum, pgTable, timestamp, uniqueIndex, uuid, varchar } from 'drizzle-orm/pg-core';
 
 export const panelDomainModeEnum = pgEnum('panel_domain_mode', ['same_domain', 'separate_domain']);
 export const domainVerificationStatusEnum = pgEnum('domain_verification_status', ['pending', 'verified', 'failed']);
@@ -19,6 +19,8 @@ export const platformSettings = pgTable('platform_settings', {
 	dnsProvider: varchar('dns_provider', { length: 40 }).notNull().default('cloudflare'),
 	ingressIpv4: varchar('ingress_ipv4', { length: 45 }),
 	ingressIpv6: varchar('ingress_ipv6', { length: 45 }),
+	reservedDomainLabels: jsonb('reserved_domain_labels').$type<string[]>().notNull().default(['admin', 'api', 'assets', 'billing', 'cdn', 'dashboard', 'ftp', 'internal', 'mail', 'panel', 'smtp', 'status', 'support', 'www']),
+	blockedDomainKeywords: jsonb('blocked_domain_keywords').$type<string[]>().notNull().default([]),
 	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 	updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 	deletedAt: timestamp('deleted_at', { withTimezone: true }),

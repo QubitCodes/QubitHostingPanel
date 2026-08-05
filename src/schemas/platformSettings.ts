@@ -15,6 +15,8 @@ export const updatePlatformSettingsSchema = z.object({
 	panelBaseUrl: httpsBaseUrl.nullable(),
 	panelDomainMode: z.enum(['same_domain', 'separate_domain']),
 	publicBaseUrl: httpsBaseUrl,
+	reservedDomainLabels: z.array(z.string().trim().toLowerCase().min(1).max(63).regex(/^[a-z0-9-]+$/)).max(200),
+	blockedDomainKeywords: z.array(z.string().trim().toLowerCase().min(2).max(63).regex(/^[a-z0-9-]+$/)).max(500),
 }).strict().superRefine((input, context) => {
 	if (input.panelDomainMode === 'separate_domain' && !input.panelBaseUrl) context.addIssue({ code: 'custom', message: 'A panel URL is required in separate-domain mode.', path: ['panelBaseUrl'] });
 	if (input.panelBaseUrl === input.publicBaseUrl && input.panelDomainMode === 'separate_domain') context.addIssue({ code: 'custom', message: 'The separate panel URL must differ from the public URL.', path: ['panelBaseUrl'] });

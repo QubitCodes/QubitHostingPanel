@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { and, asc, count, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { resp } from "@qubitcodes/qcresp";
 
@@ -18,14 +18,33 @@ import {
   workspaceResources,
   workspaces,
   workspaceSubscriptions,
+  workspaceGithubConnections,
 } from "@db/schema";
-import type { CreateApplicationRequest, UpdateApplicationRequest } from "@schemas/application";
+import type {
+  AnalyzeApplicationSourceRequest,
+  CreateApplicationRequest,
+  UpdateApplicationRequest,
+} from "@schemas/application";
 import { recordAuditLog } from "@services/auditLogService";
 import { authenticateSession } from "@services/auth/authenticatedSessionService";
 import { hostingProvider } from "@services/hosting/hostingProviderFactory";
-import { getEffectivePlatformUrls } from '@services/platformUrlService';
-import { controllingOwnership, ownershipVerificationEnabled } from '@services/domains/domainOwnershipService';
-import { commitUsageReservation, releaseUsageReservation, reserveWorkspaceUsage } from "@services/usage/quotaEngine";
+import { getEffectivePlatformUrls } from "@services/platformUrlService";
+import { analyzeApplicationSource } from "@services/applications/sourceDetectionService";
+import { encryptCredential } from "@services/encryption/credentialEncryptionService";
+import {
+  githubInstallationRepositories,
+  githubInstallationToken,
+} from "@services/github/githubAppService";
+import {
+  controllingOwnership,
+  ownershipVerificationEnabled,
+} from "@services/domains/domainOwnershipService";
+import {
+  commitUsageReservation,
+  releaseUsageReservation,
+  reserveWorkspaceUsage,
+} from "@services/usage/quotaEngine";
+import { effectiveEntitlement } from "@services/usage/quotaEngine";
 import type { RequestMetadata } from "@utils/request";
 
 async function access(
@@ -71,6 +90,7 @@ async function access(
   if (!row) throw new Error("Workspace not found.");
   return { ...row, actorUserId: actor.userId };
 }
+export { access as applicationWorkspaceAccess };
 const fields = {
   id: applicationBuilds.id,
   status: applicationBuilds.status,
@@ -95,6 +115,54 @@ const fields = {
 
 /** Workspace-owned source application configuration and deployment lifecycle. */
 export class ApplicationController {
+  public static async analyzeSource(
+    request: Request,
+    workspacePublicId: number,
+    input: AnalyzeApplicationSourceRequest,
+    metadata: RequestMetadata,
+  ): Promise<Response> {
+    try {
+      const workspace = await access(request, workspacePublicId, metadata);
+      let token: string | undefined;
+      if (input.githubConnectionId) {
+        const [connection] = await db
+          .select()
+          .from(workspaceGithubConnections)
+          .where(
+            and(
+              eq(workspaceGithubConnections.id, input.githubConnectionId),
+              eq(workspaceGithubConnections.workspaceId, workspace.id),
+              eq(workspaceGithubConnections.status, "active"),
+              isNull(workspaceGithubConnections.deletedAt),
+            ),
+          )
+          .limit(1);
+        if (!connection)
+          return resp.failure(
+            "GitHub connection not found.",
+            resp.codes.RESOURCE_NOT_FOUND,
+            undefined,
+            null,
+            undefined,
+            404,
+          );
+        token = await githubInstallationToken(connection.installationId);
+      }
+      return resp.success(
+        "Repository analysis completed.",
+        await analyzeApplicationSource(input.repository, input.branch, token),
+      );
+    } catch (error) {
+      return resp.failure(
+        error instanceof Error ? error.message : "Repository analysis failed.",
+        resp.codes.EXTERNAL_SERVICE_ERROR,
+        undefined,
+        null,
+        undefined,
+        422,
+      );
+    }
+  }
   public static async options(
     request: Request,
     workspacePublicId: number,
@@ -135,11 +203,46 @@ export class ApplicationController {
           .orderBy(asc(logicalDatabases.databaseName)),
       ]);
       const platform = await getEffectivePlatformUrls();
+      const [domainEntitlement, [{ customDomainCount }]] = await Promise.all([
+        effectiveEntitlement(workspace.id, "domains.count"),
+        db
+          .select({ customDomainCount: count() })
+          .from(applicationDomains)
+          .innerJoin(
+            applicationBuilds,
+            eq(applicationBuilds.id, applicationDomains.applicationBuildId),
+          )
+          .where(
+            and(
+              eq(applicationBuilds.workspaceId, workspace.id),
+              eq(applicationDomains.type, "custom"),
+              isNull(applicationDomains.deletedAt),
+              isNull(applicationBuilds.deletedAt),
+            ),
+          ),
+      ]);
       return resp.success("Application options retrieved.", {
         runtimes,
         databases,
         applicationBaseDomain: platform.applicationBaseDomain,
         applicationDomainReady: platform.applicationDomainReady,
+        suggestedDomainSuffix: randomBytes(4)
+          .toString("base64url")
+          .toLowerCase()
+          .replace(/[^a-z0-9]/g, "")
+          .slice(0, 6)
+          .padEnd(6, "0"),
+        limits: {
+          customDomains: {
+            allowed:
+              domainEntitlement.isUnlimited ||
+              Number(customDomainCount) < domainEntitlement.limit,
+            current: Number(customDomainCount),
+            limit: domainEntitlement.isUnlimited
+              ? null
+              : domainEntitlement.limit,
+          },
+        },
       });
     } catch {
       return resp.failure(
@@ -178,12 +281,75 @@ export class ApplicationController {
         )
         .orderBy(desc(applicationBuilds.createdAt));
       const ids = rows.map(({ id }) => id);
-      const [domains, bindings, deployments] = ids.length ? await Promise.all([
-		db.select().from(applicationDomains).where(and(inArray(applicationDomains.applicationBuildId, ids), isNull(applicationDomains.deletedAt))).orderBy(asc(applicationDomains.createdAt)),
-		db.select({ applicationBuildId: applicationDatabaseBindings.applicationBuildId, databaseId: logicalDatabases.id, databaseName: logicalDatabases.databaseName, environmentPrefix: applicationDatabaseBindings.environmentPrefix }).from(applicationDatabaseBindings).innerJoin(logicalDatabases, eq(logicalDatabases.id, applicationDatabaseBindings.logicalDatabaseId)).where(and(inArray(applicationDatabaseBindings.applicationBuildId, ids), isNull(applicationDatabaseBindings.deletedAt), isNull(logicalDatabases.deletedAt))),
-		db.select().from(applicationDeployments).where(and(inArray(applicationDeployments.applicationBuildId, ids), isNull(applicationDeployments.deletedAt))).orderBy(desc(applicationDeployments.createdAt)),
-	  ]) : [[], [], []];
-      return resp.success("Applications retrieved.", rows.map((row) => ({ ...row, name: String(row.metadata?.name ?? row.sourceRepository.split('/').pop() ?? 'Application'), buildPack: String(row.metadata?.buildPack ?? 'nixpacks'), domains: domains.filter((domain) => domain.applicationBuildId === row.id), databases: bindings.filter((binding) => binding.applicationBuildId === row.id), latestDeployment: deployments.find((deployment) => deployment.applicationBuildId === row.id) })));
+      const [domains, bindings, deployments] = ids.length
+        ? await Promise.all([
+            db
+              .select()
+              .from(applicationDomains)
+              .where(
+                and(
+                  inArray(applicationDomains.applicationBuildId, ids),
+                  isNull(applicationDomains.deletedAt),
+                ),
+              )
+              .orderBy(asc(applicationDomains.createdAt)),
+            db
+              .select({
+                applicationBuildId:
+                  applicationDatabaseBindings.applicationBuildId,
+                databaseId: logicalDatabases.id,
+                databaseName: logicalDatabases.databaseName,
+                environmentPrefix:
+                  applicationDatabaseBindings.environmentPrefix,
+              })
+              .from(applicationDatabaseBindings)
+              .innerJoin(
+                logicalDatabases,
+                eq(
+                  logicalDatabases.id,
+                  applicationDatabaseBindings.logicalDatabaseId,
+                ),
+              )
+              .where(
+                and(
+                  inArray(applicationDatabaseBindings.applicationBuildId, ids),
+                  isNull(applicationDatabaseBindings.deletedAt),
+                  isNull(logicalDatabases.deletedAt),
+                ),
+              ),
+            db
+              .select()
+              .from(applicationDeployments)
+              .where(
+                and(
+                  inArray(applicationDeployments.applicationBuildId, ids),
+                  isNull(applicationDeployments.deletedAt),
+                ),
+              )
+              .orderBy(desc(applicationDeployments.createdAt)),
+          ])
+        : [[], [], []];
+      return resp.success(
+        "Applications retrieved.",
+        rows.map((row) => ({
+          ...row,
+          name: String(
+            row.metadata?.name ??
+              row.sourceRepository.split("/").pop() ??
+              "Application",
+          ),
+          buildPack: String(row.metadata?.buildPack ?? "nixpacks"),
+          domains: domains.filter(
+            (domain) => domain.applicationBuildId === row.id,
+          ),
+          databases: bindings.filter(
+            (binding) => binding.applicationBuildId === row.id,
+          ),
+          latestDeployment: deployments.find(
+            (deployment) => deployment.applicationBuildId === row.id,
+          ),
+        })),
+      );
     } catch {
       return resp.failure(
         "Workspace not found.",
@@ -197,23 +363,102 @@ export class ApplicationController {
   }
 
   /** Update an owned application's deployable configuration and queue a fresh deployment. */
-  public static async update(request: Request, workspacePublicId: number, applicationId: string, input: UpdateApplicationRequest, metadata: RequestMetadata): Promise<Response> {
-	try {
-		const workspace = await access(request, workspacePublicId, metadata);
-		const [application] = await db.select().from(applicationBuilds).where(and(eq(applicationBuilds.id, applicationId), eq(applicationBuilds.workspaceId, workspace.id), isNull(applicationBuilds.deletedAt))).limit(1);
-		if (!application) return resp.failure('Application not found.', resp.codes.RESOURCE_NOT_FOUND, undefined, null, undefined, 404);
-		const now = new Date();
-		const result = await db.transaction(async (transaction) => {
-			await transaction.update(applicationBuilds).set({ sourceRef: input.branch, installCommand: input.installCommand, buildCommand: input.buildCommand, startCommand: input.startCommand, baseDirectory: input.baseDirectory, publishDirectory: input.publishDirectory, applicationPort: input.port, status: 'queued', completedAt: null, failureReason: null, updatedAt: now }).where(eq(applicationBuilds.id, applicationId));
-			const [deployment] = await transaction.insert(applicationDeployments).values({ workspaceId: workspace.id, applicationBuildId: applicationId }).returning({ id: applicationDeployments.id });
-			const [job] = await transaction.insert(provisioningJobs).values({ workspaceId: workspace.id, subscriptionId: workspace.subscriptionId, provider: process.env.HOSTING_PROVIDER === 'coolify' ? 'coolify' : 'mock', idempotencyKey: `application:${applicationId}:update:${randomUUID()}`, input: { applicationBuildId: applicationId, deploymentId: deployment?.id } }).returning({ id: provisioningJobs.id });
-			return { deploymentId: deployment?.id, jobId: job?.id };
-		});
-		await recordAuditLog({ actorUserId: workspace.actorUserId, action: 'application.configuration_updated', resourceType: 'application_build', resourceId: applicationId, metadata: { workspacePublicId }, ipAddress: metadata.ipAddress, userAgent: metadata.userAgent });
-		return resp.success('Application updated and deployment queued.', result, resp.codes.ACCEPTED, undefined, 202);
-	} catch (error) {
-		return resp.failure(error instanceof Error ? error.message : 'Application update failed.', resp.codes.INTERNAL_SERVICE_ERROR, undefined, null, undefined, 500);
-	}
+  public static async update(
+    request: Request,
+    workspacePublicId: number,
+    applicationId: string,
+    input: UpdateApplicationRequest,
+    metadata: RequestMetadata,
+  ): Promise<Response> {
+    try {
+      const workspace = await access(request, workspacePublicId, metadata);
+      const [application] = await db
+        .select()
+        .from(applicationBuilds)
+        .where(
+          and(
+            eq(applicationBuilds.id, applicationId),
+            eq(applicationBuilds.workspaceId, workspace.id),
+            isNull(applicationBuilds.deletedAt),
+          ),
+        )
+        .limit(1);
+      if (!application)
+        return resp.failure(
+          "Application not found.",
+          resp.codes.RESOURCE_NOT_FOUND,
+          undefined,
+          null,
+          undefined,
+          404,
+        );
+      const now = new Date();
+      const result = await db.transaction(async (transaction) => {
+        await transaction
+          .update(applicationBuilds)
+          .set({
+            sourceRef: input.branch,
+            installCommand: input.installCommand,
+            buildCommand: input.buildCommand,
+            startCommand: input.startCommand,
+            baseDirectory: input.baseDirectory,
+            publishDirectory: input.publishDirectory,
+            applicationPort: input.port,
+            status: "queued",
+            completedAt: null,
+            failureReason: null,
+            updatedAt: now,
+          })
+          .where(eq(applicationBuilds.id, applicationId));
+        const [deployment] = await transaction
+          .insert(applicationDeployments)
+          .values({
+            workspaceId: workspace.id,
+            applicationBuildId: applicationId,
+          })
+          .returning({ id: applicationDeployments.id });
+        const [job] = await transaction
+          .insert(provisioningJobs)
+          .values({
+            workspaceId: workspace.id,
+            subscriptionId: workspace.subscriptionId,
+            provider:
+              process.env.HOSTING_PROVIDER === "coolify" ? "coolify" : "mock",
+            idempotencyKey: `application:${applicationId}:update:${randomUUID()}`,
+            input: {
+              applicationBuildId: applicationId,
+              deploymentId: deployment?.id,
+            },
+          })
+          .returning({ id: provisioningJobs.id });
+        return { deploymentId: deployment?.id, jobId: job?.id };
+      });
+      await recordAuditLog({
+        actorUserId: workspace.actorUserId,
+        action: "application.configuration_updated",
+        resourceType: "application_build",
+        resourceId: applicationId,
+        metadata: { workspacePublicId },
+        ipAddress: metadata.ipAddress,
+        userAgent: metadata.userAgent,
+      });
+      return resp.success(
+        "Application updated and deployment queued.",
+        result,
+        resp.codes.ACCEPTED,
+        undefined,
+        202,
+      );
+    } catch (error) {
+      return resp.failure(
+        error instanceof Error ? error.message : "Application update failed.",
+        resp.codes.INTERNAL_SERVICE_ERROR,
+        undefined,
+        null,
+        undefined,
+        500,
+      );
+    }
   }
   public static async create(
     request: Request,
@@ -253,6 +498,49 @@ export class ApplicationController {
           undefined,
           404,
         );
+      let githubConnection:
+        typeof workspaceGithubConnections.$inferSelect | undefined;
+      if (input.githubConnectionId) {
+        [githubConnection] = await db
+          .select()
+          .from(workspaceGithubConnections)
+          .where(
+            and(
+              eq(workspaceGithubConnections.id, input.githubConnectionId),
+              eq(workspaceGithubConnections.workspaceId, workspace.id),
+              eq(workspaceGithubConnections.status, "active"),
+              isNull(workspaceGithubConnections.deletedAt),
+            ),
+          )
+          .limit(1);
+        if (!githubConnection)
+          return resp.failure(
+            "GitHub connection not found.",
+            resp.codes.RESOURCE_NOT_FOUND,
+            undefined,
+            null,
+            undefined,
+            404,
+          );
+        const allowedRepositories = await githubInstallationRepositories(
+          githubConnection.installationId,
+        );
+        if (
+          !allowedRepositories.some(
+            (repository) =>
+              repository.url.replace(/\.git$/, "") ===
+              input.repository.replace(/\.git$/, ""),
+          )
+        )
+          return resp.failure(
+            "The connected GitHub App cannot access this repository.",
+            resp.codes.PERMISSION_DENIED,
+            undefined,
+            null,
+            undefined,
+            403,
+          );
+      }
       const uniquePrefixes = new Set(
         input.databases.map((item) => item.environmentPrefix),
       );
@@ -287,21 +575,31 @@ export class ApplicationController {
             404,
           );
       }
-      const customHostnames = [...new Set([...(input.domain ? [input.domain] : []), ...input.domains])];
-	  const verificationRequired = await ownershipVerificationEnabled();
-	  const domainPolicies = await Promise.all(customHostnames.map(async (hostname) => ({ hostname, ownership: await controllingOwnership(hostname) })));
+      const customHostnames = [
+        ...new Set([...(input.domain ? [input.domain] : []), ...input.domains]),
+      ];
+      const verificationRequired = await ownershipVerificationEnabled();
+      const domainPolicies = await Promise.all(
+        customHostnames.map(async (hostname) => ({
+          hostname,
+          ownership: await controllingOwnership(hostname),
+        })),
+      );
       if (customHostnames.length) {
-		const conflicts = await db
+        const conflicts = await db
           .select({ id: applicationBuilds.id })
           .from(applicationDomains)
-          .innerJoin(applicationBuilds, eq(applicationBuilds.id, applicationDomains.applicationBuildId))
+          .innerJoin(
+            applicationBuilds,
+            eq(applicationBuilds.id, applicationDomains.applicationBuildId),
+          )
           .where(
             and(
               inArray(applicationDomains.hostname, customHostnames),
               isNull(applicationDomains.deletedAt),
             ),
           );
-		if (conflicts.length)
+        if (conflicts.length)
           return resp.failure(
             "Domain is already assigned.",
             resp.codes.RESOURCE_ALREADY_EXISTS,
@@ -311,22 +609,100 @@ export class ApplicationController {
             409,
           );
       }
-      const reservation = await reserveWorkspaceUsage({ workspaceId: workspace.id, code: "applications.count", current: Number(used), quantity: 1, idempotencyKey: `application-create:${randomUUID()}` });
+      const reservation = await reserveWorkspaceUsage({
+        workspaceId: workspace.id,
+        code: "applications.count",
+        current: Number(used),
+        quantity: 1,
+        idempotencyKey: `application-create:${randomUUID()}`,
+      });
       reservationId = reservation.reservationId;
       if (!reservation.allowed || !reservationId)
-        return resp.failure("Workspace application limit reached.", resp.codes.ORDER_CANNOT_BE_PROCESSED, undefined, { quota: reservation }, undefined, 422);
+        return resp.failure(
+          "Workspace application limit reached.",
+          resp.codes.ORDER_CANNOT_BE_PROCESSED,
+          undefined,
+          { quota: reservation },
+          undefined,
+          422,
+        );
       const platform = await getEffectivePlatformUrls();
-      const subdomain = input.subdomain ?? input.name.toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-|-$/g, '').slice(0, 50);
+      const readableSubdomain = (input.subdomain ?? input.name)
+        .toLowerCase()
+        .replace(/[^a-z0-9-]+/g, "-")
+        .replace(/^-|-$/g, "")
+        .slice(0, 50);
+      const forbidden = [
+        ...platform.reservedDomainLabels,
+        ...platform.blockedDomainKeywords,
+      ].find(
+        (keyword) =>
+          readableSubdomain === keyword ||
+          (platform.blockedDomainKeywords.includes(keyword) &&
+            readableSubdomain.includes(keyword)),
+      );
+      if (forbidden) {
+        await releaseUsageReservation(
+          reservationId,
+          "Default domain label violates platform policy.",
+        );
+        return resp.failure(
+          "Choose another default domain label.",
+          resp.codes.INVALID_INPUT_DATA,
+          undefined,
+          null,
+          undefined,
+          422,
+        );
+      }
+      const subdomain = `${readableSubdomain}-${
+        input.subdomainSuffix ??
+        randomBytes(4)
+          .toString("base64url")
+          .toLowerCase()
+          .replace(/[^a-z0-9]/g, "")
+          .slice(0, 6)
+          .padEnd(6, "0")
+      }`;
       const platformHostname = `${subdomain}.${platform.applicationBaseDomain}`;
-	  if (customHostnames.includes(platformHostname)) {
-		await releaseUsageReservation(reservationId, 'Custom domain duplicated the platform subdomain.');
-		return resp.failure('A custom domain cannot duplicate the platform subdomain.', resp.codes.RESOURCE_ALREADY_EXISTS, undefined, null, undefined, 409);
-	  }
-      const [hostnameConflict] = await db.select({ id: applicationDomains.id }).from(applicationDomains).where(and(eq(applicationDomains.hostname, platformHostname), isNull(applicationDomains.deletedAt))).limit(1);
-	  if (hostnameConflict) {
-		await releaseUsageReservation(reservationId, 'Application subdomain is already assigned.');
-		return resp.failure('Application subdomain is already assigned.', resp.codes.RESOURCE_ALREADY_EXISTS, undefined, null, undefined, 409);
-	  }
+      if (customHostnames.includes(platformHostname)) {
+        await releaseUsageReservation(
+          reservationId,
+          "Custom domain duplicated the platform subdomain.",
+        );
+        return resp.failure(
+          "A custom domain cannot duplicate the platform subdomain.",
+          resp.codes.RESOURCE_ALREADY_EXISTS,
+          undefined,
+          null,
+          undefined,
+          409,
+        );
+      }
+      const [hostnameConflict] = await db
+        .select({ id: applicationDomains.id })
+        .from(applicationDomains)
+        .where(
+          and(
+            eq(applicationDomains.hostname, platformHostname),
+            isNull(applicationDomains.deletedAt),
+          ),
+        )
+        .limit(1);
+      if (hostnameConflict) {
+        await releaseUsageReservation(
+          reservationId,
+          "Application subdomain is already assigned.",
+        );
+        return resp.failure(
+          "Application subdomain is already assigned.",
+          resp.codes.RESOURCE_ALREADY_EXISTS,
+          undefined,
+          null,
+          undefined,
+          409,
+        );
+      }
       const result = await db.transaction(async (transaction) => {
         const [build] = await transaction
           .insert(applicationBuilds)
@@ -334,6 +710,11 @@ export class ApplicationController {
             workspaceId: workspace.id,
             runtimeImageId: runtime.id,
             status: "queued",
+            deploymentEnvironment: input.deploymentEnvironment,
+            framework: input.framework || null,
+            environmentVariablesCiphertext: input.environmentVariables.length
+              ? encryptCredential(JSON.stringify(input.environmentVariables))
+              : null,
             sourceRepository: input.repository,
             sourceRef: input.branch,
             installCommand: input.installCommand,
@@ -342,38 +723,95 @@ export class ApplicationController {
             baseDirectory: input.baseDirectory,
             publishDirectory: input.publishDirectory,
             applicationPort: input.port,
-			requestedDomain: customHostnames[0],
-            metadata: { name: input.name, buildPack: input.buildPack },
+            requestedDomain: customHostnames[0],
+            metadata: {
+              name: input.name,
+              buildPack: input.buildPack,
+              defaultDomainLabel: readableSubdomain,
+              githubConnectionId: githubConnection?.id,
+              githubInstallationId: githubConnection?.installationId,
+              coolifyGithubAppUuid: githubConnection?.coolifyGithubAppUuid,
+            },
           })
           .returning({ id: applicationBuilds.id });
         if (!build) throw new Error("Unable to persist application.");
-		const domainRows = await transaction.insert(applicationDomains).values([
-          { applicationBuildId: build.id, hostname: platformHostname, type: 'platform', status: platform.applicationDomainReady ? 'verified' : 'pending', isPrimary: true, isEnabled: true, verifiedAt: platform.applicationDomainReady ? new Date() : null },
-		  ...domainPolicies.map(({ hostname, ownership }) => {
-			const owned = ownership?.workspaceId === workspace.id;
-			const direct = owned || (!ownership && !verificationRequired);
-			return { applicationBuildId: build.id, hostname, type: 'custom' as const, status: direct ? 'verified' as const : 'pending' as const, isPrimary: false, isEnabled: direct, verifiedAt: direct ? new Date() : null, tlsStatus: direct ? 'provisioning' as const : 'pending' as const, verificationToken: ownership ? null : verificationRequired ? randomUUID() : null };
-		  }),
-		]).returning({ id: applicationDomains.id, hostname: applicationDomains.hostname, verificationToken: applicationDomains.verificationToken });
-		for (const policy of domainPolicies) {
-			const domain = domainRows.find((row) => row.hostname === policy.hostname);
-			if (!domain) throw new Error('Unable to persist custom domain.');
-			if (!policy.ownership) {
-				await transaction.insert(domainOwnerships).values({ workspaceId: workspace.id, hostname: policy.hostname, status: verificationRequired ? 'pending' : 'verified', verificationToken: domain.verificationToken, verificationMethod: verificationRequired ? 'dns_txt' : 'platform_bypass', verifiedAt: verificationRequired ? null : new Date() });
-			} else if (policy.ownership.workspaceId !== workspace.id) {
-				await transaction.insert(domainAccessRequests).values({ ownershipId: policy.ownership.id, requestingWorkspaceId: workspace.id, applicationBuildId: build.id, applicationDomainId: domain.id, hostname: policy.hostname });
-			}
-		}
-        if (input.databases.length)
-          await transaction
-            .insert(applicationDatabaseBindings)
-            .values(
-              input.databases.map((item) => ({
+        const domainRows = await transaction
+          .insert(applicationDomains)
+          .values([
+            {
+              applicationBuildId: build.id,
+              hostname: platformHostname,
+              type: "platform",
+              status: platform.applicationDomainReady ? "verified" : "pending",
+              isPrimary: true,
+              isEnabled: true,
+              verifiedAt: platform.applicationDomainReady ? new Date() : null,
+            },
+            ...domainPolicies.map(({ hostname, ownership }) => {
+              const owned = ownership?.workspaceId === workspace.id;
+              const direct = owned || (!ownership && !verificationRequired);
+              return {
                 applicationBuildId: build.id,
-                logicalDatabaseId: item.databaseId,
-                environmentPrefix: item.environmentPrefix,
-              })),
-            );
+                hostname,
+                type: "custom" as const,
+                status: direct ? ("verified" as const) : ("pending" as const),
+                isPrimary: false,
+                isEnabled: direct,
+                verifiedAt: direct ? new Date() : null,
+                tlsStatus: direct
+                  ? ("provisioning" as const)
+                  : ("pending" as const),
+                verificationToken: ownership
+                  ? null
+                  : verificationRequired
+                    ? randomUUID()
+                    : null,
+              };
+            }),
+          ])
+          .returning({
+            id: applicationDomains.id,
+            hostname: applicationDomains.hostname,
+            verificationToken: applicationDomains.verificationToken,
+          });
+        for (const policy of domainPolicies) {
+          const domain = domainRows.find(
+            (row) => row.hostname === policy.hostname,
+          );
+          if (!domain) throw new Error("Unable to persist custom domain.");
+          if (!policy.ownership) {
+            await transaction
+              .insert(domainOwnerships)
+              .values({
+                workspaceId: workspace.id,
+                hostname: policy.hostname,
+                status: verificationRequired ? "pending" : "verified",
+                verificationToken: domain.verificationToken,
+                verificationMethod: verificationRequired
+                  ? "dns_txt"
+                  : "platform_bypass",
+                verifiedAt: verificationRequired ? null : new Date(),
+              });
+          } else if (policy.ownership.workspaceId !== workspace.id) {
+            await transaction
+              .insert(domainAccessRequests)
+              .values({
+                ownershipId: policy.ownership.id,
+                requestingWorkspaceId: workspace.id,
+                applicationBuildId: build.id,
+                applicationDomainId: domain.id,
+                hostname: policy.hostname,
+              });
+          }
+        }
+        if (input.databases.length)
+          await transaction.insert(applicationDatabaseBindings).values(
+            input.databases.map((item) => ({
+              applicationBuildId: build.id,
+              logicalDatabaseId: item.databaseId,
+              environmentPrefix: item.environmentPrefix,
+            })),
+          );
         const [deployment] = await transaction
           .insert(applicationDeployments)
           .values({ workspaceId: workspace.id, applicationBuildId: build.id })
@@ -394,7 +832,11 @@ export class ApplicationController {
           .returning({ id: provisioningJobs.id });
         return { id: build.id, deploymentId: deployment?.id, jobId: job?.id };
       });
-      await commitUsageReservation(reservationId, "application_build", result.id);
+      await commitUsageReservation(
+        reservationId,
+        "application_build",
+        result.id,
+      );
       await recordAuditLog({
         actorUserId: workspace.actorUserId,
         action: "application.deployment_queued",
@@ -404,7 +846,7 @@ export class ApplicationController {
           workspacePublicId,
           runtimeCode: input.runtimeCode,
           databaseCount: input.databases.length,
-		  domainCount: customHostnames.length,
+          domainCount: customHostnames.length,
         },
         ipAddress: metadata.ipAddress,
         userAgent: metadata.userAgent,
@@ -417,7 +859,13 @@ export class ApplicationController {
         202,
       );
     } catch (error) {
-      if (reservationId) await releaseUsageReservation(reservationId, error instanceof Error ? error.message : "Application creation failed.");
+      if (reservationId)
+        await releaseUsageReservation(
+          reservationId,
+          error instanceof Error
+            ? error.message
+            : "Application creation failed.",
+        );
       return resp.failure(
         error instanceof Error ? error.message : "Application creation failed.",
         resp.codes.INTERNAL_SERVICE_ERROR,
@@ -461,10 +909,9 @@ export class ApplicationController {
           404,
         );
       return resp.success("Application logs retrieved.", {
-        logs: await (await hostingProvider()).getApplicationLogs(
-          record.providerResourceId,
-          200,
-        ),
+        logs: await (
+          await hostingProvider()
+        ).getApplicationLogs(record.providerResourceId, 200),
       });
     } catch (error) {
       return resp.failure(

@@ -1,14 +1,56 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from "vitest";
 
-import { updatePlatformSettingsSchema } from '@schemas/platformSettings';
+import { updatePlatformSettingsSchema } from "@schemas/platformSettings";
 
-describe('platform settings validation', () => {
-	it('accepts same-domain routing without a separate panel URL', () => {
-		expect(updatePlatformSettingsSchema.safeParse({ applicationBaseDomain: 'apps.example.com', defaultApplicationSubdomainEnabled: true, dnsProvider: 'cloudflare', domainOwnershipVerificationEnabled: false, ingressIpv4: null, ingressIpv6: null, panelBaseUrl: null, panelDomainMode: 'same_domain', publicBaseUrl: 'https://example.com' }).success).toBe(true);
-	});
+describe("platform settings validation", () => {
+  it("accepts same-domain routing without a separate panel URL", () => {
+    expect(
+      updatePlatformSettingsSchema.safeParse({
+        blockedDomainKeywords: [],
+        applicationBaseDomain: "apps.example.com",
+        defaultApplicationSubdomainEnabled: true,
+        dnsProvider: "cloudflare",
+        domainOwnershipVerificationEnabled: false,
+        ingressIpv4: null,
+        ingressIpv6: null,
+        panelBaseUrl: null,
+        panelDomainMode: "same_domain",
+        publicBaseUrl: "https://example.com",
+        reservedDomainLabels: [],
+      }).success,
+    ).toBe(true);
+  });
 
-	it('requires a distinct HTTPS URL for separate-domain routing', () => {
-		expect(updatePlatformSettingsSchema.safeParse({ applicationBaseDomain: 'apps.example.com', defaultApplicationSubdomainEnabled: true, dnsProvider: 'cloudflare', domainOwnershipVerificationEnabled: true, ingressIpv4: null, ingressIpv6: null, panelBaseUrl: null, panelDomainMode: 'separate_domain', publicBaseUrl: 'https://example.com' }).success).toBe(false);
-		expect(updatePlatformSettingsSchema.safeParse({ applicationBaseDomain: 'apps.example.com', defaultApplicationSubdomainEnabled: true, dnsProvider: 'cloudflare', domainOwnershipVerificationEnabled: true, ingressIpv4: '203.0.113.10', ingressIpv6: null, panelBaseUrl: 'https://panel.example.com', panelDomainMode: 'separate_domain', publicBaseUrl: 'https://example.com' }).success).toBe(true);
-	});
+  it("requires a distinct HTTPS URL for separate-domain routing", () => {
+    expect(
+      updatePlatformSettingsSchema.safeParse({
+        blockedDomainKeywords: [],
+        applicationBaseDomain: "apps.example.com",
+        defaultApplicationSubdomainEnabled: true,
+        dnsProvider: "cloudflare",
+        domainOwnershipVerificationEnabled: true,
+        ingressIpv4: null,
+        ingressIpv6: null,
+        panelBaseUrl: null,
+        panelDomainMode: "separate_domain",
+        publicBaseUrl: "https://example.com",
+        reservedDomainLabels: [],
+      }).success,
+    ).toBe(false);
+    expect(
+      updatePlatformSettingsSchema.safeParse({
+        blockedDomainKeywords: [],
+        applicationBaseDomain: "apps.example.com",
+        defaultApplicationSubdomainEnabled: true,
+        dnsProvider: "cloudflare",
+        domainOwnershipVerificationEnabled: true,
+        ingressIpv4: "203.0.113.10",
+        ingressIpv6: null,
+        panelBaseUrl: "https://panel.example.com",
+        panelDomainMode: "separate_domain",
+        publicBaseUrl: "https://example.com",
+        reservedDomainLabels: [],
+      }).success,
+    ).toBe(true);
+  });
 });

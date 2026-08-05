@@ -152,7 +152,10 @@ Initial publication policy: Launch, Growth, and Business may be public after the
 - `/api/v1/checkouts/:checkoutId/payment` - initiate an enabled provider payment session.
 - `/api/v1/webhooks/payments/:provider` - verify and idempotently reconcile provider webhooks.
 - `/api/v1/workspaces/:workspaceId/resources` - customer-authorized provisioning/resource state.
-- `/api/v1/workspaces/:workspaceId/applications` - list and queue runtime-backed public Git deployments.
+- `/api/v1/workspaces/:workspaceId/applications` - list and queue runtime-backed public or GitHub App-authorized private deployments.
+- `/api/v1/workspaces/:workspaceId/applications/analyze-source` - inspect approved manifests and environment templates to suggest stack, framework, branch, directories, and variables.
+- `/api/v1/workspaces/:workspaceId/applications/github-connections` - connect and list workspace-owned GitHub App installations.
+- `/api/v1/workspaces/:workspaceId/applications/github-connections/:connectionId/repositories` - list repositories explicitly granted to that installation.
 - `/api/v1/workspaces/:workspaceId/applications/:applicationId` - update deployable configuration and queue a fresh deployment.
 - `/api/v1/workspaces/:workspaceId/applications/options` - workspace-authorized runtime and database choices.
 - `/api/v1/workspaces/:workspaceId/applications/:applicationId/logs` - workspace-authorized provider logs.
@@ -173,6 +176,12 @@ Initial publication policy: Launch, Growth, and Business may be public after the
 - `/api/v1/auth/logout` - revoke the bearer session.
 - `/api/v1/auth/context` - switch between personal and authorized admin context.
 - `/api/v1/auth/sessions` - list the current user's device sessions.
+
+### GitHub App setup
+
+Create a GitHub App with repository `Contents: Read-only` and `Metadata: Read-only` permissions. Set its setup/callback URL to `/api/v1/github/callback`, enable installation on user and organisation accounts, and configure `GITHUB_APP_ID`, `GITHUB_APP_SLUG`, `GITHUB_APP_PRIVATE_KEY`, and `GITHUB_APP_STATE_SECRET`. `COOLIFY_GITHUB_APP_UUID` links the installation flow to the corresponding GitHub App configured in Coolify for private deployments. Repository access remains selectable and reviewable in GitHub. Real `.env` files are never fetched; only environment templates such as `.env.example` are inspected.
+
+Dockerfile deployments are intentionally disabled until package entitlements and workload isolation policies are enabled.
 - `/api/v1/auth/sessions/:sessionId` - inspect, label, or revoke one owned session.
 - `/api/v1/auth/sessions/others` - revoke every other active session.
 - `/settings/sessions` - mobile-first Devices & Sessions management page.

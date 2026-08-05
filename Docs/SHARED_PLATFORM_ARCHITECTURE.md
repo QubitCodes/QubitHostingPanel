@@ -41,7 +41,7 @@ The runtime workflow builds `linux/amd64` images for the current EC2 architectur
 
 `application_builds` records source repository/ref, commit, selected runtime, build status, generated image reference, provider build identifier, and failure state. GitHub Actions should build and publish customer images so the Coolify host spends its capacity running workloads rather than compiling them.
 
-Customers configure public Git sources under `/dashboard/applications`. The panel validates the repository, branch, build pack, commands, base/publish directories, runtime and port; enforces the workspace application entitlement; rejects domain conflicts; persists database bindings without copying plaintext credentials; and queues an idempotent deployment. The worker resolves credentials only while creating literal Coolify environment variables, tracks build/deployment/resource states independently, and exposes workspace-authorized logs.
+Customers configure public Git or workspace-owned GitHub App sources under `/dashboard/applications`. Approved repository manifests drive suggestions for stack, version, framework, project/output directories and environment-template keys; users review every suggestion. The panel validates the repository, branch, build method, commands, directories, runtime and port; encrypts application variables at rest; enforces workspace entitlements; rejects domain conflicts; persists database bindings without copying plaintext credentials; and queues an idempotent deployment. Private repositories use short-lived GitHub installation tokens for inspection and the configured Coolify GitHub App for deployment. Dockerfile deployment remains disabled until package-scoped isolation policy is available.
 
 ## Application isolation
 

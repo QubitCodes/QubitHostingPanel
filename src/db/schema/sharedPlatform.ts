@@ -7,6 +7,7 @@ import { workspaces } from './tenancy';
 export const runtimeLanguageEnum = pgEnum('runtime_language', ['static', 'php', 'node', 'python']);
 export const runtimeImageStatusEnum = pgEnum('runtime_image_status', ['active', 'deprecated', 'disabled']);
 export const applicationBuildStatusEnum = pgEnum('application_build_status', ['queued', 'building', 'succeeded', 'failed', 'cancelled']);
+export const applicationEnvironmentEnum = pgEnum('application_environment', ['development', 'testing', 'staging', 'production']);
 export const applicationDeploymentStatusEnum = pgEnum('application_deployment_status', ['queued', 'deploying', 'running', 'failed', 'stopped']);
 export const applicationDomainTypeEnum = pgEnum('application_domain_type', ['platform', 'custom']);
 export const applicationDomainStatusEnum = pgEnum('application_domain_status', ['pending', 'verified', 'failed']);
@@ -50,6 +51,9 @@ export const applicationBuilds = pgTable('application_builds', {
 	resourceId: uuid('resource_id').references(() => workspaceResources.id, { onDelete: 'restrict' }),
 	runtimeImageId: uuid('runtime_image_id').notNull().references(() => runtimeImages.id, { onDelete: 'restrict' }),
 	status: applicationBuildStatusEnum('status').notNull().default('queued'),
+	deploymentEnvironment: applicationEnvironmentEnum('deployment_environment').notNull().default('production'),
+	framework: varchar('framework', { length: 80 }),
+	environmentVariablesCiphertext: text('environment_variables_ciphertext'),
 	sourceRepository: varchar('source_repository', { length: 500 }).notNull(),
 	sourceRef: varchar('source_ref', { length: 255 }).notNull().default('main'),
 	commitSha: varchar('commit_sha', { length: 64 }),

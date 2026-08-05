@@ -89,6 +89,7 @@ export default [
 	route('api/docs', 'pages/api/docs.tsx'),
 	...prefix('api/v1', [
 		route('health', 'api/v1/health.ts'),
+		route('github/callback', 'api/v1/github-callback.ts'),
 		route('openapi.json', 'api/v1/openapi.ts'),
 		route('auth/otp/request', 'api/v1/auth/otp-request.ts'),
 		route('auth/otp/resend', 'api/v1/auth/otp-resend.ts'),
@@ -130,6 +131,9 @@ export default [
 		route('workspaces/:workspaceId/domain-access/:requestId', 'api/v1/workspaces/applications/domain-access.ts'),
 		route('workspaces/:workspaceId/applications/:applicationId', 'api/v1/workspaces/applications/detail.ts'),
 		route('workspaces/:workspaceId/applications/options', 'api/v1/workspaces/applications/options.ts'),
+		route('workspaces/:workspaceId/applications/analyze-source', 'api/v1/workspaces/applications/analyze-source.ts'),
+		route('workspaces/:workspaceId/applications/github-connections', 'api/v1/workspaces/applications/github-connections.ts'),
+		route('workspaces/:workspaceId/applications/github-connections/:connectionId/repositories', 'api/v1/workspaces/applications/github-repositories.ts'),
 		route('workspaces/:workspaceId/applications/:applicationId/logs', 'api/v1/workspaces/applications/logs.ts'),
 		route('workspaces/:workspaceId/applications/:applicationId/domains', 'api/v1/workspaces/applications/domains.ts'),
 		route('workspaces/:workspaceId/applications/:applicationId/domains/:domainId', 'api/v1/workspaces/applications/domain-detail.ts'),

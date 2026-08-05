@@ -35,6 +35,8 @@ export default function PlatformSettingsPage() {
       defaultApplicationSubdomainEnabled: true,
       dnsProvider: "cloudflare",
       domainOwnershipVerificationEnabled: true,
+	  reservedDomainLabels: ['admin', 'api', 'dashboard', 'panel', 'www'],
+	  blockedDomainKeywords: [],
       ingressIpv4: null,
       ingressIpv6: null,
       panelBaseUrl: null,
@@ -59,6 +61,8 @@ export default function PlatformSettingsPage() {
           dnsProvider: body.data.dnsProvider,
           domainOwnershipVerificationEnabled:
             body.data.domainOwnershipVerificationEnabled,
+		  reservedDomainLabels: body.data.reservedDomainLabels,
+		  blockedDomainKeywords: body.data.blockedDomainKeywords,
           ingressIpv4: body.data.ingressIpv4,
           ingressIpv6: body.data.ingressIpv6,
           panelBaseUrl: body.data.panelBaseUrl,
@@ -299,6 +303,11 @@ export default function PlatformSettingsPage() {
             </span>
           </span>
         </label>
+		<fieldset className="grid gap-4 rounded-2xl border border-brand-primary/10 p-4 sm:grid-cols-2">
+		  <legend className="px-2 text-sm font-semibold">Default-domain label policy</legend>
+		  <Controller control={control} name="reservedDomainLabels" render={({ field }) => <label className="grid gap-2 text-sm font-semibold">Reserved labels<textarea className={`${inputClass} min-h-28`} onChange={(event) => field.onChange(event.target.value.split(/[\n,]/).map((value) => value.trim().toLowerCase()).filter(Boolean))} value={field.value.join('\n')} /><span className="text-xs font-normal text-app-muted">One label per line. Exact matches such as admin, api, or www cannot be used for application default domains.</span></label>} />
+		  <Controller control={control} name="blockedDomainKeywords" render={({ field }) => <label className="grid gap-2 text-sm font-semibold">Blocked keywords<textarea className={`${inputClass} min-h-28`} onChange={(event) => field.onChange(event.target.value.split(/[\n,]/).map((value) => value.trim().toLowerCase()).filter(Boolean))} value={field.value.join('\n')} /><span className="text-xs font-normal text-app-muted">One keyword per line. A readable application label containing one of these terms is rejected.</span></label>} />
+		</fieldset>
         <button
           className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-action px-5 py-3 font-bold text-brand-ink disabled:opacity-60"
           disabled={isSubmitting}

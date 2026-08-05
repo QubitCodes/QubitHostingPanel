@@ -8,6 +8,7 @@ export * from './payments';
 export * from './platformSettings';
 export * from './domainOwnership';
 export * from './dns';
+export * from './github';
 export * from './provisioning';
 export * from './providerConnections';
 export * from './sharedPlatform';
