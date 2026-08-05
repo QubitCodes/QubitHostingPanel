@@ -12,6 +12,7 @@ export * from './github';
 export * from './provisioning';
 export * from './providerConnections';
 export * from './sharedPlatform';
+export * from './applicationCron';
 export * from './tenancy';
 export * from './subscriptions';
 export * from './usage';

@@ -49,6 +49,28 @@ export interface ProvisionApplicationInput {
   workspaceId: string;
 }
 
+export interface ProviderScheduledTaskInput {
+	command: string;
+	enabled: boolean;
+	frequency: string;
+	name: string;
+	timeout: number;
+}
+
+export interface ProviderScheduledTask extends ProviderScheduledTaskInput {
+	uuid: string;
+}
+
+export interface ProviderScheduledTaskExecution {
+	createdAt?: string;
+	duration?: number | null;
+	finishedAt?: string | null;
+	message?: string | null;
+	startedAt?: string | null;
+	status: 'failed' | 'running' | 'success';
+	uuid: string;
+}
+
 /** Provider boundary keeping Coolify-specific contracts out of commercial logic. */
 export interface HostingProvider {
   validateConnection(): Promise<ProviderConnectionResult>;
@@ -61,4 +83,8 @@ export interface HostingProvider {
     applicationId: string,
     domains: string[],
   ): Promise<void>;
+	createApplicationScheduledTask(applicationId: string, input: ProviderScheduledTaskInput): Promise<ProviderScheduledTask>;
+	updateApplicationScheduledTask(applicationId: string, taskId: string, input: ProviderScheduledTaskInput): Promise<ProviderScheduledTask>;
+	deleteApplicationScheduledTask(applicationId: string, taskId: string): Promise<void>;
+	listApplicationScheduledTaskExecutions(applicationId: string, taskId: string): Promise<readonly ProviderScheduledTaskExecution[]>;
 }

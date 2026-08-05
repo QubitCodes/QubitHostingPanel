@@ -123,3 +123,24 @@ describe('framework persistent storage', () => {
 		).toBe(true);
 	});
 });
+
+describe('Coolify scheduled tasks', () => {
+	it('uses documented task and execution endpoints', async () => {
+		process.env.DATABASE_URL = 'postgresql://test:test@localhost:5432/ghost_deploy_test';
+		resetEnvironmentForTests();
+		const requests: Array<{ body?: string; method: string; url: string }> = [];
+		vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+			const url = String(input); const method = init?.method ?? 'GET'; requests.push({ body: typeof init?.body === 'string' ? init.body : undefined, method, url });
+			if (url.endsWith('/executions')) return Response.json([{ uuid: 'execution-1', status: 'success', duration: 2, message: 'done' }]);
+			return Response.json({ uuid: 'task-1', name: 'Scheduler', command: 'php artisan schedule:run', frequency: '* * * * *', timeout: 300, enabled: true });
+		}));
+		const provider = new CoolifyHostingProvider({ apiToken: 'token', baseUrl: 'https://coolify.example' });
+		const input = { name: 'Scheduler', command: 'php artisan schedule:run', frequency: '* * * * *', timeout: 300, enabled: true };
+		expect((await provider.createApplicationScheduledTask('app-1', input)).uuid).toBe('task-1');
+		await provider.updateApplicationScheduledTask('app-1', 'task-1', input);
+		expect((await provider.listApplicationScheduledTaskExecutions('app-1', 'task-1'))[0]?.status).toBe('success');
+		await provider.deleteApplicationScheduledTask('app-1', 'task-1');
+		expect(requests.map(({ method }) => method)).toEqual(['POST', 'PATCH', 'GET', 'DELETE']);
+		expect(requests.every(({ url }) => url.includes('/applications/app-1/scheduled-tasks'))).toBe(true);
+	});
+});

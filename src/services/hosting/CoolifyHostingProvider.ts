@@ -7,6 +7,9 @@ import type {
   ProviderResource,
   ProviderUsage,
   ProvisionApplicationInput,
+  ProviderScheduledTask,
+  ProviderScheduledTaskExecution,
+  ProviderScheduledTaskInput,
 } from "@services/hosting/HostingProvider";
 
 interface CoolifyApplication {
@@ -444,4 +447,25 @@ export class CoolifyHostingProvider implements HostingProvider {
       }),
     });
   }
+
+	public async createApplicationScheduledTask(applicationId: string, input: ProviderScheduledTaskInput): Promise<ProviderScheduledTask> {
+		return this.request<ProviderScheduledTask>(`/applications/${encodeURIComponent(applicationId)}/scheduled-tasks`, { method: 'POST', body: JSON.stringify(input) });
+	}
+
+	public async updateApplicationScheduledTask(applicationId: string, taskId: string, input: ProviderScheduledTaskInput): Promise<ProviderScheduledTask> {
+		return this.request<ProviderScheduledTask>(`/applications/${encodeURIComponent(applicationId)}/scheduled-tasks/${encodeURIComponent(taskId)}`, { method: 'PATCH', body: JSON.stringify(input) });
+	}
+
+	public async deleteApplicationScheduledTask(applicationId: string, taskId: string): Promise<void> {
+		await this.request(`/applications/${encodeURIComponent(applicationId)}/scheduled-tasks/${encodeURIComponent(taskId)}`, { method: 'DELETE' });
+	}
+
+	public async listApplicationScheduledTaskExecutions(applicationId: string, taskId: string): Promise<readonly ProviderScheduledTaskExecution[]> {
+		const result = await this.request<unknown>(`/applications/${encodeURIComponent(applicationId)}/scheduled-tasks/${encodeURIComponent(taskId)}/executions`);
+		const rows = Array.isArray(result) ? result : (result as { data?: unknown })?.data;
+		return Array.isArray(rows) ? rows.map((row) => {
+			const item = row as Record<string, unknown>;
+			return { uuid: String(item.uuid ?? ''), status: item.status === 'success' || item.status === 'running' ? item.status : 'failed', message: typeof item.message === 'string' ? item.message.slice(0, 10_000) : null, duration: typeof item.duration === 'number' ? item.duration : null, startedAt: typeof item.started_at === 'string' ? item.started_at : null, finishedAt: typeof item.finished_at === 'string' ? item.finished_at : null, createdAt: typeof item.created_at === 'string' ? item.created_at : undefined };
+		}) : [];
+	}
 }

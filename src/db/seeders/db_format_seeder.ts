@@ -8,6 +8,8 @@ import {
 	platformRolePermissions,
 	platformRoles,
 	packageCategories,
+	entitlementDefinitions,
+	packageEntitlements,
 	packagePrices,
 	packages,
 	runtimeImages,
@@ -53,7 +55,25 @@ const PACKAGE_SEEDS = [
 	{ name: 'Cloud 8 GB', slug: 'cloud-8-gb', categorySlug: 'managed-cloud', description: 'Managed cloud environment with an 8 GB compute target.', monthly: 7999, trialDuration: null, displayOrder: 60 },
 ] as const;
 
+const CRON_ENTITLEMENTS = [
+	{ code: 'cron.enabled', name: 'Project scheduled tasks', description: 'Allows scheduled commands inside deployed application containers.', valueType: 'boolean' as const, unit: null },
+	{ code: 'cron.jobs_per_application', name: 'Scheduled tasks per application', description: 'Maximum active scheduled tasks allowed for each application.', valueType: 'number' as const, unit: 'tasks' },
+	{ code: 'cron.minimum_interval_minutes', name: 'Minimum scheduled task interval', description: 'Shortest permitted interval between executions.', valueType: 'number' as const, unit: 'minutes' },
+	{ code: 'cron.timeout_seconds', name: 'Scheduled task timeout', description: 'Maximum execution timeout for each scheduled task.', valueType: 'number' as const, unit: 'seconds' },
+] as const;
+
+const CRON_PACKAGE_LIMITS: Record<string, { enabled: boolean; jobs: number; interval: number; timeout: number }> = {
+	launch: { enabled: true, jobs: 1, interval: 720, timeout: 300 },
+	growth: { enabled: true, jobs: 3, interval: 240, timeout: 600 },
+	business: { enabled: true, jobs: 10, interval: 60, timeout: 900 },
+	'cloud-2-gb': { enabled: true, jobs: 10, interval: 15, timeout: 1200 },
+	'cloud-4-gb': { enabled: true, jobs: 20, interval: 5, timeout: 1800 },
+	'cloud-8-gb': { enabled: true, jobs: 40, interval: 1, timeout: 3600 },
+};
+
 async function seedPackageCatalogue(): Promise<void> {
+	for (const entitlement of CRON_ENTITLEMENTS) await db.insert(entitlementDefinitions).values({ ...entitlement, enforcementMode: 'hard', isCustomerVisible: true }).onConflictDoUpdate({ target: entitlementDefinitions.code, targetWhere: sql`${entitlementDefinitions.deletedAt} IS NULL`, set: { name: entitlement.name, description: entitlement.description, unit: entitlement.unit, updatedAt: new Date() } });
+	const cronDefinitions = await db.select({ code: entitlementDefinitions.code, id: entitlementDefinitions.id }).from(entitlementDefinitions).where(isNull(entitlementDefinitions.deletedAt));
 	const categories = [
 		{ name: 'Cloud App Hosting', slug: 'cloud-app-hosting', description: 'Managed application hosting on shared cloud capacity.', displayOrder: 10 },
 		{ name: 'Managed Cloud', slug: 'managed-cloud', description: 'Dedicated managed cloud capacity for demanding workloads.', displayOrder: 20 },
@@ -77,6 +97,12 @@ async function seedPackageCatalogue(): Promise<void> {
 		}).onConflictDoUpdate({ target: packages.slug, targetWhere: sql`${packages.deletedAt} IS NULL`, set: { categoryId, name: seed.name, description: seed.description, displayOrder: seed.displayOrder, updatedAt: new Date() } });
 		const [packageRow] = await db.select({ id: packages.id }).from(packages).where(and(eq(packages.slug, seed.slug), isNull(packages.deletedAt))).limit(1);
 		if (!packageRow) throw new Error(`Package ${seed.slug} was not seeded.`);
+		const limits = CRON_PACKAGE_LIMITS[seed.slug];
+		if (limits) for (const [code, value] of Object.entries({ 'cron.enabled': limits.enabled, 'cron.jobs_per_application': limits.jobs, 'cron.minimum_interval_minutes': limits.interval, 'cron.timeout_seconds': limits.timeout })) {
+			const entitlementId = cronDefinitions.find((item) => item.code === code)?.id;
+			if (!entitlementId) throw new Error(`Entitlement ${code} was not seeded.`);
+			await db.insert(packageEntitlements).values({ packageId: packageRow.id, entitlementId, booleanValue: typeof value === 'boolean' ? value : null, numericValue: typeof value === 'number' ? value : null }).onConflictDoUpdate({ target: [packageEntitlements.packageId, packageEntitlements.entitlementId], targetWhere: sql`${packageEntitlements.deletedAt} IS NULL`, set: { booleanValue: typeof value === 'boolean' ? value : null, numericValue: typeof value === 'number' ? value : null, updatedAt: new Date() } });
+		}
 		for (const price of [{ billingInterval: 'month' as const, amountMinor: seed.monthly * 100 }, { billingInterval: 'year' as const, amountMinor: seed.monthly * 10 * 100 }]) {
 			const [existing] = await db.select({ id: packagePrices.id }).from(packagePrices).where(and(eq(packagePrices.packageId, packageRow.id), eq(packagePrices.currency, 'INR'), eq(packagePrices.billingInterval, price.billingInterval), eq(packagePrices.isActive, true), isNull(packagePrices.deletedAt))).limit(1);
 			if (!existing) await db.insert(packagePrices).values({ packageId: packageRow.id, currency: 'INR', billingInterval: price.billingInterval, amountMinor: price.amountMinor, taxBehavior: 'exclusive', isActive: true, isPublic: false });

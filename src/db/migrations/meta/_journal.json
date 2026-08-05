@@ -281,6 +281,13 @@
       "when": 1785945165284,
       "tag": "0039_fat_franklin_storm",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1785952958339,
+      "tag": "0040_foamy_talon",
+      "breakpoints": true
     }
   ]
 }

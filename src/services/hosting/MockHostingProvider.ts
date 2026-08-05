@@ -5,7 +5,10 @@ import type {
 	ProviderJobStatus,
 	ProviderResource,
 	ProviderUsage,
-	ProvisionApplicationInput
+	ProvisionApplicationInput,
+	ProviderScheduledTask,
+	ProviderScheduledTaskExecution,
+	ProviderScheduledTaskInput,
 } from '@services/hosting/HostingProvider';
 
 /** Deterministic local provider used until the read-only Coolify staging phase. */
@@ -34,4 +37,8 @@ export class MockHostingProvider implements HostingProvider {
 	public async getApplicationLogs(): Promise<string> { return 'Mock application is running.'; }
 
 	public async updateApplicationDomains(): Promise<void> { return Promise.resolve(); }
+	public async createApplicationScheduledTask(_applicationId: string, input: ProviderScheduledTaskInput): Promise<ProviderScheduledTask> { return { ...input, uuid: crypto.randomUUID() }; }
+	public async updateApplicationScheduledTask(_applicationId: string, taskId: string, input: ProviderScheduledTaskInput): Promise<ProviderScheduledTask> { return { ...input, uuid: taskId }; }
+	public async deleteApplicationScheduledTask(): Promise<void> { return Promise.resolve(); }
+	public async listApplicationScheduledTaskExecutions(): Promise<readonly ProviderScheduledTaskExecution[]> { return []; }
 }

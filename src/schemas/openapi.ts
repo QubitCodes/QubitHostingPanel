@@ -1529,6 +1529,17 @@ export const OPENAPI_DOCUMENT = {
 				},
 			},
 		},
+		'/workspaces/{workspaceId}/applications/{applicationId}/cron-jobs': {
+			get: { summary: 'List project scheduled tasks and plan limits', operationId: 'listApplicationCronJobs', security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/WorkspaceId' }, { $ref: '#/components/parameters/ApplicationId' }], responses: { '200': { description: 'Tasks, framework preset, and effective limits.' }, '404': { description: 'Application not found.' } } },
+			post: { summary: 'Create and synchronize a project scheduled task', operationId: 'createApplicationCronJob', security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/WorkspaceId' }, { $ref: '#/components/parameters/ApplicationId' }], requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['name', 'frequency', 'timeoutSeconds', 'isEnabled'], properties: { name: { type: 'string' }, command: { type: 'string' }, frequency: { type: 'string', example: '0 */4 * * *' }, timeoutSeconds: { type: 'integer' }, isEnabled: { type: 'boolean' } } } } } }, responses: { '201': { description: 'Task synchronized and stored.' }, '422': { description: 'Plan, framework, schedule, or provider constraint failed.' } } },
+		},
+		'/workspaces/{workspaceId}/applications/{applicationId}/cron-jobs/{cronId}': {
+			patch: { summary: 'Update a project scheduled task', operationId: 'updateApplicationCronJob', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Task synchronized and updated.' }, '422': { description: 'Update rejected.' } } },
+			delete: { summary: 'Delete a project scheduled task', operationId: 'deleteApplicationCronJob', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Provider task removed and local record soft-deleted.' }, '422': { description: 'Deletion failed.' } } },
+		},
+		'/workspaces/{workspaceId}/applications/{applicationId}/cron-jobs/{cronId}/executions': {
+			get: { summary: 'Read provider scheduled-task execution history', operationId: 'listApplicationCronExecutions', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Sanitized provider execution history.' }, '404': { description: 'Task is unavailable or unsynchronized.' } } },
+		},
 		'/workspaces/{workspaceId}/applications/{applicationId}/domains': {
 			get: {
 				summary: 'List application domains and TLS state',
