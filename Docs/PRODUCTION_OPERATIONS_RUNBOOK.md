@@ -4,7 +4,7 @@
 
 Before production traffic, require all of the following: production `APP_URL`; final DNS and TLS; restricted database management ports; production payment credentials/webhooks; Coolify production connection; off-host encrypted backups; external uptime/error alerts; reverse-proxy rate limits; and an accepted restore drill. Run `npm run typecheck`, `npm run lint`, `npm test`, `npm run build`, `npm run db:migrate`, and `npm run operations:readiness` against the release environment.
 
-For the isolated staging control plane, run `npm run staging:deploy:panel` from the local operator checkout. The command only creates or reuses `qubit-hosting-panel-staging`, installs its environment without logging secret values, disables development authentication bypass, retains test payment mode from `.env`, and queues the pushed `main` branch for `https://panel.apps-staging.qubit.codes`. No separate panel-domain alias is configured while the platform uses same-domain mode. The command refuses to run from the deployed production-mode process.
+For the isolated staging control plane, run `npm run staging:deploy:panel` from the local operator checkout. The command only creates or reuses `ghost-deploy-staging`, installs its environment without logging secret values, disables development authentication bypass, retains test payment mode from `.env`, and queues the pushed `main` branch for `https://staging.ghostdeploy.com`. No separate panel-domain alias is configured while the platform uses same-domain mode. The command refuses to run from the deployed production-mode process.
 
 ## Scheduled operations
 
@@ -85,6 +85,18 @@ Use the audited admin subscription lifecycle. Suspension blocks new resource mut
 ## Backup and token drills
 
 The staging PostgreSQL/MySQL backup/restore drill and encrypted artifact verification are recorded in the implementation plan. The database-managed Coolify token drill validated a candidate before activating version 2 and retiring version 1. Production completion additionally requires revoking the retired token in Coolify and performing the same restore drill against production-grade backup storage.
+
+### Coolify disaster recovery
+
+Do not treat the Coolify dashboard container as a complete backup. A recoverable installation includes its PostgreSQL data, Redis state where required by the installed release, SSH keys, application and proxy configuration, and Docker volumes. Customer application data and databases need their own backups.
+
+- Keep the active Coolify host and backup host independent. Never run two active control planes against the same Docker hosts, volumes, or database.
+- Use Coolify's supported database backup process, then archive configuration and named volumes from a consistent snapshot.
+- Encrypt archives before sending them off-host. aaPanel may store and rotate the encrypted artifacts; an aaPanel Docker project containing only a copied Coolify container is not a valid standby.
+- Restore on an isolated host using a compatible Coolify release, validate data and secrets, reconnect managed servers, and promote it only during a documented recovery.
+- Test restoration regularly. A backup that has not been restored and checked is not recovery evidence.
+
+The backup target must not be the same disk or EC2 instance as active Coolify. Retain at least one additional off-site or object-storage copy.
 
 ## Security review
 

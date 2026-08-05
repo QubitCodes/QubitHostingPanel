@@ -27,7 +27,7 @@ describe('development authentication bypass', () => {
 		process.env.NODE_ENV = 'development';
 		const environment = { APP_ENV: 'development', ENABLE_DEV_AUTH_BYPASS: 'true' } as AppEnvironment;
 		expect(canUseDevelopmentAuthBypass(environment, new Request('http://localhost:5173/api/v1/auth/otp/request'))).toBe(true);
-		expect(canUseDevelopmentAuthBypass(environment, new Request('https://panel.qubit.codes/api/v1/auth/otp/request'))).toBe(false);
+		expect(canUseDevelopmentAuthBypass(environment, new Request('https://ghostdeploy.com/api/v1/auth/otp/request'))).toBe(false);
 		expect(canUseDevelopmentAuthBypass({ ...environment, ENABLE_DEV_AUTH_BYPASS: 'false' }, new Request('http://localhost:5173/api/v1/auth/otp/request'))).toBe(false);
 		process.env.NODE_ENV = 'production';
 		expect(canUseDevelopmentAuthBypass(environment, new Request('http://localhost:5173/api/v1/auth/otp/request'))).toBe(false);

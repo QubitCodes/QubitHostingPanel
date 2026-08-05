@@ -4,9 +4,9 @@ import { isCoolifyEnvironmentConflict, normalizeCoolifyWildcardDomain, reusableC
 
 describe('normalizeCoolifyWildcardDomain', () => {
 	it.each([
-		['https://apps-staging.qubit.codes', 'apps-staging.qubit.codes'],
-		['http://*.apps-staging.qubit.codes/', 'apps-staging.qubit.codes'],
-		['*.apps-staging.qubit.codes', 'apps-staging.qubit.codes']
+		['https://apps-staging.ghostdeploy.com', 'apps-staging.ghostdeploy.com'],
+		['http://*.apps-staging.ghostdeploy.com/', 'apps-staging.ghostdeploy.com'],
+		['*.apps-staging.ghostdeploy.com', 'apps-staging.ghostdeploy.com']
 	])('normalizes %s', (input, expected) => {
 		expect(normalizeCoolifyWildcardDomain(input)).toBe(expected);
 	});

@@ -104,7 +104,7 @@ export default function LoginPage() {
 					<span className="grid size-10 place-items-center rounded-2xl bg-brand-action text-brand-ink">
 						Q
 					</span>
-					Qubit Hosting
+					Ghost Deploy
 				</div>
 				<div className="max-w-xl">
 					<p className="text-sm font-semibold uppercase tracking-[.24em] text-brand-action">

@@ -1,7 +1,7 @@
-const APPLICATION_NAME = 'qubit-hosting-panel-staging';
-const APPLICATION_DOMAIN = 'https://panel.apps-staging.qubit.codes';
+const APPLICATION_NAME = 'ghost-deploy-staging';
+const APPLICATION_DOMAIN = 'https://staging.ghostdeploy.com';
 const APPLICATION_DOMAINS = APPLICATION_DOMAIN;
-const REPOSITORY_URL = 'https://github.com/QubitCodes/QubitHostingPanel';
+const REPOSITORY_URL = process.env.GHOST_DEPLOY_REPOSITORY_URL?.trim() || 'https://github.com/QubitCodes/QubitHostingPanel';
 const REQUIRED_COOLIFY_KEYS = ['COOLIFY_API_TOKEN', 'COOLIFY_BASE_URL', 'COOLIFY_DEFAULT_PROJECT_UUID', 'COOLIFY_SERVER_UUID'] as const;
 const RUNTIME_SECRET_KEYS = [
 	'DATABASE_URL',
@@ -111,7 +111,7 @@ async function main(): Promise<void> {
 				autogenerate_domain: false,
 				build_command: 'npm run build',
 				build_pack: 'nixpacks',
-				description: 'Qubit Hosting Panel staging control plane',
+				description: 'Ghost Deploy staging control plane',
 				destination_uuid: process.env.COOLIFY_DESTINATION_UUID || undefined,
 				domains: APPLICATION_DOMAINS,
 				environment_name: process.env.COOLIFY_DEFAULT_ENVIRONMENT_NAME || 'production',

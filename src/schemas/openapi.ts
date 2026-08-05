@@ -2,9 +2,9 @@
 export const OPENAPI_DOCUMENT = {
 	openapi: '3.1.0',
 	info: {
-		title: 'Qubit Hosting Panel API',
+		title: 'Ghost Deploy API',
 		version: '0.1.0',
-		description: 'Versioned APIs for the standalone Qubit Hosting Panel.',
+		description: 'Versioned APIs for the standalone Ghost Deploy platform.',
 	},
 	servers: [{ url: '/api/v1' }],
 	paths: {

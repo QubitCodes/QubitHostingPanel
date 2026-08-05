@@ -8,7 +8,7 @@ const SCALAR_HTML = `<!doctype html>
 	<head>
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
-		<title>Qubit Hosting API Reference</title>
+		<title>Ghost Deploy API Reference</title>
 	</head>
 	<body>
 		<script id="api-reference" type="application/json">{"theme":"saturn","url":"/api/v1/openapi.json"}</script>

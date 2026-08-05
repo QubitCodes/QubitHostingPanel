@@ -80,7 +80,7 @@ function pageTitle(pathname: string): string {
 				? 'Session details'
 				: pathname.startsWith('/search/')
 					? 'Search'
-					: 'Qubit Hosting')
+					: 'Ghost Deploy')
 	);
 }
 
@@ -230,11 +230,11 @@ export default function ApplicationLayout() {
 					to="/admin/overview"
 				>
 					<span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-brand-action font-bold text-brand-ink">
-						Q
+						G
 					</span>
 					{!collapsed && (
 						<span className="whitespace-nowrap font-semibold tracking-tight">
-							Qubit Hosting
+							Ghost Deploy
 						</span>
 					)}
 				</NavLink>

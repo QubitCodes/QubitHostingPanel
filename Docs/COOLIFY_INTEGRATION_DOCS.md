@@ -1,6 +1,6 @@
 # Production Deployment Guide: AWS EC2, Coolify v4 & QubitCodes Web
 
-This document provides a comprehensive, zero-assumption guide to setting up a production-ready **Coolify v4** instance on **Amazon Web Services (AWS EC2)** and deploying the **QubitCodes Web** project (`qubit.codes`).
+This document provides a comprehensive, zero-assumption guide to setting up a production-ready **Coolify v4** instance on **Amazon Web Services (AWS EC2)** and deploying **Ghost Deploy** (`ghostdeploy.com`).
 
 ---
 
@@ -9,8 +9,8 @@ This document provides a comprehensive, zero-assumption guide to setting up a pr
 ```
                         +---------------------------------------+
                         |           Cloudflare DNS              |
-                        |   qubit.codes -> AWS Elastic IP       |
-                        |   coolify.qubit.codes -> Elastic IP   |
+                        |   ghostdeploy.com -> AWS Elastic IP         |
+                        |   coolify.ghostdeploy.com -> Elastic IP     |
                         +-------------------+-------------------+
                                             |
                                             v
@@ -43,7 +43,7 @@ This document provides a comprehensive, zero-assumption guide to setting up a pr
 
 Before starting, ensure you have:
 - An active **AWS Account** with IAM admin permissions.
-- Domain ownership of **`qubit.codes`** (with DNS hosted on Cloudflare or AWS Route 53).
+- Domain ownership of **`ghostdeploy.com`** (with DNS hosted on Cloudflare, GoDaddy, or AWS Route 53).
 - Git repository access for **`QubitCodesWeb`** (GitHub, GitLab, or Bitbucket).
 
 ---
@@ -102,9 +102,9 @@ Go to your DNS Manager (Cloudflare or Route 53) and create the following **A Rec
 
 | Type | Name / Host | Target / Value | Proxy Status (Cloudflare) |
 | :--- | :--- | :--- | :--- |
-| **A** | `qubit.codes` | `YOUR_ELASTIC_IP` | DNS Only (Disabled during setup) |
-| **A** | `www.qubit.codes` | `YOUR_ELASTIC_IP` | DNS Only (Disabled during setup) |
-| **A** | `coolify.qubit.codes` | `YOUR_ELASTIC_IP` | DNS Only (Disabled during setup) |
+| **A** | `ghostdeploy.com` | `YOUR_ELASTIC_IP` | DNS Only (Disabled during setup) |
+| **A** | `www.ghostdeploy.com` | `YOUR_ELASTIC_IP` | DNS Only (Disabled during setup) |
+| **A** | `coolify.ghostdeploy.com` | `YOUR_ELASTIC_IP` | DNS Only (Disabled during setup) |
 
 *(Note: Turn off Cloudflare Proxying (Orange Cloud) during initial Coolify setup to allow Let's Encrypt HTTP-01 SSL verification).*
 
@@ -147,9 +147,9 @@ Navigate to http://YOUR_ELASTIC_IP:8000 to complete onboard setup.
    * Enter your name, primary email address, and strong password.
 3. **Configure Instance FQDN:**
    * Go to **Settings** -> **Instance** -> **Instance Domain / FQDN**.
-   * Enter: `https://coolify.qubit.codes`
+   * Enter: `https://coolify.ghostdeploy.com`
    * Click **Save**.
-4. Coolify will automatically request a SSL certificate for your dashboard. You can now access your panel at `https://coolify.qubit.codes`.
+4. Coolify will automatically request a SSL certificate for your dashboard. You can now access your panel at `https://coolify.ghostdeploy.com`.
 
 ---
 
@@ -192,7 +192,7 @@ QubitCodes Web requires a PostgreSQL database as specified in `package.json` (`d
 ### Step 8.3: Configure Build & Start Commands
 Under **Configuration** -> **General**:
 
-* **Domains / FQDN:** `https://qubit.codes, https://www.qubit.codes`
+* **Domains / FQDN:** `https://ghostdeploy.com, https://www.ghostdeploy.com`
 * **Install Command:** `npm ci`
 * **Build Command:** `npm run build`
 * **Start Command:** `npm run start` *(Runs `react-router-serve build/server/index.js` as defined in your package.json)*
@@ -205,7 +205,7 @@ Go to **Environment Variables** tab and paste your production variables matching
 
 ```env
 # Application Config
-APP_URL="https://qubit.codes"
+APP_URL="https://ghostdeploy.com"
 APP_PORT=3000
 APP_ENV="production"
 ENABLE_AUDIT_LOG="true"
@@ -258,7 +258,7 @@ To run Drizzle ORM migrations against the production database:
    * Runs `npm ci`.
    * Runs `npm run build` (vite / react-router build).
    * Spins up the Node.js production server.
-   * Traefik automatically issues Let's Encrypt SSL certificates for `qubit.codes`.
+   * Traefik automatically issues Let's Encrypt SSL certificates for `ghostdeploy.com`.
 
 ---
 
@@ -275,7 +275,7 @@ docker ps
 docker logs -f --tail 100 <qubitcodes_container_id>
 
 # 3. Test HTTP & SSL Status
-curl -I https://qubit.codes
+curl -I https://ghostdeploy.com
 ```
 
 ### Step 11.2: Automatic Redeployments on Git Push
@@ -306,7 +306,7 @@ Coolify mounts persistent volumes on the host filesystem under `/var/lib/docker/
        volume_name=$(basename "$dir")
        
        # Send payload to your central billing API (e.g. QubitCodesWeb API endpoint)
-       curl -X POST https://qubit.codes/api/v1/billing/record-storage \
+       curl -X POST https://ghostdeploy.com/api/v1/billing/record-storage \
             -H "Content-Type: application/json" \
             -H "Authorization: Bearer YOUR_INTERNAL_SYSTEM_TOKEN" \
             -d "{\"volume\":\"$volume_name\", \"size_mb\": $size_mb}"
@@ -343,7 +343,7 @@ If tenants upload files or media assets to a central S3 bucket:
 
 | Issue / Symptom | Probable Cause | Resolution |
 | :--- | :--- | :--- |
-| **502 Bad Gateway on `qubit.codes`** | Node SSR app failed to start or exposed wrong port. | Check app logs: `docker logs <container_id>`. Verify port matches `3000` in Coolify config. |
+| **502 Bad Gateway on `ghostdeploy.com`** | Node SSR app failed to start or exposed wrong port. | Check app logs: `docker logs <container_id>`. Verify port matches `3000` in Coolify config. |
 | **Database Connection Refused** | DB Host incorrect or container not on same network. | Ensure `DB_HOST` is set to container name (`qubitcodes-postgres`) and both resources belong to same project network. |
 | **SSL Certificate Error (NET::ERR_CERT_COMMON_NAME_INVALID)** | DNS not fully propagated or Cloudflare proxy interference. | Ensure Cloudflare Proxy is set to **DNS Only** during SSL issuance. Re-trigger deployment in Coolify. |
 | **Build Out of Memory (OOM)** | EC2 instance running out of RAM during Vite build. | Add a 2GB Swap file to Ubuntu server: `sudo fallocate -l 2G /swapfile && sudo chmod 600 /swapfile && sudo mkswap /swapfile && sudo swapon /swapfile`. |

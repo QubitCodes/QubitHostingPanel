@@ -50,7 +50,7 @@ async function githubJson<T>(path: string, token?: string): Promise<T> {
   const response = await fetch(`https://api.github.com${path}`, {
     headers: {
       accept: "application/vnd.github+json",
-      "user-agent": "QubitHostingPanel",
+      "user-agent": "GhostDeploy",
       ...(token ? { authorization: `Bearer ${token}` } : {}),
     },
     signal: AbortSignal.timeout(15_000),

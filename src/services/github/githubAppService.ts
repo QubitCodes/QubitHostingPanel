@@ -77,7 +77,7 @@ async function github<T>(
     headers: {
       accept: "application/vnd.github+json",
       authorization: `Bearer ${token}`,
-      "user-agent": "QubitHostingPanel",
+      "user-agent": "GhostDeploy",
       ...(init?.body ? { "content-type": "application/json" } : {}),
     },
     signal: AbortSignal.timeout(15_000),

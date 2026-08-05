@@ -70,7 +70,7 @@ export async function syncCoolifyGithubSource(input: {
   const created = await coolify<CoolifyGithubSource>("/github-apps", {
     method: "POST",
     body: JSON.stringify({
-      name: `Qubit workspace ${input.workspacePublicId} - ${input.accountLogin}`.slice(
+      name: `Ghost Deploy workspace ${input.workspacePublicId} - ${input.accountLogin}`.slice(
         0,
         255,
       ),

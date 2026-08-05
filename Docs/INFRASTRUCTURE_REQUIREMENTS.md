@@ -47,10 +47,10 @@ Do not install Coolify on the existing aaPanel production server. Both systems m
 ```text
 abc.com                     Public website and same-origin panel
 panel.abc.com               Optional separate panel origin
-panel.apps-staging.qubit.codes Staging panel
-coolify.qubit.codes         Production Coolify
-coolify-staging.qubit.codes Staging Coolify
-*.apps-staging.qubit.codes  Staging workloads
+staging.ghostdeploy.com            Staging panel
+coolify.ghostdeploy.com            Production Coolify
+coolify-staging.ghostdeploy.com    Staging Coolify
+*.apps-staging.ghostdeploy.com     Staging workloads
 ```
 
 ## Production prerequisites

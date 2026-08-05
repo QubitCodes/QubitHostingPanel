@@ -51,7 +51,7 @@ Gate: completed with clean install, migration, seed, schema verification, typech
 - [x] Six-digit public user IDs for human-readable administrator URLs, database-backed permission labels, and immediate Super Admin authorization before granular permission evaluation.
 - [x] Locked, fully enabled Super Admin permission workspace with server-side override protection.
 - [x] Reusable E.164-aware phone input with compact country-code display, searchable country picker, paste detection, and light/dark theme support.
-- [x] Centralized semantic light/dark theme tokens using the Qubit green, teal, sage, and muted-green system palette.
+- [x] Centralized semantic light/dark theme tokens using the Ghost Deploy green, teal, sage, and muted-green system palette.
 - [x] Reusable responsive data-table primitives with module search/filter toolbars, optional sortable headers, empty states, and sticky icon-action columns; applied to Administrators without sorting.
 - [x] Shared theme-aware custom dropdowns with optional search, keyboard selection, focus-out closing, and permission-controlled inline option creation support; native administrator selects removed and search disabled for short status lists.
 - [x] Separate URL-addressable administrator view/edit workspaces and role/permission-aware administrator list summaries.
@@ -139,12 +139,12 @@ Gate: completed with live concurrency, override, stale-observation, PostgreSQL/M
 
 ## Phase 5 - Coolify read-only integration
 
-Prerequisite: dedicated staging Linux server. Completed on AWS EC2 with Coolify v4, a healthy Traefik proxy, and `*.apps-staging.qubit.codes` routing.
+Prerequisite: dedicated staging Linux server. Completed on AWS EC2 with Coolify v4, a healthy Traefik proxy, and wildcard staging workload routing.
 
 - [x] Environment-secret single-connection configuration and least-privilege token contract.
 - [x] Database-managed encrypted multi-connection records and token rotation workflow.
 - [x] Connection validation and protected admin provider-health view.
-- [x] Real staging API authentication and team-scoped placement discovery verified against `coolify.qubit.codes`.
+- [x] Real staging API authentication and team-scoped placement discovery verified against the existing Coolify instance.
 - [x] Import servers, applications, databases, services, and deployments.
 - [x] Scheduled reconciliation and usage snapshots.
 - [x] Provider retry and error isolation in durable provisioning jobs.
@@ -158,7 +158,7 @@ Gate: completed with encrypted multi-connection storage, validated rotation roll
 
 - [x] Idempotent provisioning job queue with CLI/internal worker execution, optimistic claims, retry, and reconciliation.
 - [x] Starter Docker-image application creation after verified payment/trial and subscription snapshot; customer source and database selection remain later resource workflows.
-- [x] Direct provider smoke deployment verified with `nginx:alpine`, a healthy container, and a public HTTPS `apps-staging.qubit.codes` response.
+- [x] Direct provider smoke deployment verified with `nginx:alpine`, a healthy container, and a public HTTPS staging workload response.
 - [x] Deployment status and domain conflict validation.
 - [x] Admin payment/provisioning visibility, provider health, failure detail, and manual retry.
 - [x] Partial-failure reconciliation prevents repeat workers from recreating an existing provider resource.
@@ -189,7 +189,7 @@ Gate: retries and duplicate webhooks cannot create duplicate resources.
 ## Phase 7 - Production readiness
 
 - [ ] Production infrastructure, DNS, TLS, and secrets activation. Operator/environment work; not an application feature gap.
-- [x] Staging control plane deployed from pushed `main` with development authentication bypass disabled and trusted HTTPS at `panel.apps-staging.qubit.codes`.
+- [x] Previous staging control plane deployed from pushed `main` with development authentication bypass disabled and trusted HTTPS; Ghost Deploy domain cutover remains operator work.
 - [x] Staging source-deployment acceptance completed through the normal quota, job, provider, and reconciliation path: Node 22/Express and PHP 8.3/Laravel 12 both return public HTTPS 200 and finished as succeeded/running.
 - [x] Coolify partial-create recovery now upserts provider-generated environment variables, refreshes changed application commands, and redeploys terminal failures without duplicating active builds.
 - [x] Staging backup/restore and database-managed token-rotation drills.

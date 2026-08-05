@@ -1,4 +1,4 @@
-# Qubit Hosting Panel Documentation
+# Ghost Deploy Documentation
 
 ## Status
 
@@ -22,10 +22,11 @@
 10. `INFRASTRUCTURE_REQUIREMENTS.md` - local, staging, and production infrastructure requirements.
 11. `SHARED_PLATFORM_ARCHITECTURE.md` - shared runtimes, isolated application containers, logical databases, credentials, quotas, and backup boundaries.
 12. `IMPLEMENTATION_PLAN.md` - delivery phases, verification gates, and deferred work.
+13. `GHOST_DEPLOY_CUTOVER.md` - production/staging domains, provider changes, compatibility, and secret-rotation guidance.
 
 ## Fixed decisions
 
-- `QubitHostingPanel` is a standalone application deployed independently from `qubit.codes`.
+- Ghost Deploy is a standalone application deployed at `ghostdeploy.com`.
 - The public landing, authentication, checkout, customer dashboard, and admin dashboard share one origin by default; Platform Settings may configure a separate verified panel origin.
 - Checkout, subscriptions, entitlements, customer resources, and Coolify integration belong to the panel.
 - One user identity may have platform-admin access and customer/organisation access simultaneously.

@@ -12,7 +12,7 @@ import stylesheet from './app.css?url';
 export const links = () => [{ rel: 'stylesheet', href: stylesheet }];
 
 export const meta = () => [
-	{ title: 'Qubit Hosting Panel' },
+	{ title: 'Ghost Deploy' },
 	{
 		name: 'description',
 		content: 'Hosting commerce, subscriptions, entitlements, and customer resources.'

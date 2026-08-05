@@ -2,7 +2,7 @@
 
 ## 1. Product boundary
 
-Qubit Hosting Panel is the standalone hosting-commerce and operations application. Its public landing, authentication, checkout, customer dashboard, and admin dashboard share one origin by default. It retains its own repository, deployment, database configuration, secrets, API, and release process; Platform Settings may optionally move authenticated panel routes to another verified origin.
+Ghost Deploy is the standalone hosting-commerce and operations application. Its public landing, authentication, checkout, customer dashboard, and admin dashboard share one origin by default. It retains its own repository, deployment, database configuration, secrets, API, and release process; Platform Settings may optionally move authenticated panel routes to another verified origin.
 
 ```text
 abc.com
@@ -31,7 +31,7 @@ The public website must never hold Coolify credentials, calculate authoritative 
 - Authenticate and complete purchases on the same origin by default.
 - Link authorized users to `/dashboard` and/or `/admin` from the account menu.
 
-### Qubit Hosting Panel
+### Ghost Deploy
 
 - Authenticate admins and customers.
 - Manage platform roles, permissions, and individual overrides.

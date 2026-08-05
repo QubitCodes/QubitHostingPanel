@@ -148,9 +148,9 @@ export default function CustomerLayout() {
 			<aside className="border-b border-brand-primary/10 bg-brand-primary p-5 text-white lg:sticky lg:top-0 lg:h-screen">
 				<Link className="flex items-center gap-3 font-bold" to="/">
 					<span className="grid size-10 place-items-center rounded-xl bg-brand-action text-brand-ink">
-						Q
+						G
 					</span>{' '}
-					Qubit Hosting
+					Ghost Deploy
 				</Link>
 				<nav className="mt-10 grid gap-1">
 					{navigation.map(({ icon: Icon, label, to }) => (

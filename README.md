@@ -1,6 +1,6 @@
-# Qubit Hosting Panel
+# Ghost Deploy
 
-Standalone hosting commerce and management application for Qubit Codes.
+Managed application deployment, hosting commerce, and customer operations platform developed by Qubit Codes.
 
 ## Status
 
@@ -8,7 +8,7 @@ The MVA feature scope through controlled provisioning is implemented. Staging do
 
 ## Product boundary
 
-Qubit Hosting Panel owns the hosting landing page and authenticated panel routes on one domain by default:
+Ghost Deploy owns the hosting landing page and authenticated panel routes on one domain by default:
 
 ```text
 abc.com

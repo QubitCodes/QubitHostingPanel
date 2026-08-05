@@ -30,7 +30,7 @@ Use the PayU API key as `PAYU_MERCHANT_KEY` and the 32-bit salt as `PAYU_MERCHAN
 Configure the PayU payment webhook as:
 
 ```text
-https://panel.apps-staging.qubit.codes/api/v1/webhooks/payments/payu
+https://staging.ghostdeploy.com/api/v1/webhooks/payments/payu
 ```
 
 The browser success and failure URLs are generated from `APP_URL` and point to `/api/v1/payments/payu/callback`. Both paths validate PayU's reverse SHA-512 hash. The webhook is the durable source; duplicate notifications are accepted as no-ops. Test callbacks require a public HTTPS `APP_URL`; localhost cannot receive PayU redirects or webhooks from the internet without a secure tunnel.
@@ -47,7 +47,7 @@ RAZORPAY_WEBHOOK_SECRET=
 The server creates every Razorpay Order. Browser completion is accepted only after HMAC verification and a server-side Payment API fetch confirms the provider order, amount, currency, and captured status. Configure the webhook URL as:
 
 ```text
-https://panel.apps-staging.qubit.codes/api/v1/webhooks/payments/razorpay
+https://staging.ghostdeploy.com/api/v1/webhooks/payments/razorpay
 ```
 
 Subscribe to `payment.captured`, `payment.failed`, and `order.paid`.
@@ -63,13 +63,13 @@ Use a dedicated Coolify staging server. Do not install Coolify beside aaPanel. C
 ```env
 HOSTING_PROVIDER=coolify
 COOLIFY_ENABLED=true
-COOLIFY_BASE_URL=https://coolify.qubit.codes
+COOLIFY_BASE_URL=https://coolify.ghostdeploy.com
 COOLIFY_API_TOKEN=
 COOLIFY_SERVER_UUID=
 COOLIFY_DESTINATION_UUID=
 COOLIFY_DEFAULT_PROJECT_UUID=
 COOLIFY_DEFAULT_ENVIRONMENT_NAME=production
-COOLIFY_WILDCARD_DOMAIN=https://apps-staging.qubit.codes
+COOLIFY_WILDCARD_DOMAIN=https://apps-staging.ghostdeploy.com
 COOLIFY_STARTER_IMAGE=nginx
 COOLIFY_STARTER_IMAGE_TAG=alpine
 COOLIFY_STARTER_PORT=80

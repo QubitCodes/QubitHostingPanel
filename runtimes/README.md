@@ -1,6 +1,6 @@
 # Runtime Images
 
-Qubit Hosting publishes reusable `linux/amd64` application runtime images to GitHub Container Registry. Customer applications remain separate containers while sharing immutable base layers.
+Ghost Deploy publishes reusable `linux/amd64` application runtime images to GitHub Container Registry. Customer applications remain separate containers while sharing immutable base layers.
 
 ## Supported matrix
 

@@ -518,7 +518,7 @@ export function DeployApplicationForm({
           </label>
         </Section>
         <Section
-          description="Choose a repository and branch, then let Qubit inspect safe manifest and template files."
+          description="Choose a repository and branch, then let Ghost Deploy inspect safe manifest and template files."
           icon={Github}
           title="Source repository"
         >
@@ -753,7 +753,7 @@ export function DeployApplicationForm({
             <legend className="font-semibold">Version</legend>
             <Hint>
               Only active platform-approved versions are shown; internal image
-              revisions remain managed by Qubit.
+              revisions remain managed by Ghost Deploy.
             </Hint>
             <div className="mt-3 flex flex-wrap gap-2">
               {stackRuntimes.map((runtime) => (
@@ -1020,7 +1020,7 @@ export function DeployApplicationForm({
               <fieldset>
                 <legend className="font-semibold">Database engine</legend>
                 <Hint>
-                  Choose the engine required by your framework. Qubit generates
+                  Choose the engine required by your framework. Ghost Deploy generates
                   restricted credentials and injects them securely.
                 </Hint>
                 <div className="mt-3 grid grid-cols-2 gap-3">
