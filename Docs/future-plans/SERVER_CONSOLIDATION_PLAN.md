@@ -132,10 +132,10 @@ The ownership boundary should remain explicit:
 The aaPanel server must be inventoried before retirement. Some services cannot be imported into Coolify as ordinary applications:
 
 - Mail servers, mail domains, and mailboxes.
-- DNS hosting.
+- Authoritative DNS-provider dependencies, nameserver configuration, and any locally hosted DNS zones.
 - FTP accounts.
 - Existing database servers and databases.
-- Cron jobs.
+- Existing host or aaPanel cron jobs that must be recreated and verified as Coolify scheduled tasks.
 - PHP applications with writable uploads.
 - SSL certificates.
 - Application environment files.

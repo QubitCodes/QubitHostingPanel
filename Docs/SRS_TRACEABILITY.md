@@ -41,4 +41,6 @@ These remain pending without changing feature-completion status.
 
 ## Deferred roadmap
 
+See `future-plans/NON_MVA_ROADMAP.md` for the consolidated initiatives, delivery order, and entry gates.
+
 Organisation invitations and multi-member roles, multiple organisation Owners, seat enforcement, recovery/dispute workflows, workspace merge/split/resource transfer, customer Organisation-to-Personal reversion, Firebase/Google identity, automatic multi-server placement, dedicated high-load database placement, proration/automatic overage charging, and providers beyond Coolify remain explicitly outside the MVA.

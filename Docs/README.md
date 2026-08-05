@@ -23,7 +23,7 @@
 11. `SHARED_PLATFORM_ARCHITECTURE.md` - shared runtimes, isolated application containers, logical databases, credentials, quotas, and backup boundaries.
 12. `IMPLEMENTATION_PLAN.md` - delivery phases, verification gates, and deferred work.
 13. `GHOST_DEPLOY_CUTOVER.md` - production/staging domains, provider changes, compatibility, and secret-rotation guidance.
-14. `SERVER_CONSOLIDATION_PLAN.md` - single-server Coolify and Cockpit architecture, migration phases, exceptions, and retirement gates.
+14. `future-plans/README.md` - explicitly non-MVA roadmap covering hosted email, organisation/deployment/database expansion, and server consolidation.
 
 ## Fixed decisions
 

@@ -204,6 +204,8 @@ Gate: production checklist is accepted with evidence.
 
 ## Deferred roadmap
 
+The consolidated post-MVA roadmap is maintained in `future-plans/NON_MVA_ROADMAP.md`.
+
 - Organisation invitations and multiple customer users.
 - Multiple organisation Owners and final-Owner protection.
 - Organisation billing-manager/member roles and custom workspace permissions.
