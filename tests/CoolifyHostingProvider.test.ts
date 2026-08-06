@@ -89,6 +89,43 @@ describe('Coolify API errors', () => {
 	});
 });
 
+describe('Coolify environment variables', () => {
+	it('uses the current API fields without removed build-time/runtime flags', async () => {
+		process.env.DATABASE_URL =
+			'postgresql://test:test@localhost:5432/ghost_deploy_test';
+		resetEnvironmentForTests();
+		const bodies: string[] = [];
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+				const url = String(input);
+				if (typeof init?.body === 'string') bodies.push(init.body);
+				if (url.endsWith('/applications')) return Response.json([]);
+				return Response.json({ uuid: 'app-uuid' });
+			}),
+		);
+		const provider = new CoolifyHostingProvider({
+			apiToken: 'token',
+			baseUrl: 'https://coolify.example',
+			defaultProjectUuid: 'project',
+			serverUuid: 'server',
+		});
+
+		await provider.provisionApplication({
+			environmentVariables: [{ key: 'API_URL', value: 'https://example.com', scope: 'build' }],
+			name: 'example',
+			source: { branch: 'main', repository: 'https://github.com/example/app' },
+			workspaceId: 'workspace',
+		});
+
+		const environmentBody = bodies.map((body) => JSON.parse(body) as Record<string, unknown>)
+			.find((body) => body.key === 'API_URL');
+		expect(environmentBody).toMatchObject({ key: 'API_URL', is_literal: true });
+		expect(environmentBody).not.toHaveProperty('is_build_time');
+		expect(environmentBody).not.toHaveProperty('is_runtime');
+	});
+});
+
 describe('framework persistent storage', () => {
 	it('creates missing volumes before the first deployment', async () => {
 		process.env.DATABASE_URL =

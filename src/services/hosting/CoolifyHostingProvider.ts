@@ -189,7 +189,6 @@ export class CoolifyHostingProvider implements HostingProvider {
     applicationUuid: string,
     key: string,
     value: string,
-    scope: "runtime" | "build" | "both" = "runtime",
   ): Promise<void> {
     const path = `/applications/${encodeURIComponent(applicationUuid)}/envs`;
     const body = JSON.stringify({
@@ -198,8 +197,6 @@ export class CoolifyHostingProvider implements HostingProvider {
       is_preview: false,
       is_literal: true,
       is_multiline: value.includes("\n"),
-      is_build_time: scope === "build" || scope === "both",
-      is_runtime: scope === "runtime" || scope === "both",
     });
     try {
       await this.request(path, { method: "POST", body });
@@ -384,7 +381,6 @@ export class CoolifyHostingProvider implements HostingProvider {
         body.uuid,
         variable.key,
         variable.value,
-        variable.scope,
       );
     if (input.persistentStorages?.length) {
       const currentStorages = await this.request<{
