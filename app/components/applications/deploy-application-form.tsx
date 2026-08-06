@@ -343,10 +343,12 @@ export function DeployApplicationForm({
   const [outputDirectory, setOutputDirectory] = useState("");
   const [variables, setVariables] = useState<EnvironmentVariable[]>([]);
   const [environmentEditorOpen, setEnvironmentEditorOpen] = useState(false);
-  const databaseSuffixRef = useRef(
-    options.suggestedDomainSuffix ?? crypto.randomUUID().replaceAll("-", "").slice(0, 6),
+  const [databaseSuffix] = useState(
+    () =>
+      options.suggestedDomainSuffix ??
+      crypto.randomUUID().replaceAll("-", "").slice(0, 6),
   );
-  const [newDatabaseName, setNewDatabaseName] = useState("");
+  const [databaseNamePrefix, setDatabaseNamePrefix] = useState("");
   const [databaseNameEdited, setDatabaseNameEdited] = useState(false);
   const [databaseMode, setDatabaseMode] = useState<"new" | "existing" | "none">(
     "new",
@@ -534,9 +536,7 @@ export function DeployApplicationForm({
     if (!labelEdited) setDomainLabel(slug(value));
     if (!databaseNameEdited) {
       const identifier = databaseIdentifier(value);
-      setNewDatabaseName(
-        identifier ? `${identifier}_${databaseSuffixRef.current}` : "",
-      );
+      setDatabaseNamePrefix(identifier);
     }
   }
   function selectStack(value: RuntimeOption["language"]): void {
@@ -654,7 +654,7 @@ export function DeployApplicationForm({
             headers: { "content-type": "application/json" },
             body: JSON.stringify({
               engine: databaseEngine,
-              name: newDatabaseName,
+              name: `${databaseNamePrefix}_${databaseSuffix}`,
               connectionLimit: 10,
               storageQuotaMb: 1024,
             }),
@@ -1333,22 +1333,27 @@ export function DeployApplicationForm({
               </fieldset>
               <label className="grid gap-2 font-semibold">
                 Database name
-                <input
-                  className={inputClass}
-                  maxLength={80}
-                  name="newDatabaseName"
-                  onChange={(event) => {
-                    setDatabaseNameEdited(true);
-                    setNewDatabaseName(databaseIdentifier(event.target.value));
-                  }}
-                  pattern="[a-z0-9]+(?:_[a-z0-9]+)*"
-                  placeholder="customer_api_a1b2c3"
-                  required
-                  value={newDatabaseName}
-                />
+                <div className="flex items-stretch overflow-hidden rounded-xl border border-brand-primary/15 bg-white focus-within:border-brand-action dark:bg-gray-800">
+                  <input
+                    className="min-w-0 flex-1 bg-transparent px-4 py-3 text-gray-900 outline-none dark:text-gray-100"
+                    maxLength={70}
+                    name="newDatabaseNamePrefix"
+                    onChange={(event) => {
+                      setDatabaseNameEdited(true);
+                      setDatabaseNamePrefix(databaseIdentifier(event.target.value));
+                    }}
+                    pattern="[a-z0-9]+(?:_[a-z0-9]+)*"
+                    placeholder="customer_api"
+                    required
+                    value={databaseNamePrefix}
+                  />
+                  <span className="flex select-none items-center border-l border-brand-primary/10 bg-app-canvas px-3 font-mono text-xs font-bold text-app-muted">
+                    _{databaseSuffix}
+                  </span>
+                </div>
                 <Hint>
-                  Use lowercase snake_case. A stable six-character suffix is
-                  generated from this deployment to keep the name unique.
+                  Edit the snake_case prefix only. The six-character suffix is
+                  fixed for this form and keeps the complete name unique.
                 </Hint>
               </label>
             </>
