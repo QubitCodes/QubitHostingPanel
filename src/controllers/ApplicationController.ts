@@ -208,8 +208,9 @@ export class ApplicationController {
 		db.select({ hostname: applicationDomains.hostname }).from(applicationDomains).innerJoin(applicationBuilds, and(eq(applicationBuilds.id, applicationDomains.applicationBuildId), eq(applicationBuilds.workspaceId, workspace.id), isNull(applicationBuilds.deletedAt))).where(and(eq(applicationDomains.type, 'custom'), isNull(applicationDomains.deletedAt))),
       ]);
       const platform = await getEffectivePlatformUrls();
-      const [domainEntitlement, [{ customDomainCount }]] = await Promise.all([
+      const [domainEntitlement, databaseEntitlement, [{ customDomainCount }]] = await Promise.all([
         effectiveEntitlement(workspace.id, "domains.count"),
+        effectiveEntitlement(workspace.id, "databases.count"),
         db
           .select({ customDomainCount: count() })
           .from(applicationDomains)
@@ -239,6 +240,11 @@ export class ApplicationController {
           .slice(0, 6)
           .padEnd(6, "0"),
         limits: {
+          databases: {
+            allowed: databaseEntitlement.isUnlimited || databases.length < databaseEntitlement.limit,
+            current: databases.length,
+            limit: databaseEntitlement.isUnlimited ? null : databaseEntitlement.limit,
+          },
           customDomains: {
             allowed:
               domainEntitlement.isUnlimited ||

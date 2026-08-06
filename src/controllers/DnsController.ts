@@ -30,6 +30,7 @@ import {
 	scanPublicDns,
 } from '@services/domains/dnsManagementService';
 import type { RequestMetadata } from '@utils/request';
+import type { DestructiveActionRequest } from '@schemas/destructiveAction';
 
 async function ownedDomain(
 	request: Request,
@@ -565,6 +566,7 @@ export class DnsController {
 		recordId: string,
 		input: UpdateDnsRecordInput | undefined,
 		metadata: RequestMetadata,
+		deletionConfirmation?: DestructiveActionRequest,
 	): Promise<Response> {
 		try {
 			const domain = await ownedDomain(
@@ -592,6 +594,11 @@ export class DnsController {
 					'Platform-managed application records cannot be edited manually.',
 				);
 			if (!input) {
+				const recordName = `${record.type} ${record.name}`;
+				if (deletionConfirmation?.confirmationName !== recordName || deletionConfirmation.connectedResourceNames.length) {
+					await recordAuditLog({ action: 'dns.record_delete_rejected', actorUserId: domain.actorUserId, resourceId: record.id, resourceType: 'dns_record', metadata: { hostname: domain.hostname, reason: 'Confirmation mismatch.' }, ipAddress: metadata.ipAddress, userAgent: metadata.userAgent });
+					return resp.failure('DNS record deletion confirmation does not match.', resp.codes.ORDER_CANNOT_BE_PROCESSED, undefined, null, undefined, 422);
+				}
 				if (zone.providerZoneId && record.providerRecordId)
 					await deleteAuthoritativeRecord(
 						zone.provider as AuthoritativeDnsProvider,

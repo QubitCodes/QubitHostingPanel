@@ -6,6 +6,7 @@ import { getDomain } from 'tldts';
 import { db } from '@db/client';
 import { applicationBuilds, applicationDomains, customers, domainAccessRequests, domainOwnerships, workspaceMemberships, workspaceResources, workspaces } from '@db/schema';
 import type { CreateApplicationDomainRequest, UpdateApplicationDomainRequest } from '@schemas/application';
+import type { DestructiveActionRequest } from '@schemas/destructiveAction';
 import { recordAuditLog } from '@services/auditLogService';
 import { authenticateSession } from '@services/auth/authenticatedSessionService';
 import { hostingProvider } from '@services/hosting/hostingProviderFactory';
@@ -270,11 +271,15 @@ export class ApplicationDomainController {
 	}
 
 	/** Detach a saved domain from the provider, preserving a verified primary replacement. */
-	public static async remove(request: Request, workspaceId: number, applicationId: string, domainId: string, metadata: RequestMetadata): Promise<Response> {
+	public static async remove(request: Request, workspaceId: number, applicationId: string, domainId: string, input: DestructiveActionRequest, metadata: RequestMetadata): Promise<Response> {
 		try {
 			const application = await ownedApplication(request, workspaceId, applicationId, metadata);
 			const [domain] = await db.select().from(applicationDomains).where(and(eq(applicationDomains.id, domainId), eq(applicationDomains.applicationBuildId, applicationId), isNull(applicationDomains.deletedAt))).limit(1);
 			if (!domain) return resp.failure('Domain not found.', resp.codes.RESOURCE_NOT_FOUND, undefined, null, undefined, 404);
+			if (input.confirmationName !== domain.hostname || input.connectedResourceNames.length) {
+				await recordAuditLog({ action: 'application_domain.delete_rejected', actorUserId: application.actorUserId, ipAddress: metadata.ipAddress, metadata: { hostname: domain.hostname, reason: 'Confirmation mismatch.' }, resourceId: domainId, resourceType: 'application_domain', userAgent: metadata.userAgent });
+				return resp.failure('Domain deletion confirmation does not match.', resp.codes.ORDER_CANNOT_BE_PROCESSED, undefined, null, undefined, 422);
+			}
 			const [replacement] = domain.isPrimary || domain.type === 'platform' ? await db.select({ id: applicationDomains.id }).from(applicationDomains).where(and(eq(applicationDomains.applicationBuildId, applicationId), ne(applicationDomains.id, domainId), eq(applicationDomains.status, 'verified'), eq(applicationDomains.isEnabled, true), isNull(applicationDomains.deletedAt))).limit(1) : [];
 			if (domain.type === 'platform' && !replacement) throw new Error('Verify and enable another domain before removing the platform subdomain.');
 			if (domain.isPrimary && !replacement) throw new Error('Choose or enable another primary domain before removing this domain.');

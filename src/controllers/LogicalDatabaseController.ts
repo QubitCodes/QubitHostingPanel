@@ -11,10 +11,11 @@ import {
   logicalDatabases,
   workspaceMemberships,
   workspaceResources,
+  workspaceUsageReservations,
   workspaces,
   workspaceSubscriptions,
 } from "@db/schema";
-import type { CreateLogicalDatabaseRequest } from "@schemas/logicalDatabase";
+import type { CreateLogicalDatabaseRequest, DeleteLogicalDatabaseRequest } from "@schemas/logicalDatabase";
 import { recordAuditLog } from "@services/auditLogService";
 import { authenticateSession } from "@services/auth/authenticatedSessionService";
 import { sharedDatabaseProvisioner } from "@services/databases/sharedDatabaseProvisionerFactory";
@@ -114,6 +115,59 @@ export function composeLogicalDatabaseResponse<
 
 /** Customer-authorized shared logical database lifecycle. */
 export class LogicalDatabaseController {
+	/** Permanently removes a managed database after validating its live dependency confirmations. */
+	public static async destroy(
+		request: Request,
+		workspacePublicId: number,
+		databaseId: string,
+		input: DeleteLogicalDatabaseRequest,
+		metadata: RequestMetadata,
+	): Promise<Response> {
+		let actorUserId: string | undefined;
+		try {
+			const access = await workspaceAccess(request, workspacePublicId, metadata);
+			actorUserId = access.actorUserId;
+			const { workspace } = access;
+			const [record] = await db
+				.select({ database: logicalDatabases, cluster: databaseClusters, resourceName: workspaceResources.name })
+				.from(logicalDatabases)
+				.innerJoin(databaseClusters, eq(databaseClusters.id, logicalDatabases.clusterId))
+				.innerJoin(workspaceResources, eq(workspaceResources.id, logicalDatabases.resourceId))
+				.where(and(eq(logicalDatabases.id, databaseId), eq(logicalDatabases.workspaceId, workspace.id), isNull(logicalDatabases.deletedAt)))
+				.limit(1);
+			if (!record) return resp.failure('Database not found.', resp.codes.RESOURCE_NOT_FOUND, undefined, null, undefined, 404);
+
+			const bindings = await db
+				.select({ bindingId: applicationDatabaseBindings.id, applicationId: applicationBuilds.id, metadata: applicationBuilds.metadata })
+				.from(applicationDatabaseBindings)
+				.innerJoin(applicationBuilds, eq(applicationBuilds.id, applicationDatabaseBindings.applicationBuildId))
+				.where(and(eq(applicationDatabaseBindings.logicalDatabaseId, record.database.id), isNull(applicationDatabaseBindings.deletedAt), isNull(applicationBuilds.deletedAt)));
+			const applicationNames = bindings.map(({ metadata: applicationMetadata }) => String(applicationMetadata?.name ?? 'Application')).sort();
+			const submittedNames = [...input.connectedApplicationNames].sort();
+			const confirmationsMatch = input.confirmationName === record.database.databaseName && submittedNames.length === applicationNames.length && submittedNames.every((name, index) => name === applicationNames[index]);
+			if (!confirmationsMatch || (applicationNames.length > 0 && !input.acceptedImpact)) {
+				await recordAuditLog({ actorUserId, action: 'logical_database.delete_rejected', resourceType: 'logical_database', resourceId: record.database.id, metadata: { workspacePublicId, connectedApplicationCount: applicationNames.length, reason: 'Confirmation mismatch.' }, ipAddress: metadata.ipAddress, userAgent: metadata.userAgent });
+				return resp.failure('Database deletion confirmation does not match its current dependencies.', resp.codes.ORDER_CANNOT_BE_PROCESSED, undefined, { connectedApplications: applicationNames }, undefined, 422);
+			}
+
+			const admin = JSON.parse(decryptCredential(record.cluster.adminCredentialCiphertext)) as ClusterCredential;
+			const endpoint = databaseClusterEndpoint(record.cluster);
+			await sharedDatabaseProvisioner(record.cluster.engine).deleteLogicalDatabase({ adminDatabase: admin.database, adminPassword: admin.password, adminUsername: admin.username, databaseName: record.database.databaseName, host: endpoint.host, port: endpoint.port, tlsMode: endpoint.tlsMode, username: record.database.username });
+			const deletedAt = new Date();
+			await db.transaction(async (transaction) => {
+				if (bindings.length) await transaction.update(applicationDatabaseBindings).set({ deletedAt, deleteReason: 'Database deleted by workspace user.', updatedAt: deletedAt }).where(inArray(applicationDatabaseBindings.id, bindings.map(({ bindingId }) => bindingId)));
+				await transaction.update(logicalDatabases).set({ status: 'suspended', deletedAt, deleteReason: 'Deleted by workspace user.', updatedAt: deletedAt }).where(eq(logicalDatabases.id, record.database.id));
+				if (record.database.resourceId) await transaction.update(workspaceResources).set({ status: 'stopped', deletedAt, deleteReason: 'Logical database deleted by workspace user.', updatedAt: deletedAt }).where(eq(workspaceResources.id, record.database.resourceId));
+				await transaction.update(workspaceUsageReservations).set({ status: 'released', releasedAt: deletedAt, releaseReason: 'Logical database deleted.', updatedAt: deletedAt }).where(and(eq(workspaceUsageReservations.resourceType, 'logical_database'), eq(workspaceUsageReservations.resourceId, record.database.id), eq(workspaceUsageReservations.status, 'committed'), isNull(workspaceUsageReservations.deletedAt)));
+			});
+			await recordAuditLog({ actorUserId, action: 'logical_database.deleted', resourceType: 'logical_database', resourceId: record.database.id, metadata: { workspacePublicId, databaseName: record.database.databaseName, connectedApplicationCount: applicationNames.length }, ipAddress: metadata.ipAddress, userAgent: metadata.userAgent });
+			return resp.success('Database permanently deleted.', { id: record.database.id }, resp.codes.UPDATED);
+		} catch (error) {
+			if (actorUserId) await recordAuditLog({ actorUserId, action: 'logical_database.delete_failed', resourceType: 'logical_database', resourceId: databaseId, metadata: { workspacePublicId, reason: error instanceof Error ? error.message : 'Unknown deletion failure.' }, ipAddress: metadata.ipAddress, userAgent: metadata.userAgent }).catch(() => undefined);
+			return resp.failure(error instanceof Error ? error.message : 'Database deletion failed.', resp.codes.INTERNAL_SERVICE_ERROR, undefined, null, undefined, 500);
+		}
+	}
+
   public static async nameAvailability(
     request: Request,
     workspacePublicId: number,

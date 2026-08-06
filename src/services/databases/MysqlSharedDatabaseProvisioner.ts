@@ -1,11 +1,20 @@
 import mysql from 'mysql2/promise';
 
-import type { CreateLogicalDatabaseInput, CreatedLogicalDatabase, MeasureLogicalDatabaseInput, SharedDatabaseProvisioner } from '@services/databases/SharedDatabaseProvisioner';
+import type { CreateLogicalDatabaseInput, CreatedLogicalDatabase, DeleteLogicalDatabaseInput, MeasureLogicalDatabaseInput, SharedDatabaseProvisioner } from '@services/databases/SharedDatabaseProvisioner';
 
 const identifier = (value: string): string => `\`${value.replaceAll('`', '``')}\``;
 
 /** Provisions one MySQL database and a login restricted to that database. */
 export class MysqlSharedDatabaseProvisioner implements SharedDatabaseProvisioner {
+	/** Permanently removes the isolated database and its login. */
+	public async deleteLogicalDatabase(input: DeleteLogicalDatabaseInput): Promise<void> {
+		const admin = await mysql.createConnection({ host: input.host, port: input.port, database: input.adminDatabase, user: input.adminUsername, password: input.adminPassword, ssl: input.tlsMode === 'disabled' ? undefined : { rejectUnauthorized: input.tlsMode === 'verify-full' }, connectTimeout: 15_000 });
+		try {
+			await admin.query(`DROP DATABASE IF EXISTS ${identifier(input.databaseName)}`);
+			await admin.query(`DROP USER IF EXISTS ?@'%'`, [input.username]);
+		} finally { await admin.end(); }
+	}
+
 	public async measureLogicalDatabaseBytes(input: MeasureLogicalDatabaseInput): Promise<number> {
 		const admin = await mysql.createConnection({ host: input.host, port: input.port, database: input.adminDatabase, user: input.adminUsername, password: input.adminPassword, ssl: input.tlsMode === 'disabled' ? undefined : { rejectUnauthorized: input.tlsMode === 'verify-full' }, connectTimeout: 15_000 });
 		try { const [rows] = await admin.query<mysql.RowDataPacket[]>('SELECT COALESCE(SUM(data_length + index_length), 0) AS bytes FROM information_schema.tables WHERE table_schema = ?', [input.databaseName]); return Number(rows[0]?.bytes ?? 0); }

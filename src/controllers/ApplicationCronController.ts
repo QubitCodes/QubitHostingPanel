@@ -4,6 +4,7 @@ import { resp } from '@qubitcodes/qcresp';
 import { db } from '@db/client';
 import { applicationBuilds, applicationCronJobs, customers, runtimeImages, workspaceMemberships, workspaceResources, workspaces } from '@db/schema';
 import type { CreateApplicationCronRequest } from '@schemas/applicationCron';
+import type { DestructiveActionRequest } from '@schemas/destructiveAction';
 import { recordAuditLog } from '@services/auditLogService';
 import { cronMinimumIntervalMinutes, resolveApplicationCronCommand } from '@services/applications/applicationCronService';
 import { authenticateSession } from '@services/auth/authenticatedSessionService';
@@ -84,11 +85,15 @@ export class ApplicationCronController {
 		} catch (error) { return resp.failure(error instanceof Error ? error.message : 'Unable to update scheduled task.', resp.codes.GENERAL_BUSINESS_LOGIC_ERROR, undefined, null, undefined, 422); }
 	}
 
-	public static async remove(request: Request, workspaceId: number, applicationId: string, cronId: string, metadata: RequestMetadata): Promise<Response> {
+	public static async remove(request: Request, workspaceId: number, applicationId: string, cronId: string, input: DestructiveActionRequest, metadata: RequestMetadata): Promise<Response> {
 		try {
 			const application = await ownedApplication(request, workspaceId, applicationId, metadata);
 			const [existing] = await db.select().from(applicationCronJobs).where(and(eq(applicationCronJobs.id, cronId), eq(applicationCronJobs.applicationBuildId, application.id), isNull(applicationCronJobs.deletedAt))).limit(1);
 			if (!existing) throw new Error('Scheduled task not found.');
+			if (input.confirmationName !== existing.name || input.connectedResourceNames.length) {
+				await recordAuditLog({ action: 'application_cron.delete_rejected', actorUserId: application.actorUserId, ipAddress: metadata.ipAddress, metadata: { reason: 'Confirmation mismatch.' }, resourceId: existing.id, resourceType: 'application_cron_job', userAgent: metadata.userAgent });
+				return resp.failure('Scheduled task deletion confirmation does not match.', resp.codes.ORDER_CANNOT_BE_PROCESSED, undefined, null, undefined, 422);
+			}
 			if (existing.providerTaskUuid && application.providerId) await (await hostingProvider()).deleteApplicationScheduledTask(application.providerId, existing.providerTaskUuid);
 			await db.update(applicationCronJobs).set({ deletedAt: new Date(), deleteReason: 'Deleted by workspace user.', updatedAt: new Date() }).where(eq(applicationCronJobs.id, existing.id));
 			await recordAuditLog({ action: 'application_cron.deleted', actorUserId: application.actorUserId, ipAddress: metadata.ipAddress, resourceId: existing.id, resourceType: 'application_cron_job', userAgent: metadata.userAgent });

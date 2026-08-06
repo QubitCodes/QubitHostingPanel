@@ -454,7 +454,8 @@ export const OPENAPI_DOCUMENT = {
 				summary: 'Soft-delete an offer',
 				operationId: 'deleteOffer',
 				security: [{ bearerAuth: [] }],
-				responses: { '200': { description: 'Offer deleted.' } },
+				requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['confirmationName'], properties: { confirmationName: { type: 'string', description: 'Exact offer slug.' }, acceptedImpact: { type: 'boolean' }, connectedResourceNames: { type: 'array', items: { type: 'string' } } } } } } },
+				responses: { '200': { description: 'Offer deleted.' }, '422': { description: 'Typed confirmation does not match.' } },
 			},
 		},
 		'/workspaces': {
@@ -686,6 +687,7 @@ export const OPENAPI_DOCUMENT = {
 				summary: 'Soft-delete a customer-managed DNS record',
 				operationId: 'deleteDomainDnsRecord',
 				security: [{ bearerAuth: [] }],
+				requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', additionalProperties: false, required: ['confirmationName'], properties: { confirmationName: { type: 'string', example: 'A www' }, acceptedImpact: { type: 'boolean' }, connectedResourceNames: { type: 'array', items: { type: 'string' } } } } } } },
 				responses: {
 					'200': {
 						description:
@@ -1208,6 +1210,16 @@ export const OPENAPI_DOCUMENT = {
 				},
 			},
 		},
+		'/workspaces/{workspaceId}/databases/{databaseId}': {
+			delete: {
+				summary: 'Permanently delete a workspace database',
+				operationId: 'deleteWorkspaceDatabase',
+				security: [{ bearerAuth: [] }],
+				parameters: [{ $ref: '#/components/parameters/WorkspaceId' }, { $ref: '#/components/parameters/DatabaseId' }],
+				requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', additionalProperties: false, required: ['confirmationName'], properties: { confirmationName: { type: 'string' }, acceptedImpact: { type: 'boolean' }, connectedApplicationNames: { type: 'array', items: { type: 'string' } } } } } } },
+				responses: { '200': { description: 'Physical database removed and local records soft-deleted.' }, '404': { description: 'Database not found.' }, '422': { description: 'Confirmation or live dependency state does not match.' }, '500': { description: 'Infrastructure deletion failed; local database remains active.' } },
+			},
+		},
 		'/workspaces/{workspaceId}/databases/{databaseId}/credentials': {
 			post: {
 				summary: 'Reveal an encrypted workspace database credential',
@@ -1284,6 +1296,7 @@ export const OPENAPI_DOCUMENT = {
 					{ $ref: '#/components/parameters/DatabaseId' },
 					{ $ref: '#/components/parameters/BackupId' },
 				],
+				requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', additionalProperties: false, required: ['confirmationName'], properties: { confirmationName: { type: 'string', example: 'backup-1234abcd' }, acceptedImpact: { type: 'boolean' }, connectedResourceNames: { type: 'array', items: { type: 'string' } } } } } } },
 				responses: {
 					'200': { description: 'Artifact removed and record soft-deleted.' },
 					'404': { description: 'Backup not found.' },
@@ -1565,7 +1578,7 @@ export const OPENAPI_DOCUMENT = {
 		},
 		'/workspaces/{workspaceId}/applications/{applicationId}/cron-jobs/{cronId}': {
 			patch: { summary: 'Update a project scheduled task', operationId: 'updateApplicationCronJob', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Task synchronized and updated.' }, '422': { description: 'Update rejected.' } } },
-			delete: { summary: 'Delete a project scheduled task', operationId: 'deleteApplicationCronJob', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Provider task removed and local record soft-deleted.' }, '422': { description: 'Deletion failed.' } } },
+			delete: { summary: 'Delete a project scheduled task', operationId: 'deleteApplicationCronJob', security: [{ bearerAuth: [] }], requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['confirmationName'], properties: { confirmationName: { type: 'string' }, acceptedImpact: { type: 'boolean' }, connectedResourceNames: { type: 'array', items: { type: 'string' } } } } } } }, responses: { '200': { description: 'Provider task removed and local record soft-deleted.' }, '422': { description: 'Deletion confirmation or provider cleanup failed.' } } },
 		},
 		'/workspaces/{workspaceId}/applications/{applicationId}/cron-jobs/{cronId}/executions': {
 			get: { summary: 'Read provider scheduled-task execution history', operationId: 'listApplicationCronExecutions', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Sanitized provider execution history.' }, '404': { description: 'Task is unavailable or unsynchronized.' } } },
@@ -1660,6 +1673,7 @@ export const OPENAPI_DOCUMENT = {
 						{ $ref: '#/components/parameters/ApplicationId' },
 						{ $ref: '#/components/parameters/DomainId' },
 					],
+					requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['confirmationName'], properties: { confirmationName: { type: 'string' }, acceptedImpact: { type: 'boolean' }, connectedResourceNames: { type: 'array', items: { type: 'string' } } } } } } },
 					responses: {
 						'200': { description: 'Domain detached and soft-deleted.' },
 						'422': {

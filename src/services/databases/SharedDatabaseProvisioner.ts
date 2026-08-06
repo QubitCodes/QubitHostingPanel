@@ -35,9 +35,14 @@ export interface MeasureLogicalDatabaseInput {
 	tlsMode: 'disabled' | 'require' | 'verify-full';
 }
 
+export interface DeleteLogicalDatabaseInput extends MeasureLogicalDatabaseInput {
+	username: string;
+}
+
 /** Creates restricted workspace databases inside shared engine clusters. */
 export interface SharedDatabaseProvisioner {
 	createLogicalDatabase(input: CreateLogicalDatabaseInput): Promise<CreatedLogicalDatabase>;
+	deleteLogicalDatabase(input: DeleteLogicalDatabaseInput): Promise<void>;
 	measureLogicalDatabaseBytes(input: MeasureLogicalDatabaseInput): Promise<number>;
 	rotateCredential(input: CreateLogicalDatabaseInput & { password: string }): Promise<void>;
 }

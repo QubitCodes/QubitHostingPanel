@@ -19,6 +19,7 @@ import {
 import { toast } from 'sonner';
 
 import { DataTable } from '@components/ui/data-table';
+import { DestructiveConfirmation, type DestructiveConfirmationValue } from '@components/ui/destructive-confirmation';
 import { Offcanvas } from '@components/ui/offcanvas';
 import { authenticatedFetch } from '@root/app/utils/authenticatedFetch';
 
@@ -98,6 +99,7 @@ export default function CustomerDomainsPage() {
 	const [editingRecord, setEditingRecord] = useState<DnsRecord>();
 	const [loading, setLoading] = useState(true);
 	const [working, setWorking] = useState(false);
+	const [deletingRecord, setDeletingRecord] = useState<DnsRecord>();
 	const [newHostname, setNewHostname] = useState('');
 	const [newDomainCheck, setNewDomainCheck] = useState<DomainCheck | 'checking'>();
 	const load = useCallback(async () => {
@@ -239,20 +241,16 @@ export default function CustomerDomainsPage() {
 		);
 		setEditingRecord(undefined);
 	}
-	async function removeRecord(record: DnsRecord): Promise<void> {
-		if (
-			!workspaceId ||
-			!selectedId ||
-			!window.confirm(`Remove ${record.type} ${record.name}?`)
-		)
-			return;
+	async function removeRecord(record: DnsRecord, confirmation: DestructiveConfirmationValue): Promise<void> {
+		if (!workspaceId || !selectedId) return;
 		setWorking(true);
 		try {
 			await api(
 				`/api/v1/workspaces/${workspaceId}/domains/${selectedId}/dns/records/${record.id}`,
-				{ method: 'DELETE' },
+				{ method: 'DELETE', headers: { 'content-type': 'application/json' }, body: JSON.stringify(confirmation) },
 			);
 			toast.success('DNS record removed.');
+			setDeletingRecord(undefined);
 			await loadDetail();
 		} catch (error) {
 			toast.error(
@@ -757,7 +755,7 @@ export default function CustomerDomainsPage() {
 																		record.source === 'platform_managed' ||
 																		working
 																	}
-																	onClick={() => void removeRecord(record)}
+																	onClick={() => setDeletingRecord(record)}
 																	type="button"
 																>
 																	<Trash2 className="size-4" />
@@ -809,6 +807,7 @@ export default function CustomerDomainsPage() {
 				</Offcanvas>
 			)}
 			{adding && <Offcanvas onClose={() => navigate('/dashboard/domains')} title="Add Domain" width="md"><form className="mt-6 grid gap-4" onSubmit={(event) => void addDomain(event)}><label className="grid gap-2 font-semibold">Root Domain<input autoFocus className="rounded-xl border border-brand-primary/15 bg-white px-4 py-3 text-gray-900 dark:bg-gray-800 dark:text-gray-100" onChange={(event) => { setNewHostname(event.target.value.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/$/, '')); setNewDomainCheck(undefined); }} placeholder="example.com" required value={newHostname} /></label><p className="text-sm text-app-muted">Add the registrable root domain. Application subdomains are created while deploying or editing an application.</p>{newDomainCheck === 'checking' ? <p className="flex items-center gap-2 text-sm text-app-muted"><LoaderCircle className="size-4 animate-spin" />Checking Availability...</p> : newDomainCheck ? <p className={`text-sm ${newDomainCheck.available ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-600 dark:text-rose-300'}`}>{newDomainCheck.available ? newDomainCheck.dnsReady ? `Available · DNS visible: ${newDomainCheck.records.join(', ')}` : 'Available · DNS can be configured after adding.' : newDomainCheck.reason}</p> : null}<button className="rounded-xl bg-brand-action px-5 py-3 font-bold text-brand-ink disabled:opacity-50" disabled={working || newDomainCheck === 'checking' || !newDomainCheck?.available} type="submit">Add Domain</button></form></Offcanvas>}
+			{deletingRecord && <DestructiveConfirmation busy={working} description="This permanently removes the DNS record from Ghost Deploy and the authoritative DNS provider." onCancel={() => setDeletingRecord(undefined)} onConfirm={(confirmation) => removeRecord(deletingRecord, confirmation)} resourceName={`${deletingRecord.type} ${deletingRecord.name}`} title="Delete DNS Record" />}
 		</main>
 	);
 }

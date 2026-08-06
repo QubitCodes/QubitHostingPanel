@@ -2,6 +2,7 @@ import { type FormEvent, useCallback, useEffect, useState } from 'react';
 import { Link, useOutletContext, useParams } from 'react-router';
 import { toast } from 'sonner';
 
+import { DestructiveConfirmation, type DestructiveConfirmationValue } from '@components/ui/destructive-confirmation';
 import { authenticatedFetch } from '@root/app/utils/authenticatedFetch';
 
 interface Domain { hostname: string; id: string; isEnabled: boolean; isPrimary: boolean; status: string; tlsFailureReason?: string | null; tlsStatus: 'active' | 'failed' | 'pending' | 'provisioning'; type: 'custom' | 'platform'; verificationToken?: string | null }
@@ -19,6 +20,8 @@ export default function ApplicationDomainsPage() {
 	const { active } = useOutletContext<{ active?: { publicId: number } }>();
 	const { applicationId } = useParams();
 	const [domains, setDomains] = useState<Domain[]>([]);
+	const [deleting, setDeleting] = useState<Domain>();
+	const [submitting, setSubmitting] = useState(false);
 	const load = useCallback(async () => {
 		if (!active || !applicationId) return;
 		try { setDomains(await api(`/api/v1/workspaces/${active.publicId}/applications/${applicationId}/domains`)); }
@@ -67,13 +70,15 @@ export default function ApplicationDomainsPage() {
 	}
 
 	/** Remove a saved domain after explicit customer confirmation and server safety checks. */
-	async function remove(domainId: string): Promise<void> {
-		if (!active || !applicationId || !window.confirm('Remove this domain?')) return;
+	async function remove(domain: Domain, confirmation: DestructiveConfirmationValue): Promise<void> {
+		if (!active || !applicationId) return;
+		setSubmitting(true);
 		try {
-			await api(`/api/v1/workspaces/${active.publicId}/applications/${applicationId}/domains/${domainId}`, { method: 'DELETE' });
+			await api(`/api/v1/workspaces/${active.publicId}/applications/${applicationId}/domains/${domain.id}`, { method: 'DELETE', headers: { 'content-type': 'application/json' }, body: JSON.stringify(confirmation) });
 			toast.success('Domain removed.');
+			setDeleting(undefined);
 			await load();
-		} catch (error) { toast.error(error instanceof Error ? error.message : 'Unable to remove domain.'); }
+		} catch (error) { toast.error(error instanceof Error ? error.message : 'Unable to remove domain.'); } finally { setSubmitting(false); }
 	}
 
 	return <main className="mx-auto max-w-4xl">
@@ -95,9 +100,10 @@ export default function ApplicationDomainsPage() {
 				{domain.status === 'verified' && domain.isEnabled && <button className="rounded-xl border border-brand-primary/15 px-3 py-2 text-sm font-bold" onClick={() => void refreshTls(domain.id)} type="button">Check TLS</button>}
 				{domain.status === 'verified' && domain.isEnabled && !domain.isPrimary && <button className="rounded-xl border border-brand-primary/15 px-3 py-2 text-sm font-bold" onClick={() => void act(domain.id, 'set_primary')} type="button">Set primary</button>}
 				{domain.type === 'platform' && <button className="rounded-xl border border-brand-primary/15 px-3 py-2 text-sm font-bold" onClick={() => void act(domain.id, 'toggle_platform', !domain.isEnabled)} type="button">{domain.isEnabled ? 'Disable' : 'Enable'}</button>}
-				<button className="rounded-xl border border-red-300 px-3 py-2 text-sm font-bold text-red-700 dark:border-red-700 dark:text-red-300" onClick={() => void remove(domain.id)} type="button">Remove</button>
+				<button className="rounded-xl border border-red-300 px-3 py-2 text-sm font-bold text-red-700 dark:border-red-700 dark:text-red-300" onClick={() => setDeleting(domain)} type="button">Remove</button>
 			</div></div>
 			{domain.type === 'custom' && domain.status !== 'verified' && <div className="mt-4 rounded-2xl bg-brand-primary/5 p-4 text-sm"><p>Create this TXT record:</p><p className="mt-2 break-all font-mono">_qubit-verification.{domain.hostname}</p><p className="mt-1 break-all font-mono">{domain.verificationToken}</p></div>}
 		</article>)}</div>
+		{deleting && <DestructiveConfirmation busy={submitting} description="This detaches the hostname, removes managed DNS records, and updates the hosting provider. Traffic to this hostname will stop." onCancel={() => setDeleting(undefined)} onConfirm={(confirmation) => remove(deleting, confirmation)} resourceName={deleting.hostname} title="Remove Domain" />}
 	</main>;
 }

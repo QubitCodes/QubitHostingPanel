@@ -58,6 +58,7 @@ interface Options {
   databases: DatabaseOption[];
   limits?: {
     customDomains: { allowed: boolean; current: number; limit: number | null };
+    databases: { allowed: boolean; current: number; limit: number | null };
   };
   runtimes: RuntimeOption[];
   suggestedDomainSuffix?: string;
@@ -363,13 +364,11 @@ export function DeployApplicationForm({
   const [databaseNameAvailability, setDatabaseNameAvailability] = useState<
     "idle" | "checking" | "available" | "unavailable" | "error"
   >("idle");
-  const [databaseMode, setDatabaseMode] = useState<"new" | "existing" | "none">(
-    "new",
-  );
+  const [databaseMode, setDatabaseMode] = useState<"new" | "existing" | "none">(options.limits?.databases.allowed === false ? (options.databases.length ? "existing" : "none") : "new");
   const [databaseEngine, setDatabaseEngine] = useState<"postgresql" | "mysql">(
     "postgresql",
   );
-  const [existingDatabaseId, setExistingDatabaseId] = useState("");
+  const [existingDatabaseId, setExistingDatabaseId] = useState(options.limits?.databases.allowed === false ? (options.databases[0]?.id ?? "") : "");
   const [customDomains, setCustomDomains] = useState<string[]>([""]);
   const [domainChecks, setDomainChecks] = useState<Record<number, DomainCheck | "checking">>({});
   const [selectedOwnedDomain, setSelectedOwnedDomain] = useState("");
@@ -1414,6 +1413,7 @@ export function DeployApplicationForm({
               <button
                 className={`rounded-xl border p-3 text-sm font-bold ${databaseMode === code ? "border-brand-action bg-brand-action/10" : "border-brand-primary/10"}`}
                 key={code}
+                disabled={code === "new" && options.limits?.databases.allowed === false}
                 onClick={() => {
                   setDatabaseMode(code);
                   if (code === "new" && combinedDatabaseName)
@@ -1425,6 +1425,7 @@ export function DeployApplicationForm({
               </button>
             ))}
           </div>
+          {options.limits?.databases.allowed === false && <p className="mt-3 rounded-xl bg-amber-500/10 p-3 text-sm font-semibold text-amber-700 dark:text-amber-300">Database limit reached ({options.limits.databases.current} of {options.limits.databases.limit ?? "unlimited"} used). Select an existing database or continue without one.</p>}
           {databaseMode === "new" && (
             <>
               <fieldset>

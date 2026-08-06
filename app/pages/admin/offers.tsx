@@ -9,6 +9,7 @@ import type { z } from 'zod';
 import { SearchableSelect } from '@root/app/components/forms/searchable-select';
 import { DataTable, StickyActionsCell, StickyActionsHeader } from '@root/app/components/ui/data-table';
 import { Offcanvas } from '@root/app/components/ui/offcanvas';
+import { DestructiveConfirmation, type DestructiveConfirmationValue } from '@components/ui/destructive-confirmation';
 import { authenticatedFetch } from '@root/app/utils/authenticatedFetch';
 import { normalizeNullableText } from '@root/app/utils/formValues';
 import { createOfferSchema } from '@schemas/offer';
@@ -116,6 +117,7 @@ export default function OffersPage() {
 	const [records, setRecords] = useState<OfferRecord[]>([]);
 	const [packages, setPackages] = useState<PackageRecord[]>([]);
 	const [busy, setBusy] = useState(false);
+	const [deleting, setDeleting] = useState(false);
 	const form = useForm<OfferForm>({ defaultValues: DEFAULTS, resolver: zodResolver(createOfferSchema) });
 	const values = useWatch({ control: form.control });
 	const selectedPackageIds = useMemo(() => values.packageIds ?? [], [values.packageIds]);
@@ -208,12 +210,12 @@ export default function OffersPage() {
 		}
 	}
 
-	async function remove() {
-		if (!offerSlug || !window.confirm('Delete this offer?')) return;
-		await api(`/api/v1/offers/${offerSlug}`, { method: 'DELETE' });
-		await load();
-		navigate('/admin/offers');
-		toast.success('Offer deleted.');
+	async function remove(confirmation: DestructiveConfirmationValue) {
+		if (!offerSlug) return;
+		setBusy(true);
+		try { await api(`/api/v1/offers/${offerSlug}`, { method: 'DELETE', headers: { 'content-type': 'application/json' }, body: JSON.stringify(confirmation) }); await load(); navigate('/admin/offers'); toast.success('Offer deleted.'); setDeleting(false); }
+		catch (error) { toast.error(error instanceof Error ? error.message : 'Unable to delete offer.'); }
+		finally { setBusy(false); }
 	}
 
 	const setAllPackages = () => form.setValue('packageIds', selectedPackageIds.length === packages.length ? [] : packages.map((item) => item.id), { shouldValidate: true });
@@ -226,7 +228,7 @@ export default function OffersPage() {
 		</div>
 		<div className="mt-8"><DataTable><thead className="bg-stone-50 text-left text-xs uppercase text-app-muted dark:bg-stone-950/50"><tr><th className="px-5 py-3">Offer</th><th className="px-5 py-3">Discount</th><th className="px-5 py-3">Status</th><th className="px-5 py-3">Coupon</th><StickyActionsHeader /></tr></thead><tbody className="divide-y divide-stone-200 dark:divide-stone-800">{records.map((offer) => <tr key={offer.id}><td className="px-5 py-4"><p className="font-semibold">{offer.name}</p><p className="text-xs text-app-muted">{offer.slug}</p></td><td className="px-5 py-4">{offer.discountType === 'percentage' ? `${(offer.percentageBasisPoints ?? 0) / 100}%` : money(offer.fixedAmountMinor ?? 0)}</td><td className="px-5 py-4 capitalize">{offer.status}</td><td className="px-5 py-4">{offer.couponCode ?? 'Automatic'}</td><StickyActionsCell><Link aria-label={`View ${offer.name}`} className="grid size-9 place-items-center text-brand-primary" to={`/admin/offers/${offer.slug}`}><Eye className="size-4" /></Link></StickyActionsCell></tr>)}</tbody></DataTable></div>
 		{open && <Offcanvas onClose={() => navigate('/admin/offers')} title={creating ? 'Add offer' : editing ? 'Edit offer' : 'Offer details'} width="full">
-			{!creating && !editing && <div className="flex justify-end gap-2"><Link className="rounded-xl bg-brand-action px-4 py-2 font-semibold text-brand-ink" to={`/admin/offers/${offerSlug}/edit`}>Edit</Link><button className="rounded-xl p-2 text-rose-600" onClick={() => void remove()} type="button"><Trash2 className="size-5" /></button></div>}
+			{!creating && !editing && <div className="flex justify-end gap-2"><Link className="rounded-xl bg-brand-action px-4 py-2 font-semibold text-brand-ink" to={`/admin/offers/${offerSlug}/edit`}>Edit</Link><button className="rounded-xl p-2 text-rose-600" onClick={() => setDeleting(true)} type="button"><Trash2 className="size-5" /></button></div>}
 			{(creating || editing) && <form className="mt-4 grid max-w-6xl gap-5 sm:grid-cols-2" onSubmit={form.handleSubmit((input) => void save(input))}>
 				<label className="text-sm font-medium">Name<input {...form.register('name', { onChange: (event) => { if (creating) form.setValue('slug', slugify(event.target.value)); } })} className="mt-2 w-full rounded-xl border bg-app-surface px-3 py-3" /></label>
 				<label className="text-sm font-medium">Slug<input {...form.register('slug')} className="mt-2 w-full rounded-xl border bg-app-surface px-3 py-3" /></label>
@@ -254,6 +256,7 @@ export default function OffersPage() {
 			</form>}
 			{!creating && !editing && offerSlug && <div className="mt-8 max-w-3xl rounded-2xl border p-5"><Percent className="size-6 text-brand-primary" /><p className="mt-3 text-app-muted">Use Edit to manage discount rules, dates, eligibility, recurrence, and limits.</p></div>}
 		</Offcanvas>}
+		{deleting && offerSlug && <DestructiveConfirmation busy={busy} description="This archives the offer and removes it from future eligibility. Historical discount records remain preserved." onCancel={() => setDeleting(false)} onConfirm={remove} resourceName={offerSlug} title="Delete Offer" />}
 	</div>;
 }
 
