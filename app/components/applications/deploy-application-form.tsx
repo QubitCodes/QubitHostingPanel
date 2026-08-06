@@ -6,6 +6,7 @@ import {
   Copy,
   Database,
   FileCode2,
+  FileUp,
   Github,
   Globe2,
   Info,
@@ -24,6 +25,10 @@ import { toast } from "sonner";
 import { authenticatedFetch } from "@root/app/utils/authenticatedFetch";
 import { SearchableSelect } from "@root/app/components/forms/searchable-select";
 import { Offcanvas } from "@root/app/components/ui/offcanvas";
+import {
+  isLikelySecretEnvKey,
+  parseEnvFile,
+} from "@root/app/utils/envFileParser";
 import {
   frameworkDefinition,
   frameworksForLanguage,
@@ -344,6 +349,10 @@ export function DeployApplicationForm({
   const [outputDirectory, setOutputDirectory] = useState("");
   const [variables, setVariables] = useState<EnvironmentVariable[]>([]);
   const [environmentEditorOpen, setEnvironmentEditorOpen] = useState(false);
+  const [environmentImportOpen, setEnvironmentImportOpen] = useState(false);
+  const [environmentImportSource, setEnvironmentImportSource] = useState("");
+  const [clearEnvironmentBeforeImport, setClearEnvironmentBeforeImport] =
+    useState(false);
   const [databaseSuffix] = useState(
     () =>
       options.suggestedDomainSuffix ??
@@ -379,6 +388,41 @@ export function DeployApplicationForm({
   const combinedDatabaseName = databaseNamePrefix
     ? `${databaseNamePrefix}_${databaseSuffix}`
     : "";
+  const parsedEnvironmentImport = useMemo(
+    () => parseEnvFile(environmentImportSource),
+    [environmentImportSource],
+  );
+  const environmentImportPreview = useMemo(() => {
+    const existing = new Map(
+      variables
+        .filter(({ key }) => key.trim())
+        .map((variable) => [variable.key.trim().toUpperCase(), variable]),
+    );
+    const importedKeys = new Set(
+      parsedEnvironmentImport.entries.map(({ key }) => key),
+    );
+    const added = parsedEnvironmentImport.entries.filter(
+      ({ key }) => !existing.has(key),
+    ).length;
+    const updated = parsedEnvironmentImport.entries.filter(({ key, value }) => {
+      const current = existing.get(key);
+      return current !== undefined && current.value !== value;
+    }).length;
+    const same = parsedEnvironmentImport.entries.filter(({ key, value }) => {
+      const current = existing.get(key);
+      return current !== undefined && current.value === value;
+    }).length;
+    const untouched = clearEnvironmentBeforeImport
+      ? 0
+      : [...existing.keys()].filter((key) => !importedKeys.has(key)).length;
+    const removed = clearEnvironmentBeforeImport
+      ? [...existing.keys()].filter((key) => !importedKeys.has(key)).length
+      : 0;
+    const total = clearEnvironmentBeforeImport
+      ? importedKeys.size
+      : new Set([...existing.keys(), ...importedKeys]).size;
+    return { added, removed, total, unchanged: same + untouched, updated };
+  }, [clearEnvironmentBeforeImport, parsedEnvironmentImport, variables]);
 
   useEffect(() => {
     if (databaseMode !== "new" || !combinedDatabaseName) return;
@@ -668,6 +712,56 @@ export function DeployApplicationForm({
         position === index ? { ...item, ...patch } : item,
       ),
     );
+  }
+
+  /** Merges the locally parsed dotenv values into the deployment form. */
+  function applyEnvironmentImport(): void {
+    if (!parsedEnvironmentImport.entries.length) {
+      toast.error("Add at least one valid environment variable.");
+      return;
+    }
+    setVariables((current) => {
+      const next = clearEnvironmentBeforeImport ? [] : current.map((item) => ({ ...item }));
+      const positions = new Map(
+        next
+          .map((variable, index) => [variable.key.trim().toUpperCase(), index] as const)
+          .filter(([key]) => key),
+      );
+      for (const entry of parsedEnvironmentImport.entries) {
+        const position = positions.get(entry.key);
+        if (position !== undefined) {
+          const existing = next[position];
+          if (existing) next[position] = { ...existing, value: entry.value };
+          continue;
+        }
+        positions.set(entry.key, next.length);
+        next.push({
+          isSecret: isLikelySecretEnvKey(entry.key),
+          key: entry.key,
+          scope: "runtime",
+          value: entry.value,
+        });
+      }
+      return next;
+    });
+    setEnvironmentImportOpen(false);
+    setEnvironmentImportSource("");
+    setClearEnvironmentBeforeImport(false);
+    toast.success("Environment values imported into this deployment form.");
+  }
+
+  /** Reads a customer-selected dotenv file locally without uploading it. */
+  async function readEnvironmentFile(file: File | undefined): Promise<void> {
+    if (!file) return;
+    if (file.size > 1_048_576) {
+      toast.error("Environment file must be 1 MB or smaller.");
+      return;
+    }
+    try {
+      setEnvironmentImportSource(await file.text());
+    } catch {
+      toast.error("Unable to read the selected environment file.");
+    }
   }
 
   async function submit(event: FormEvent<HTMLFormElement>): Promise<void> {
@@ -1565,9 +1659,123 @@ export function DeployApplicationForm({
           width="lg"
         >
           <div className="mt-6 grid gap-4 pb-24">
-            <p className="text-sm leading-6 text-app-muted">
-              Use uppercase keys. Secret values are encrypted when the application is saved.
-            </p>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <p className="max-w-xl text-sm leading-6 text-app-muted">
+                Use uppercase keys. Secret values are encrypted when the application is saved.
+              </p>
+              <button
+                className="inline-flex items-center gap-2 rounded-xl border border-brand-primary/15 px-4 py-2.5 text-sm font-bold"
+                onClick={() => setEnvironmentImportOpen((current) => !current)}
+                type="button"
+              >
+                <FileUp className="size-4" /> Import .env
+              </button>
+            </div>
+            {environmentImportOpen && (
+              <section className="grid gap-4 rounded-2xl border border-brand-action/30 bg-brand-action/[0.04] p-4">
+                <div>
+                  <h3 className="font-bold">Import environment values</h3>
+                  <p className="mt-1 text-xs leading-5 text-app-muted">
+                    Paste or select a dotenv file. Parsing happens only in this browser.
+                  </p>
+                </div>
+                <textarea
+                  aria-label="Environment file contents"
+                  className={`${inputClass} min-h-48 resize-y font-mono text-xs leading-5`}
+                  onChange={(event) => setEnvironmentImportSource(event.target.value)}
+                  maxLength={1_048_576}
+                  placeholder={"APP_NAME=Ghost Deploy\nDATABASE_URL=postgresql://...\nAPI_TOKEN=..."}
+                  spellCheck={false}
+                  value={environmentImportSource}
+                />
+                <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-brand-primary/25 px-4 py-3 text-sm font-bold transition hover:bg-brand-primary/5">
+                  <FileUp className="size-4" /> Choose .env file
+                  <input
+                    accept=".env,.txt,text/plain"
+                    className="sr-only"
+                    onChange={(event) => {
+                      void readEnvironmentFile(event.target.files?.[0]);
+                      event.target.value = "";
+                    }}
+                    type="file"
+                  />
+                </label>
+                <label className="flex items-start gap-3 rounded-xl border border-amber-500/20 bg-amber-500/[0.06] p-3 text-sm">
+                  <input
+                    checked={clearEnvironmentBeforeImport}
+                    className="mt-1"
+                    onChange={(event) => setClearEnvironmentBeforeImport(event.target.checked)}
+                    type="checkbox"
+                  />
+                  <span>
+                    <strong className="block">Clear existing variables before import</strong>
+                    <span className="mt-1 block text-xs leading-5 text-app-muted">
+                      Off by default. Leave this disabled to update matching keys, preserve other existing variables, and add new keys.
+                    </span>
+                  </span>
+                </label>
+                {!!environmentImportSource.trim() && (
+                  <>
+                    <dl className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
+                      {[
+                        ["Updated", environmentImportPreview.updated],
+                        ["Added", environmentImportPreview.added],
+                        ["Unchanged", environmentImportPreview.unchanged],
+                        ["Removed", environmentImportPreview.removed],
+                      ].map(([label, count]) => (
+                        <div className="rounded-xl bg-app-surface px-3 py-2" key={label}>
+                          <dt className="text-app-muted">{label}</dt>
+                          <dd className="mt-1 text-lg font-black">{count}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                    {!!parsedEnvironmentImport.duplicateKeys.length && (
+                      <p className="rounded-xl bg-amber-500/10 px-3 py-2 text-xs text-amber-800 dark:text-amber-200">
+                        Duplicate keys use their final value: {parsedEnvironmentImport.duplicateKeys.join(", ")}
+                      </p>
+                    )}
+                    {!!parsedEnvironmentImport.invalidLines.length && (
+                      <div className="max-h-28 overflow-y-auto rounded-xl bg-red-500/10 px-3 py-2 text-xs text-red-700 dark:text-red-200">
+                        {parsedEnvironmentImport.invalidLines.map((issue) => (
+                          <p key={`${issue.line}-${issue.reason}`}>
+                            Line {issue.line}: {issue.reason}
+                          </p>
+                        ))}
+                      </div>
+                    )}
+                    {environmentImportPreview.total > 200 && (
+                      <p className="rounded-xl bg-red-500/10 px-3 py-2 text-xs text-red-700 dark:text-red-200">
+                        This import would create {environmentImportPreview.total} variables. A deployment can contain at most 200.
+                      </p>
+                    )}
+                  </>
+                )}
+                <div className="flex flex-wrap justify-end gap-2">
+                  <button
+                    className="rounded-xl border border-brand-primary/15 px-4 py-2.5 text-sm font-bold"
+                    onClick={() => {
+                      setEnvironmentImportOpen(false);
+                      setEnvironmentImportSource("");
+                      setClearEnvironmentBeforeImport(false);
+                    }}
+                    type="button"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    className="rounded-xl bg-brand-action px-4 py-2.5 text-sm font-bold text-brand-ink disabled:opacity-50"
+                    disabled={
+                      !parsedEnvironmentImport.entries.length ||
+                      environmentImportPreview.total > 200
+                    }
+                    onClick={applyEnvironmentImport}
+                    type="button"
+                  >
+                    Apply Import
+                  </button>
+                </div>
+              </section>
+            )}
             {variables.map((variable, index) => (
               <div
                 className="grid gap-3 rounded-2xl border border-brand-primary/10 p-4"
