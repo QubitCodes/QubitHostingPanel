@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, isNull, lte } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, lt, lte } from "drizzle-orm";
 
 import { getEnvironment } from "@config/env";
 import { frameworkDefinition } from "@config/frameworkCatalog";
@@ -71,14 +71,17 @@ export async function processProvisioningJobs(
       .where(
         and(
           inArray(provisioningJobs.status, ["queued", "failed"]),
+          lt(
+            provisioningJobs.attemptCount,
+            provisioningJobs.maximumAttempts,
+          ),
           lte(provisioningJobs.nextAttemptAt, now),
           isNull(provisioningJobs.deletedAt),
         ),
       )
       .orderBy(asc(provisioningJobs.createdAt))
       .limit(1);
-    if (!candidate || candidate.attemptCount >= candidate.maximumAttempts)
-      break;
+    if (!candidate) break;
     const [claimed] = await db
       .update(provisioningJobs)
       .set({
