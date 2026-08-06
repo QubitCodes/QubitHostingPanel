@@ -80,6 +80,7 @@ interface DeploymentHistory {
 		commitMessage?: string | null;
 		commitSha?: string | null;
 		createdAt?: string | null;
+		finishedAt?: string | null;
 		id: string;
 		logs?: string | null;
 		status: string;
@@ -88,6 +89,7 @@ interface DeploymentHistory {
 	limit: number | null;
 	retentionDays: number | null;
 	totalRetained: number;
+	logsPermissionRequired?: boolean;
 }
 interface Options {
 	applicationBaseDomain?: string;
@@ -138,6 +140,71 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
 const inputClass =
 	'rounded-xl border border-brand-primary/15 bg-white px-4 py-3 text-gray-900 dark:bg-gray-800 dark:text-gray-100';
 
+/** Converts provider state tokens into concise customer-facing labels. */
+function statusLabel(value?: string | null): string {
+	return (value || 'unknown')
+		.split(':')
+		.map((part) =>
+			part
+				.replace(/[_-]+/g, ' ')
+				.replace(/\b\w/g, (letter) => letter.toUpperCase()),
+		)
+		.join(' · ');
+}
+
+/** Applies one consistent semantic colour system to application and deployment states. */
+function statusClass(value?: string | null): string {
+	const status = (value ?? '').toLowerCase();
+	if (/failed|unhealthy|error|cancel/.test(status))
+		return 'bg-red-500/10 text-red-700 dark:text-red-300';
+	if (/running|succeed|finished|healthy/.test(status))
+		return 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300';
+	if (/building|starting|progress/.test(status))
+		return 'bg-blue-500/10 text-blue-700 dark:text-blue-300';
+	if (/suspend|deactivat/.test(status))
+		return 'bg-orange-500/10 text-orange-700 dark:text-orange-300';
+	if (/queued|provision|pending/.test(status))
+		return 'bg-amber-500/10 text-amber-700 dark:text-amber-300';
+	return 'bg-gray-500/10 text-gray-700 dark:text-gray-300';
+}
+
+interface RealtimeEvent {
+	applicationId: string;
+	deploymentStatus?: string;
+	logsAvailable?: boolean;
+	providerStatus?: string;
+	type: string;
+}
+
+/** Parses an authenticated SSE response without placing bearer tokens in the URL. */
+async function consumeEventStream(
+	response: Response,
+	signal: AbortSignal,
+	listener: (event: RealtimeEvent) => void,
+): Promise<void> {
+	if (!response.ok || !response.body)
+		throw new Error('Live application updates are unavailable.');
+	const reader = response.body.getReader();
+	const decoder = new TextDecoder();
+	let buffer = '';
+	while (!signal.aborted) {
+		const { done, value } = await reader.read();
+		if (done) break;
+		buffer += decoder.decode(value, { stream: true });
+		let boundary = buffer.indexOf('\n\n');
+		while (boundary >= 0) {
+			const block = buffer.slice(0, boundary);
+			buffer = buffer.slice(boundary + 2);
+			const data = block
+				.split('\n')
+				.find((line) => line.startsWith('data: '))
+				?.slice(6);
+			if (data) listener(JSON.parse(data) as RealtimeEvent);
+			boundary = buffer.indexOf('\n\n');
+		}
+	}
+}
+
 export default function CustomerApplicationsPage() {
 	const { active } = useOutletContext<{ active?: { publicId: number } }>();
 	const { applicationId } = useParams();
@@ -162,6 +229,7 @@ export default function CustomerApplicationsPage() {
 	const [logs, setLogs] = useState('');
 	const [history, setHistory] = useState<DeploymentHistory | null>(null);
 	const [actionPending, setActionPending] = useState(false);
+	const [actionsOpen, setActionsOpen] = useState(false);
 	const [deleteName, setDeleteName] = useState('');
 	const [deleteDatabaseIds, setDeleteDatabaseIds] = useState<string[]>([]);
 	const [deleteDatabaseNames, setDeleteDatabaseNames] = useState<
@@ -310,7 +378,7 @@ export default function CustomerApplicationsPage() {
 			startCommand: form.get('startCommand') || undefined,
 			baseDirectory: form.get('baseDirectory'),
 			publishDirectory: form.get('publishDirectory') || undefined,
-			port: Number(form.get('port') || runtime?.defaultPort),
+			...(!editing ? { port: Number(runtime?.defaultPort ?? 3000) } : {}),
 			...(editing
 				? {
 						name: form.get('name'),
@@ -377,7 +445,7 @@ export default function CustomerApplicationsPage() {
 	}
 
 	/** Load recent provider logs into the detail drawer. */
-	async function loadLogs(): Promise<void> {
+	const loadLogs = useCallback(async (): Promise<void> => {
 		if (!active || !applicationId) return;
 		try {
 			setLogs(
@@ -390,12 +458,57 @@ export default function CustomerApplicationsPage() {
 		} catch (error) {
 			toast.error(error instanceof Error ? error.message : 'Logs unavailable.');
 		}
-	}
+	}, [active, applicationId]);
+	useEffect(() => {
+		if (!active || !applicationId) return;
+		const controller = new AbortController();
+		const connect = async (): Promise<void> => {
+			while (!controller.signal.aborted) {
+				try {
+					const response = await authenticatedFetch(
+						`/api/v1/workspaces/${active.publicId}/applications/${applicationId}/events`,
+						{
+							headers: { accept: 'text/event-stream' },
+							signal: controller.signal,
+						},
+					);
+					await consumeEventStream(response, controller.signal, (event) => {
+						if (event.providerStatus)
+							setRows((current) =>
+								current.map((row) =>
+									row.id === applicationId
+										? { ...row, resourceStatus: event.providerStatus }
+										: row,
+								),
+							);
+						if (event.type !== 'deployment') return;
+						if (activeTab === 'logs') void loadLogs();
+						if (activeTab === 'deployments')
+							void api<DeploymentHistory>(
+								`/api/v1/workspaces/${active.publicId}/applications/${applicationId}/deployments`,
+							)
+								.then(setHistory)
+								.catch(() => undefined);
+					});
+				} catch (error) {
+					if (controller.signal.aborted) return;
+					console.warn('Application event stream reconnecting.', error);
+				}
+				await new Promise((resolve) => window.setTimeout(resolve, 1_500));
+			}
+		};
+		void connect();
+		return () => controller.abort();
+	}, [active, activeTab, applicationId, loadLogs]);
+	useEffect(() => {
+		if (activeTab === 'logs') void loadLogs();
+	}, [activeTab, loadLogs]);
 	async function control(
 		action:
 			'deactivate' | 'reactivate' | 'redeploy' | 'restart' | 'start' | 'stop',
 	): Promise<void> {
 		if (!active || !applicationId) return;
+		setActionsOpen(false);
 		setActionPending(true);
 		try {
 			await api(
@@ -672,22 +785,6 @@ export default function CustomerApplicationsPage() {
 						</select>
 					</label>
 				)}
-				<label className="grid gap-2 font-semibold">
-					Port
-					<input
-						className={inputClass}
-						defaultValue={
-							record?.applicationPort ??
-							options.runtimes.find(({ isDefault }) => isDefault)
-								?.defaultPort ??
-							3000
-						}
-						max="65535"
-						min="1"
-						name="port"
-						type="number"
-					/>
-				</label>
 			</div>
 			<div className="grid gap-4 sm:grid-cols-2">
 				<label className="grid gap-2 font-semibold">
@@ -827,9 +924,9 @@ export default function CustomerApplicationsPage() {
 								<div className="flex items-start justify-between">
 									<FileCode2 className="size-6 text-brand-primary dark:text-brand-action" />
 									<span
-										className={`rounded-full px-2.5 py-1 text-xs font-bold capitalize ${row.resourceStatus === 'running' ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300' : 'bg-amber-500/10 text-amber-700 dark:text-amber-300'}`}
+										className={`rounded-full px-2.5 py-1 text-xs font-bold ${statusClass(row.resourceStatus ?? row.status)}`}
 									>
-										{row.resourceStatus ?? row.status}
+										{statusLabel(row.resourceStatus ?? row.status)}
 									</span>
 								</div>
 								<h3 className="mt-5 truncate text-xl font-bold">{row.name}</h3>
@@ -887,6 +984,7 @@ export default function CustomerApplicationsPage() {
 			)}
 			{editDirectoryTarget && (
 				<Offcanvas
+					layer="nested"
 					onClose={() => setEditDirectoryTarget(null)}
 					title="Choose repository directory"
 					width="md"
@@ -956,78 +1054,95 @@ export default function CustomerApplicationsPage() {
 											Open <ExternalLink className="size-4" />
 										</a>
 									)}
-									<details className="relative">
-										<summary
+									<div
+										className="relative"
+										onBlur={(event) => {
+											if (!event.currentTarget.contains(event.relatedTarget))
+												setActionsOpen(false);
+										}}
+									>
+										<button
 											className="grid size-11 cursor-pointer list-none place-items-center rounded-xl border border-brand-primary/15"
 											aria-label="Application actions"
+											aria-expanded={actionsOpen}
+											onClick={() => setActionsOpen((current) => !current)}
+											onKeyDown={(event) => {
+												if (event.key === 'Escape') setActionsOpen(false);
+											}}
+											type="button"
 										>
 											<MoreVertical className="size-5" />
-										</summary>
-										<div className="absolute right-0 z-20 mt-2 grid w-56 gap-1 rounded-2xl border border-brand-primary/10 bg-app-surface p-2 shadow-xl">
-											{record.operationalStatus === 'paused' ||
-											record.operationalStatus === 'deactivated' ? (
+										</button>
+										{actionsOpen && (
+											<div className="absolute right-0 z-20 mt-2 grid w-56 gap-1 rounded-2xl border border-brand-primary/10 bg-app-surface p-2 shadow-xl">
+												{record.operationalStatus === 'paused' ||
+												record.operationalStatus === 'deactivated' ? (
+													<button
+														className="flex items-center gap-2 rounded-xl px-3 py-2 text-left hover:bg-brand-primary/5"
+														disabled={actionPending}
+														onClick={() =>
+															void control(
+																record.operationalStatus === 'deactivated'
+																	? 'reactivate'
+																	: 'start',
+															)
+														}
+														type="button"
+													>
+														<Play className="size-4" />
+														Resume
+													</button>
+												) : (
+													<button
+														className="flex items-center gap-2 rounded-xl px-3 py-2 text-left hover:bg-brand-primary/5"
+														disabled={actionPending}
+														onClick={() => void control('stop')}
+														type="button"
+													>
+														<Square className="size-4" />
+														Pause
+													</button>
+												)}
 												<button
 													className="flex items-center gap-2 rounded-xl px-3 py-2 text-left hover:bg-brand-primary/5"
 													disabled={actionPending}
-													onClick={() =>
-														void control(
-															record.operationalStatus === 'deactivated'
-																? 'reactivate'
-																: 'start',
-														)
-													}
+													onClick={() => void control('restart')}
 													type="button"
 												>
-													<Play className="size-4" />
-													Resume
+													<RefreshCw className="size-4" />
+													Restart
 												</button>
-											) : (
 												<button
 													className="flex items-center gap-2 rounded-xl px-3 py-2 text-left hover:bg-brand-primary/5"
 													disabled={actionPending}
-													onClick={() => void control('stop')}
+													onClick={() => void control('redeploy')}
 													type="button"
 												>
-													<Square className="size-4" />
-													Pause
+													<RefreshCw className="size-4" />
+													Redeploy
 												</button>
-											)}
-											<button
-												className="flex items-center gap-2 rounded-xl px-3 py-2 text-left hover:bg-brand-primary/5"
-												disabled={actionPending}
-												onClick={() => void control('restart')}
-												type="button"
-											>
-												<RefreshCw className="size-4" />
-												Restart
-											</button>
-											<button
-												className="flex items-center gap-2 rounded-xl px-3 py-2 text-left hover:bg-brand-primary/5"
-												disabled={actionPending}
-												onClick={() => void control('redeploy')}
-												type="button"
-											>
-												<RefreshCw className="size-4" />
-												Redeploy
-											</button>
-											<button
-												className="flex items-center gap-2 rounded-xl px-3 py-2 text-left hover:bg-brand-primary/5"
-												disabled={actionPending}
-												onClick={() => void control('deactivate')}
-												type="button"
-											>
-												Deactivate
-											</button>
-											<button
-												className="flex items-center gap-2 rounded-xl px-3 py-2 text-left text-red-600 hover:bg-red-500/10"
-												onClick={() => selectTab('settings')}
-												type="button"
-											>
-												<Trash2 className="size-4" />
-												Delete application
-											</button>
-										</div>
-									</details>
+												<button
+													className="flex items-center gap-2 rounded-xl px-3 py-2 text-left hover:bg-brand-primary/5"
+													disabled={actionPending}
+													onClick={() => void control('deactivate')}
+													type="button"
+												>
+													Deactivate
+												</button>
+												<button
+													className="flex items-center gap-2 rounded-xl px-3 py-2 text-left text-red-600 hover:bg-red-500/10"
+													onClick={() => {
+														setActionsOpen(false);
+														selectTab('settings');
+													}}
+													type="button"
+												>
+													<Trash2 className="size-4" />
+													Delete application
+												</button>
+											</div>
+										)}
+									</div>
 								</div>
 							</div>
 							{activeTab === 'overview' && (
@@ -1046,7 +1161,6 @@ export default function CustomerApplicationsPage() {
 											],
 											['Repository', record.sourceRepository],
 											['Branch', record.sourceRef],
-											['Port', record.applicationPort],
 											['Project directory', record.baseDirectory],
 											[
 												'Databases',
@@ -1072,7 +1186,20 @@ export default function CustomerApplicationsPage() {
 												<dt className="text-xs font-bold uppercase text-app-muted">
 													{label}
 												</dt>
-												<dd className="mt-1 break-all">{String(value)}</dd>
+												<dd className="mt-1 break-all">
+													{label === 'Status' ? (
+														<span
+															className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${statusClass(String(value))}`}
+														>
+															{statusLabel(String(value))}
+														</span>
+													) : label === 'Latest deployment' &&
+													  record.latestDeployment ? (
+														`${statusLabel(record.latestDeployment.status)} · ${new Date(record.latestDeployment.createdAt).toLocaleString('en-IN')}`
+													) : (
+														String(value)
+													)}
+												</dd>
 											</div>
 										))}
 									</dl>
@@ -1094,8 +1221,9 @@ export default function CustomerApplicationsPage() {
 												key={domain.id}
 											>
 												<span>{domain.hostname}</span>
-												<span className="text-xs font-bold capitalize text-app-muted">
-													{domain.status} · SSL {domain.tlsStatus}
+												<span className="text-xs font-bold text-app-muted">
+													{statusLabel(domain.status)} · SSL{' '}
+													{statusLabel(domain.tlsStatus)}
 												</span>
 											</div>
 										))}
@@ -1124,7 +1252,12 @@ export default function CustomerApplicationsPage() {
 										</button>
 									</div>
 									<pre className="min-h-72 max-h-[65vh] overflow-auto rounded-2xl bg-gray-950 p-5 text-xs text-gray-100">
-										{logs || 'No logs available.'}
+										{logs ||
+											(/queued|provision|building|starting|progress/i.test(
+												record.resourceStatus ?? record.status,
+											)
+												? 'Waiting for build logs…'
+												: 'No runtime or deployment logs were returned by the provider.')}
 									</pre>
 								</div>
 							)}
@@ -1135,6 +1268,13 @@ export default function CustomerApplicationsPage() {
 										for {history?.retentionDays ?? 'unlimited'} days by your
 										package.
 									</p>
+									{history?.logsPermissionRequired && (
+										<p className="rounded-xl bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-300">
+											Deployment metadata is live, but Coolify did not return
+											build logs. Give the Ghost Deploy Coolify API token the{' '}
+											<code>read:sensitive</code> permission.
+										</p>
+									)}
 									{history ? (
 										history.items.map((deployment) => (
 											<details
@@ -1143,8 +1283,10 @@ export default function CustomerApplicationsPage() {
 											>
 												<summary className="flex cursor-pointer list-none items-center justify-between gap-3">
 													<span>
-														<strong className="capitalize">
-															{deployment.status}
+														<strong
+															className={`rounded-full px-2.5 py-1 text-xs ${statusClass(deployment.status)}`}
+														>
+															{statusLabel(deployment.status)}
 														</strong>
 														<small className="ml-3 text-app-muted">
 															{deployment.trigger ?? 'manual'} ·{' '}
@@ -1165,10 +1307,27 @@ export default function CustomerApplicationsPage() {
 														{deployment.commitMessage}
 													</p>
 												)}
-												{deployment.logs && (
+												<p className="mt-3 text-xs text-app-muted">
+													{deployment.finishedAt
+														? `Finished ${new Date(deployment.finishedAt).toLocaleString('en-IN')}${deployment.createdAt ? ` · Duration ${Math.max(0, Math.round((new Date(deployment.finishedAt).getTime() - new Date(deployment.createdAt).getTime()) / 1000))}s` : ''}`
+														: /queued|progress|building|starting/i.test(
+																	deployment.status,
+															  )
+															? 'Deployment is still running. Updates will appear here automatically.'
+															: 'Completion time unavailable.'}
+												</p>
+												{deployment.logs ? (
 													<pre className="mt-4 max-h-96 overflow-auto rounded-xl bg-gray-950 p-4 text-xs text-gray-100">
 														{deployment.logs}
 													</pre>
+												) : (
+													<p className="mt-3 rounded-xl border border-dashed border-brand-primary/15 p-3 text-sm text-app-muted">
+														{/queued|progress|building|starting/i.test(
+															deployment.status,
+														)
+															? 'Waiting for build output…'
+															: 'No build output was returned for this deployment.'}
+													</p>
 												)}
 											</details>
 										))

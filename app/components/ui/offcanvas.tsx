@@ -15,6 +15,7 @@ const WIDTH_CLASSES: Record<OffcanvasWidth, string> = {
 
 interface OffcanvasProps {
 	children: ReactNode;
+	layer?: 'default' | 'nested';
 	onClose: () => void;
 	title: ReactNode;
 	width?: OffcanvasWidth;
@@ -23,6 +24,7 @@ interface OffcanvasProps {
 /** Content-area drawer whose geometry follows the application topbar and sidebar. */
 export function Offcanvas({
 	children,
+	layer = 'default',
 	onClose,
 	title,
 	width = 'lg',
@@ -42,7 +44,7 @@ export function Offcanvas({
 
 	return (
 		<div
-			className="fixed bottom-0 left-0 right-0 top-20 z-40 bg-slate-950/50 transition-[left] lg:left-[var(--app-sidebar-width,16rem)]"
+			className={`fixed bottom-0 left-0 right-0 top-20 bg-slate-950/50 transition-[left] lg:left-[var(--app-sidebar-width,16rem)] ${layer === 'nested' ? 'z-50' : 'z-40'}`}
 			onMouseDown={(event) => {
 				if (event.currentTarget === event.target) onClose();
 			}}

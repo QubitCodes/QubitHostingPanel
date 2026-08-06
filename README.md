@@ -189,6 +189,10 @@ Dockerfile deployments are intentionally disabled until package entitlements and
 
 GitHub App deployments expose a per-application auto-deploy switch. Packages independently control manual deployment availability, automatic deployment availability, history count, and retention duration. Private application visibility removes public provider routes without deleting the provider resource.
 
+### Live deployment updates
+
+Application status, deployment history, and logs use an authenticated server-sent event stream. Ghost Deploy maintains one short-lived provider tracker per application with active viewers; browsers do not poll Coolify independently. Configure `COOLIFY_WEBHOOK_SECRET`, then add `https://ghostdeploy.com/api/v1/webhooks/coolify?secret=<COOLIFY_WEBHOOK_SECRET>` as Coolify's webhook notification URL and enable deployment success, deployment failure, and container status events. The Coolify API token requires `read:sensitive` to return runtime and build logs.
+
 - `/api/v1/auth/sessions/:sessionId` - inspect, label, or revoke one owned session.
 - `/api/v1/auth/sessions/others` - revoke every other active session.
 - `/settings/sessions` - mobile-first Devices & Sessions management page.

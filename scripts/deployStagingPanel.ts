@@ -1,8 +1,15 @@
 const APPLICATION_NAME = 'ghost-deploy-staging';
 const APPLICATION_DOMAIN = 'https://staging.ghostdeploy.com';
 const APPLICATION_DOMAINS = APPLICATION_DOMAIN;
-const REPOSITORY_URL = process.env.GHOST_DEPLOY_REPOSITORY_URL?.trim() || 'https://github.com/QubitCodes/QubitHostingPanel';
-const REQUIRED_COOLIFY_KEYS = ['COOLIFY_API_TOKEN', 'COOLIFY_BASE_URL', 'COOLIFY_DEFAULT_PROJECT_UUID', 'COOLIFY_SERVER_UUID'] as const;
+const REPOSITORY_URL =
+	process.env.GHOST_DEPLOY_REPOSITORY_URL?.trim() ||
+	'https://github.com/QubitCodes/QubitHostingPanel';
+const REQUIRED_COOLIFY_KEYS = [
+	'COOLIFY_API_TOKEN',
+	'COOLIFY_BASE_URL',
+	'COOLIFY_DEFAULT_PROJECT_UUID',
+	'COOLIFY_SERVER_UUID',
+] as const;
 const RUNTIME_SECRET_KEYS = [
 	'DATABASE_URL',
 	'CREDENTIAL_ENCRYPTION_KEY',
@@ -45,10 +52,14 @@ const RUNTIME_SECRET_KEYS = [
 	'COOLIFY_STARTER_IMAGE',
 	'COOLIFY_STARTER_IMAGE_TAG',
 	'COOLIFY_STARTER_PORT',
-	'HOSTING_PROVIDER'
+	'COOLIFY_WEBHOOK_SECRET',
+	'HOSTING_PROVIDER',
 ] as const;
 
-interface CoolifyApplication { name?: string; uuid?: string }
+interface CoolifyApplication {
+	name?: string;
+	uuid?: string;
+}
 
 /** Calls one Coolify endpoint while keeping credentials and environment values out of logs. */
 async function coolifyRequest<T>(path: string, init?: RequestInit): Promise<T> {
@@ -58,13 +69,16 @@ async function coolifyRequest<T>(path: string, init?: RequestInit): Promise<T> {
 		headers: {
 			accept: 'application/json',
 			authorization: `Bearer ${process.env.COOLIFY_API_TOKEN}`,
-			...(init?.body ? { 'content-type': 'application/json' } : {})
+			...(init?.body ? { 'content-type': 'application/json' } : {}),
 		},
-		signal: AbortSignal.timeout(30_000)
+		signal: AbortSignal.timeout(30_000),
 	});
 	const text = await response.text();
-	const body = text ? JSON.parse(text) as unknown : {};
-	if (!response.ok) throw new Error(`Coolify ${response.status}: ${String((body as { message?: unknown }).message ?? 'request failed')}`);
+	const body = text ? (JSON.parse(text) as unknown) : {};
+	if (!response.ok)
+		throw new Error(
+			`Coolify ${response.status}: ${String((body as { message?: unknown }).message ?? 'request failed')}`,
+		);
 	return body as T;
 }
 
@@ -82,7 +96,8 @@ function stagingDatabaseUrl(value: string): string {
 /** Builds the secure staging runtime environment from the operator's local secret file. */
 function runtimeEnvironment(): Record<string, string> {
 	const values: Record<string, string> = {};
-	for (const key of RUNTIME_SECRET_KEYS) if (process.env[key]?.trim()) values[key] = process.env[key]!;
+	for (const key of RUNTIME_SECRET_KEYS)
+		if (process.env[key]?.trim()) values[key] = process.env[key]!;
 	if (!values.DATABASE_URL) throw new Error('DATABASE_URL is required.');
 	values.DATABASE_URL = stagingDatabaseUrl(values.DATABASE_URL);
 	return {
@@ -93,65 +108,124 @@ function runtimeEnvironment(): Record<string, string> {
 		ENABLE_DEV_AUTH_BYPASS: 'false',
 		NODE_ENV: 'production',
 		NIXPACKS_NODE_VERSION: '24',
-		PORT: '3000'
+		PORT: '3000',
 	};
 }
 
 /** Creates or updates the single staging panel application and queues a deployment. */
 async function main(): Promise<void> {
-	for (const key of REQUIRED_COOLIFY_KEYS) if (!process.env[key]?.trim()) throw new Error(`${key} is required.`);
-	if (process.env.APP_ENV === 'production' || process.env.APP_URL === APPLICATION_DOMAIN) throw new Error('Run this command from the local operator environment, never from the deployed application.');
+	for (const key of REQUIRED_COOLIFY_KEYS)
+		if (!process.env[key]?.trim()) throw new Error(`${key} is required.`);
+	if (
+		process.env.APP_ENV === 'production' ||
+		process.env.APP_URL === APPLICATION_DOMAIN
+	)
+		throw new Error(
+			'Run this command from the local operator environment, never from the deployed application.',
+		);
 
-	const applications = await coolifyRequest<CoolifyApplication[]>('/applications');
-	let applicationUuid = applications.find((application) => application.name === APPLICATION_NAME)?.uuid;
+	const applications =
+		await coolifyRequest<CoolifyApplication[]>('/applications');
+	let applicationUuid = applications.find(
+		(application) => application.name === APPLICATION_NAME,
+	)?.uuid;
 	if (!applicationUuid) {
-		const created = await coolifyRequest<{ uuid: string }>('/applications/public', {
-			method: 'POST',
-			body: JSON.stringify({
-				autogenerate_domain: false,
-				build_command: 'npm run build',
-				build_pack: 'nixpacks',
-				description: 'Ghost Deploy staging control plane',
-				destination_uuid: process.env.COOLIFY_DESTINATION_UUID || undefined,
-				domains: APPLICATION_DOMAINS,
-				environment_name: process.env.COOLIFY_DEFAULT_ENVIRONMENT_NAME || 'production',
-				force_domain_override: false,
-				git_branch: 'main',
-				git_repository: REPOSITORY_URL,
-				health_check_enabled: true,
-				health_check_path: '/api/v1/health',
-				health_check_port: '3000',
-				install_command: 'npm ci',
-				instant_deploy: false,
-				is_auto_deploy_enabled: true,
-				name: APPLICATION_NAME,
-				ports_exposes: '3000',
-				project_uuid: process.env.COOLIFY_DEFAULT_PROJECT_UUID,
-				server_uuid: process.env.COOLIFY_SERVER_UUID,
-				start_command: 'npm run start'
-			})
-		});
+		const created = await coolifyRequest<{ uuid: string }>(
+			'/applications/public',
+			{
+				method: 'POST',
+				body: JSON.stringify({
+					autogenerate_domain: false,
+					build_command: 'npm run build',
+					build_pack: 'nixpacks',
+					description: 'Ghost Deploy staging control plane',
+					destination_uuid: process.env.COOLIFY_DESTINATION_UUID || undefined,
+					domains: APPLICATION_DOMAINS,
+					environment_name:
+						process.env.COOLIFY_DEFAULT_ENVIRONMENT_NAME || 'production',
+					force_domain_override: false,
+					git_branch: 'main',
+					git_repository: REPOSITORY_URL,
+					health_check_enabled: true,
+					health_check_path: '/api/v1/health',
+					health_check_port: '3000',
+					install_command: 'npm ci',
+					instant_deploy: false,
+					is_auto_deploy_enabled: true,
+					name: APPLICATION_NAME,
+					ports_exposes: '3000',
+					project_uuid: process.env.COOLIFY_DEFAULT_PROJECT_UUID,
+					server_uuid: process.env.COOLIFY_SERVER_UUID,
+					start_command: 'npm run start',
+				}),
+			},
+		);
 		applicationUuid = created.uuid;
 		console.log(`Created staging panel application ${applicationUuid}.`);
 	} else {
-		await coolifyRequest(`/applications/${encodeURIComponent(applicationUuid)}`, {
-			method: 'PATCH',
-			body: JSON.stringify({ domains: APPLICATION_DOMAINS, force_domain_override: false, health_check_enabled: true, health_check_path: '/api/v1/health', health_check_port: '3000', ports_exposes: '3000' })
-		});
+		await coolifyRequest(
+			`/applications/${encodeURIComponent(applicationUuid)}`,
+			{
+				method: 'PATCH',
+				body: JSON.stringify({
+					domains: APPLICATION_DOMAINS,
+					force_domain_override: false,
+					health_check_enabled: true,
+					health_check_path: '/api/v1/health',
+					health_check_port: '3000',
+					ports_exposes: '3000',
+				}),
+			},
+		);
 		console.log(`Reusing staging panel application ${applicationUuid}.`);
 	}
 
 	for (const [key, value] of Object.entries(runtimeEnvironment())) {
 		try {
-			await coolifyRequest(`/applications/${encodeURIComponent(applicationUuid)}/envs`, { method: 'POST', body: JSON.stringify({ key, value, is_preview: false, is_literal: true, is_multiline: value.includes('\n') }) });
+			await coolifyRequest(
+				`/applications/${encodeURIComponent(applicationUuid)}/envs`,
+				{
+					method: 'POST',
+					body: JSON.stringify({
+						key,
+						value,
+						is_preview: false,
+						is_literal: true,
+						is_multiline: value.includes('\n'),
+					}),
+				},
+			);
 		} catch (error) {
-			if (!(error instanceof Error) || !/already|exists|unique/i.test(error.message)) throw error;
-			await coolifyRequest(`/applications/${encodeURIComponent(applicationUuid)}/envs`, { method: 'PATCH', body: JSON.stringify({ key, value, is_preview: false, is_literal: true, is_multiline: value.includes('\n') }) });
+			if (
+				!(error instanceof Error) ||
+				!/already|exists|unique/i.test(error.message)
+			)
+				throw error;
+			await coolifyRequest(
+				`/applications/${encodeURIComponent(applicationUuid)}/envs`,
+				{
+					method: 'PATCH',
+					body: JSON.stringify({
+						key,
+						value,
+						is_preview: false,
+						is_literal: true,
+						is_multiline: value.includes('\n'),
+					}),
+				},
+			);
 		}
 	}
 
-	const deployment = await coolifyRequest<{ deployments?: Array<{ deployment_uuid?: string }> }>('/deploy', { method: 'POST', body: JSON.stringify({ force: true, uuid: applicationUuid }) });
-	console.log(`Staging panel deployment queued: ${deployment.deployments?.[0]?.deployment_uuid ?? 'accepted'}.`);
+	const deployment = await coolifyRequest<{
+		deployments?: Array<{ deployment_uuid?: string }>;
+	}>('/deploy', {
+		method: 'POST',
+		body: JSON.stringify({ force: true, uuid: applicationUuid }),
+	});
+	console.log(
+		`Staging panel deployment queued: ${deployment.deployments?.[0]?.deployment_uuid ?? 'accepted'}.`,
+	);
 }
 
 await main();

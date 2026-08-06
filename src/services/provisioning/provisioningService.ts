@@ -19,6 +19,7 @@ import { databaseClusterEndpoint } from "@services/databases/databaseClusterEndp
 import { decryptCredential } from "@services/encryption/credentialEncryptionService";
 import { hostingProvider } from "@services/hosting/hostingProviderFactory";
 import { nixpacksRuntimeVersion } from "@services/provisioning/runtimeCompatibilityService";
+import { ensureApplicationTracker, publishApplicationEvent } from '@services/applications/applicationRealtimeService';
 
 /** Marks provider states that cannot improve without a new explicit deployment. */
 class TerminalProvisioningError extends Error {}
@@ -410,6 +411,10 @@ export async function processProvisioningJobs(
                 })
                 .where(eq(applicationDeployments.id, input.deploymentId));
           });
+          if (input.applicationBuildId) {
+            publishApplicationEvent({ applicationId: input.applicationBuildId, deploymentStatus: 'deploying', providerStatus: 'provisioning', type: 'deployment' });
+            ensureApplicationTracker(input.applicationBuildId, existingResource.providerResourceId);
+          }
           continue;
         }
         const providerStatus = await provider.getDeployment(

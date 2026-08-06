@@ -454,8 +454,32 @@ export const OPENAPI_DOCUMENT = {
 				summary: 'Soft-delete an offer',
 				operationId: 'deleteOffer',
 				security: [{ bearerAuth: [] }],
-				requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['confirmationName'], properties: { confirmationName: { type: 'string', description: 'Exact offer slug.' }, acceptedImpact: { type: 'boolean' }, connectedResourceNames: { type: 'array', items: { type: 'string' } } } } } } },
-				responses: { '200': { description: 'Offer deleted.' }, '422': { description: 'Typed confirmation does not match.' } },
+				requestBody: {
+					required: true,
+					content: {
+						'application/json': {
+							schema: {
+								type: 'object',
+								required: ['confirmationName'],
+								properties: {
+									confirmationName: {
+										type: 'string',
+										description: 'Exact offer slug.',
+									},
+									acceptedImpact: { type: 'boolean' },
+									connectedResourceNames: {
+										type: 'array',
+										items: { type: 'string' },
+									},
+								},
+							},
+						},
+					},
+				},
+				responses: {
+					'200': { description: 'Offer deleted.' },
+					'422': { description: 'Typed confirmation does not match.' },
+				},
 			},
 		},
 		'/workspaces': {
@@ -589,6 +613,28 @@ export const OPENAPI_DOCUMENT = {
 				},
 			},
 		},
+		'/webhooks/coolify': {
+			post: {
+				summary: 'Receive authenticated Coolify deployment notifications',
+				operationId: 'receiveCoolifyWebhook',
+				parameters: [
+					{
+						in: 'query',
+						name: 'secret',
+						required: true,
+						schema: { type: 'string' },
+					},
+				],
+				responses: {
+					'200': {
+						description:
+							'Known provider resource reconciled and live event published.',
+					},
+					'400': { description: 'Unsupported payload.' },
+					'404': { description: 'Webhook secret is invalid.' },
+				},
+			},
+		},
 		'/workspaces/{workspaceId}/resources': {
 			get: {
 				summary: 'List owned workspace provisioning jobs and resources',
@@ -687,7 +733,26 @@ export const OPENAPI_DOCUMENT = {
 				summary: 'Soft-delete a customer-managed DNS record',
 				operationId: 'deleteDomainDnsRecord',
 				security: [{ bearerAuth: [] }],
-				requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', additionalProperties: false, required: ['confirmationName'], properties: { confirmationName: { type: 'string', example: 'A www' }, acceptedImpact: { type: 'boolean' }, connectedResourceNames: { type: 'array', items: { type: 'string' } } } } } } },
+				requestBody: {
+					required: true,
+					content: {
+						'application/json': {
+							schema: {
+								type: 'object',
+								additionalProperties: false,
+								required: ['confirmationName'],
+								properties: {
+									confirmationName: { type: 'string', example: 'A www' },
+									acceptedImpact: { type: 'boolean' },
+									connectedResourceNames: {
+										type: 'array',
+										items: { type: 'string' },
+									},
+								},
+							},
+						},
+					},
+				},
 				responses: {
 					'200': {
 						description:
@@ -1215,9 +1280,45 @@ export const OPENAPI_DOCUMENT = {
 				summary: 'Permanently delete a workspace database',
 				operationId: 'deleteWorkspaceDatabase',
 				security: [{ bearerAuth: [] }],
-				parameters: [{ $ref: '#/components/parameters/WorkspaceId' }, { $ref: '#/components/parameters/DatabaseId' }],
-				requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', additionalProperties: false, required: ['confirmationName'], properties: { confirmationName: { type: 'string' }, acceptedImpact: { type: 'boolean' }, connectedApplicationNames: { type: 'array', items: { type: 'string' } } } } } } },
-				responses: { '200': { description: 'Physical database removed and local records soft-deleted.' }, '404': { description: 'Database not found.' }, '422': { description: 'Confirmation or live dependency state does not match.' }, '500': { description: 'Infrastructure deletion failed; local database remains active.' } },
+				parameters: [
+					{ $ref: '#/components/parameters/WorkspaceId' },
+					{ $ref: '#/components/parameters/DatabaseId' },
+				],
+				requestBody: {
+					required: true,
+					content: {
+						'application/json': {
+							schema: {
+								type: 'object',
+								additionalProperties: false,
+								required: ['confirmationName'],
+								properties: {
+									confirmationName: { type: 'string' },
+									acceptedImpact: { type: 'boolean' },
+									connectedApplicationNames: {
+										type: 'array',
+										items: { type: 'string' },
+									},
+								},
+							},
+						},
+					},
+				},
+				responses: {
+					'200': {
+						description:
+							'Physical database removed and local records soft-deleted.',
+					},
+					'404': { description: 'Database not found.' },
+					'422': {
+						description:
+							'Confirmation or live dependency state does not match.',
+					},
+					'500': {
+						description:
+							'Infrastructure deletion failed; local database remains active.',
+					},
+				},
 			},
 		},
 		'/workspaces/{workspaceId}/databases/{databaseId}/credentials': {
@@ -1296,7 +1397,29 @@ export const OPENAPI_DOCUMENT = {
 					{ $ref: '#/components/parameters/DatabaseId' },
 					{ $ref: '#/components/parameters/BackupId' },
 				],
-				requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', additionalProperties: false, required: ['confirmationName'], properties: { confirmationName: { type: 'string', example: 'backup-1234abcd' }, acceptedImpact: { type: 'boolean' }, connectedResourceNames: { type: 'array', items: { type: 'string' } } } } } } },
+				requestBody: {
+					required: true,
+					content: {
+						'application/json': {
+							schema: {
+								type: 'object',
+								additionalProperties: false,
+								required: ['confirmationName'],
+								properties: {
+									confirmationName: {
+										type: 'string',
+										example: 'backup-1234abcd',
+									},
+									acceptedImpact: { type: 'boolean' },
+									connectedResourceNames: {
+										type: 'array',
+										items: { type: 'string' },
+									},
+								},
+							},
+						},
+					},
+				},
 				responses: {
 					'200': { description: 'Artifact removed and record soft-deleted.' },
 					'404': { description: 'Backup not found.' },
@@ -1441,7 +1564,11 @@ export const OPENAPI_DOCUMENT = {
 								required: ['hostname'],
 								properties: {
 									hostname: { type: 'string', format: 'hostname' },
-									purpose: { type: 'string', enum: ['attach', 'ownership'], default: 'attach' },
+									purpose: {
+										type: 'string',
+										enum: ['attach', 'ownership'],
+										default: 'attach',
+									},
 								},
 							},
 						},
@@ -1475,8 +1602,34 @@ export const OPENAPI_DOCUMENT = {
 				operationId: 'registerWorkspaceDomainOwnership',
 				security: [{ bearerAuth: [] }],
 				parameters: [{ $ref: '#/components/parameters/WorkspaceId' }],
-				requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', additionalProperties: false, required: ['hostname'], properties: { hostname: { type: 'string', format: 'hostname', example: 'example.com' } } } } } },
-				responses: { '201': { description: 'Root-domain ownership claim created and audit logged.' }, '400': { description: 'Hostname is not a registrable root domain.' }, '403': { description: 'Domain belongs to another workspace.' }, '409': { description: 'Domain is already registered.' } },
+				requestBody: {
+					required: true,
+					content: {
+						'application/json': {
+							schema: {
+								type: 'object',
+								additionalProperties: false,
+								required: ['hostname'],
+								properties: {
+									hostname: {
+										type: 'string',
+										format: 'hostname',
+										example: 'example.com',
+									},
+								},
+							},
+						},
+					},
+				},
+				responses: {
+					'201': {
+						description:
+							'Root-domain ownership claim created and audit logged.',
+					},
+					'400': { description: 'Hostname is not a registrable root domain.' },
+					'403': { description: 'Domain belongs to another workspace.' },
+					'409': { description: 'Domain is already registered.' },
+				},
 			},
 		},
 		'/workspaces/{workspaceId}/domain-access/{requestId}': {
@@ -1546,25 +1699,99 @@ export const OPENAPI_DOCUMENT = {
 				},
 			},
 			delete: {
-				summary: 'Delete an application and optionally selected exclusive databases', operationId: 'deleteWorkspaceApplication', security: [{ bearerAuth: [] }],
-				parameters: [{ $ref: '#/components/parameters/WorkspaceId' }, { $ref: '#/components/parameters/ApplicationId' }],
-				responses: { '200': { description: 'Provider resource removed and local records soft-deleted.' }, '422': { description: 'Typed confirmations or database dependencies do not match.' }, '502': { description: 'Provider cleanup failed; application is marked cleanup_failed.' } },
+				summary:
+					'Delete an application and optionally selected exclusive databases',
+				operationId: 'deleteWorkspaceApplication',
+				security: [{ bearerAuth: [] }],
+				parameters: [
+					{ $ref: '#/components/parameters/WorkspaceId' },
+					{ $ref: '#/components/parameters/ApplicationId' },
+				],
+				responses: {
+					'200': {
+						description:
+							'Provider resource removed and local records soft-deleted.',
+					},
+					'422': {
+						description:
+							'Typed confirmations or database dependencies do not match.',
+					},
+					'502': {
+						description:
+							'Provider cleanup failed; application is marked cleanup_failed.',
+					},
+				},
 			},
 		},
 		'/workspaces/{workspaceId}/applications/{applicationId}/action': {
-			post: { summary: 'Start, pause, restart, redeploy, deactivate, or reactivate an application', operationId: 'controlWorkspaceApplication', security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/WorkspaceId' }, { $ref: '#/components/parameters/ApplicationId' }], responses: { '202': { description: 'Provider lifecycle action accepted and audited.' }, '403': { description: 'Application is administrator-suspended.' }, '422': { description: 'Manual deployments are not included in the package.' } } },
+			post: {
+				summary:
+					'Start, pause, restart, redeploy, deactivate, or reactivate an application',
+				operationId: 'controlWorkspaceApplication',
+				security: [{ bearerAuth: [] }],
+				parameters: [
+					{ $ref: '#/components/parameters/WorkspaceId' },
+					{ $ref: '#/components/parameters/ApplicationId' },
+				],
+				responses: {
+					'202': {
+						description: 'Provider lifecycle action accepted and audited.',
+					},
+					'403': { description: 'Application is administrator-suspended.' },
+					'422': {
+						description: 'Manual deployments are not included in the package.',
+					},
+				},
+			},
 		},
 		'/workspaces/{workspaceId}/applications/{applicationId}/deployments': {
-			get: { summary: 'List package-limited deployment history and captured logs', operationId: 'listWorkspaceApplicationDeployments', security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/WorkspaceId' }, { $ref: '#/components/parameters/ApplicationId' }], responses: { '200': { description: 'History includes effective entry and retention limits.' }, '404': { description: 'Application not found.' } } },
+			get: {
+				summary: 'List package-limited deployment history and captured logs',
+				operationId: 'listWorkspaceApplicationDeployments',
+				security: [{ bearerAuth: [] }],
+				parameters: [
+					{ $ref: '#/components/parameters/WorkspaceId' },
+					{ $ref: '#/components/parameters/ApplicationId' },
+				],
+				responses: {
+					'200': {
+						description:
+							'History includes effective entry and retention limits.',
+					},
+					'404': { description: 'Application not found.' },
+				},
+			},
+		},
+		'/workspaces/{workspaceId}/applications/{applicationId}/events': {
+			get: {
+				summary: 'Stream live application and deployment events',
+				operationId: 'streamWorkspaceApplicationEvents',
+				security: [{ bearerAuth: [] }],
+				parameters: [
+					{ $ref: '#/components/parameters/WorkspaceId' },
+					{ $ref: '#/components/parameters/ApplicationId' },
+				],
+				responses: {
+					'200': {
+						description:
+							'Authenticated text/event-stream with status and deployment events.',
+					},
+					'403': { description: 'Workspace access denied.' },
+				},
+			},
 		},
 		'/workspaces/{workspaceId}/applications/options': {
 			get: {
-				summary: 'List deployment runtimes, databases, limits, and reusable workspace domains',
+				summary:
+					'List deployment runtimes, databases, limits, and reusable workspace domains',
 				operationId: 'workspaceApplicationOptions',
 				security: [{ bearerAuth: [] }],
 				parameters: [{ $ref: '#/components/parameters/WorkspaceId' }],
 				responses: {
-					'200': { description: 'Active runtime, database, entitlement, and owned-domain options including attached hostnames.' },
+					'200': {
+						description:
+							'Active runtime, database, entitlement, and owned-domain options including attached hostnames.',
+					},
 				},
 			},
 		},
@@ -1578,22 +1805,122 @@ export const OPENAPI_DOCUMENT = {
 					{ $ref: '#/components/parameters/ApplicationId' },
 				],
 				responses: {
-					'200': { description: 'Runtime logs, falling back to latest deployment logs when the application is not running.' },
+					'200': {
+						description:
+							'Runtime logs, falling back to latest deployment logs when the application is not running.',
+					},
 					'404': { description: 'Application not found in workspace.' },
 				},
 			},
 		},
 		'/workspaces/{workspaceId}/applications/{applicationId}/cron-jobs': {
-			get: { summary: 'List project scheduled tasks and plan limits', operationId: 'listApplicationCronJobs', security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/WorkspaceId' }, { $ref: '#/components/parameters/ApplicationId' }], responses: { '200': { description: 'Tasks, framework preset, and effective limits.' }, '404': { description: 'Application not found.' } } },
-			post: { summary: 'Create and synchronize a project scheduled task', operationId: 'createApplicationCronJob', security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/WorkspaceId' }, { $ref: '#/components/parameters/ApplicationId' }], requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['name', 'frequency', 'timeoutSeconds', 'isEnabled'], properties: { name: { type: 'string' }, command: { type: 'string' }, frequency: { type: 'string', example: '0 */4 * * *' }, timeoutSeconds: { type: 'integer' }, isEnabled: { type: 'boolean' } } } } } }, responses: { '201': { description: 'Task synchronized and stored.' }, '422': { description: 'Plan, framework, schedule, or provider constraint failed.' } } },
+			get: {
+				summary: 'List project scheduled tasks and plan limits',
+				operationId: 'listApplicationCronJobs',
+				security: [{ bearerAuth: [] }],
+				parameters: [
+					{ $ref: '#/components/parameters/WorkspaceId' },
+					{ $ref: '#/components/parameters/ApplicationId' },
+				],
+				responses: {
+					'200': {
+						description: 'Tasks, framework preset, and effective limits.',
+					},
+					'404': { description: 'Application not found.' },
+				},
+			},
+			post: {
+				summary: 'Create and synchronize a project scheduled task',
+				operationId: 'createApplicationCronJob',
+				security: [{ bearerAuth: [] }],
+				parameters: [
+					{ $ref: '#/components/parameters/WorkspaceId' },
+					{ $ref: '#/components/parameters/ApplicationId' },
+				],
+				requestBody: {
+					required: true,
+					content: {
+						'application/json': {
+							schema: {
+								type: 'object',
+								required: ['name', 'frequency', 'timeoutSeconds', 'isEnabled'],
+								properties: {
+									name: { type: 'string' },
+									command: { type: 'string' },
+									frequency: { type: 'string', example: '0 */4 * * *' },
+									timeoutSeconds: { type: 'integer' },
+									isEnabled: { type: 'boolean' },
+								},
+							},
+						},
+					},
+				},
+				responses: {
+					'201': { description: 'Task synchronized and stored.' },
+					'422': {
+						description:
+							'Plan, framework, schedule, or provider constraint failed.',
+					},
+				},
+			},
 		},
-		'/workspaces/{workspaceId}/applications/{applicationId}/cron-jobs/{cronId}': {
-			patch: { summary: 'Update a project scheduled task', operationId: 'updateApplicationCronJob', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Task synchronized and updated.' }, '422': { description: 'Update rejected.' } } },
-			delete: { summary: 'Delete a project scheduled task', operationId: 'deleteApplicationCronJob', security: [{ bearerAuth: [] }], requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['confirmationName'], properties: { confirmationName: { type: 'string' }, acceptedImpact: { type: 'boolean' }, connectedResourceNames: { type: 'array', items: { type: 'string' } } } } } } }, responses: { '200': { description: 'Provider task removed and local record soft-deleted.' }, '422': { description: 'Deletion confirmation or provider cleanup failed.' } } },
-		},
-		'/workspaces/{workspaceId}/applications/{applicationId}/cron-jobs/{cronId}/executions': {
-			get: { summary: 'Read provider scheduled-task execution history', operationId: 'listApplicationCronExecutions', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Sanitized provider execution history.' }, '404': { description: 'Task is unavailable or unsynchronized.' } } },
-		},
+		'/workspaces/{workspaceId}/applications/{applicationId}/cron-jobs/{cronId}':
+			{
+				patch: {
+					summary: 'Update a project scheduled task',
+					operationId: 'updateApplicationCronJob',
+					security: [{ bearerAuth: [] }],
+					responses: {
+						'200': { description: 'Task synchronized and updated.' },
+						'422': { description: 'Update rejected.' },
+					},
+				},
+				delete: {
+					summary: 'Delete a project scheduled task',
+					operationId: 'deleteApplicationCronJob',
+					security: [{ bearerAuth: [] }],
+					requestBody: {
+						required: true,
+						content: {
+							'application/json': {
+								schema: {
+									type: 'object',
+									required: ['confirmationName'],
+									properties: {
+										confirmationName: { type: 'string' },
+										acceptedImpact: { type: 'boolean' },
+										connectedResourceNames: {
+											type: 'array',
+											items: { type: 'string' },
+										},
+									},
+								},
+							},
+						},
+					},
+					responses: {
+						'200': {
+							description:
+								'Provider task removed and local record soft-deleted.',
+						},
+						'422': {
+							description: 'Deletion confirmation or provider cleanup failed.',
+						},
+					},
+				},
+			},
+		'/workspaces/{workspaceId}/applications/{applicationId}/cron-jobs/{cronId}/executions':
+			{
+				get: {
+					summary: 'Read provider scheduled-task execution history',
+					operationId: 'listApplicationCronExecutions',
+					security: [{ bearerAuth: [] }],
+					responses: {
+						'200': { description: 'Sanitized provider execution history.' },
+						'404': { description: 'Task is unavailable or unsynchronized.' },
+					},
+				},
+			},
 		'/workspaces/{workspaceId}/applications/{applicationId}/domains': {
 			get: {
 				summary: 'List application domains and TLS state',
@@ -1684,7 +2011,25 @@ export const OPENAPI_DOCUMENT = {
 						{ $ref: '#/components/parameters/ApplicationId' },
 						{ $ref: '#/components/parameters/DomainId' },
 					],
-					requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['confirmationName'], properties: { confirmationName: { type: 'string' }, acceptedImpact: { type: 'boolean' }, connectedResourceNames: { type: 'array', items: { type: 'string' } } } } } } },
+					requestBody: {
+						required: true,
+						content: {
+							'application/json': {
+								schema: {
+									type: 'object',
+									required: ['confirmationName'],
+									properties: {
+										confirmationName: { type: 'string' },
+										acceptedImpact: { type: 'boolean' },
+										connectedResourceNames: {
+											type: 'array',
+											items: { type: 'string' },
+										},
+									},
+								},
+							},
+						},
+					},
 					responses: {
 						'200': { description: 'Domain detached and soft-deleted.' },
 						'422': {
@@ -1824,24 +2169,103 @@ export const OPENAPI_DOCUMENT = {
 			},
 		},
 		'/operations/users': {
-			get: { summary: 'List users for customer resource administration', operationId: 'listAdminControlledUsers', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Audited user inventory.' }, '403': { description: 'Missing customers.view permission.' } } },
+			get: {
+				summary: 'List users for customer resource administration',
+				operationId: 'listAdminControlledUsers',
+				security: [{ bearerAuth: [] }],
+				responses: {
+					'200': { description: 'Audited user inventory.' },
+					'403': { description: 'Missing customers.view permission.' },
+				},
+			},
 		},
 		'/operations/users/{userId}': {
-			get: { summary: 'Read one user, workspaces, sessions and authentication events', operationId: 'showAdminControlledUser', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Permission-filtered and audited user control record.' }, '403': { description: 'Permission denied.' }, '404': { description: 'User not found.' } } },
+			get: {
+				summary:
+					'Read one user, workspaces, sessions and authentication events',
+				operationId: 'showAdminControlledUser',
+				security: [{ bearerAuth: [] }],
+				responses: {
+					'200': {
+						description: 'Permission-filtered and audited user control record.',
+					},
+					'403': { description: 'Permission denied.' },
+					'404': { description: 'User not found.' },
+				},
+			},
 		},
 		'/operations/users/{userId}/workspaces/{workspaceId}': {
-			get: { summary: 'Read workspace applications and related customer resources', operationId: 'showAdminControlledWorkspace', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Permission-filtered, audited workspace resource inventory.' }, '404': { description: 'Workspace is not associated with this user.' } } },
+			get: {
+				summary: 'Read workspace applications and related customer resources',
+				operationId: 'showAdminControlledWorkspace',
+				security: [{ bearerAuth: [] }],
+				responses: {
+					'200': {
+						description:
+							'Permission-filtered, audited workspace resource inventory.',
+					},
+					'404': { description: 'Workspace is not associated with this user.' },
+				},
+			},
 		},
 		'/operations/users/{userId}/sessions/{sessionId}': {
-			post: { summary: 'Revoke a customer session', operationId: 'revokeAdminControlledUserSession', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Session revoked and audited.' }, '403': { description: 'Missing user_sessions.revoke permission.' } } },
+			post: {
+				summary: 'Revoke a customer session',
+				operationId: 'revokeAdminControlledUserSession',
+				security: [{ bearerAuth: [] }],
+				responses: {
+					'200': { description: 'Session revoked and audited.' },
+					'403': { description: 'Missing user_sessions.revoke permission.' },
+				},
+			},
 		},
-		'/operations/users/{userId}/workspaces/{workspaceId}/applications/{applicationId}/files': {
-			get: { summary: 'List an application repository tree', operationId: 'listAdminApplicationFiles', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Bounded repository tree; access audited.' }, '403': { description: 'Permission or repository access denied.' } } },
-			post: { summary: 'Read an application source file', operationId: 'readAdminApplicationFile', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Bounded UTF-8 file preview; access audited without contents.' }, '403': { description: 'Missing normal or sensitive file permission.' } } },
-		},
-		'/operations/users/{userId}/workspaces/{workspaceId}/applications/{applicationId}/control': {
-			post: { summary: 'Start, stop, restart, or redeploy a customer application', operationId: 'controlAdminCustomerApplication', security: [{ bearerAuth: [] }], responses: { '202': { description: 'Provider lifecycle action accepted and audited.' }, '403': { description: 'Missing action-specific permission.' }, '404': { description: 'Application is not associated with the selected customer workspace.' }, '502': { description: 'Hosting provider rejected the lifecycle request.' } } },
-		},
+		'/operations/users/{userId}/workspaces/{workspaceId}/applications/{applicationId}/files':
+			{
+				get: {
+					summary: 'List an application repository tree',
+					operationId: 'listAdminApplicationFiles',
+					security: [{ bearerAuth: [] }],
+					responses: {
+						'200': { description: 'Bounded repository tree; access audited.' },
+						'403': { description: 'Permission or repository access denied.' },
+					},
+				},
+				post: {
+					summary: 'Read an application source file',
+					operationId: 'readAdminApplicationFile',
+					security: [{ bearerAuth: [] }],
+					responses: {
+						'200': {
+							description:
+								'Bounded UTF-8 file preview; access audited without contents.',
+						},
+						'403': {
+							description: 'Missing normal or sensitive file permission.',
+						},
+					},
+				},
+			},
+		'/operations/users/{userId}/workspaces/{workspaceId}/applications/{applicationId}/control':
+			{
+				post: {
+					summary: 'Start, stop, restart, or redeploy a customer application',
+					operationId: 'controlAdminCustomerApplication',
+					security: [{ bearerAuth: [] }],
+					responses: {
+						'202': {
+							description: 'Provider lifecycle action accepted and audited.',
+						},
+						'403': { description: 'Missing action-specific permission.' },
+						'404': {
+							description:
+								'Application is not associated with the selected customer workspace.',
+						},
+						'502': {
+							description: 'Hosting provider rejected the lifecycle request.',
+						},
+					},
+				},
+			},
 		'/operations/platform-settings': {
 			get: {
 				summary: 'Retrieve platform domain settings',
