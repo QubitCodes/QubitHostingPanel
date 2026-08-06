@@ -77,6 +77,15 @@ interface SourceAnalysis {
 	directories: string[];
 	candidates: Array<{
 		commands?: { build?: string; install?: string; start?: string };
+		deploymentContract?: {
+			checks: Array<{
+				code: string;
+				message: string;
+				status: 'error' | 'pass' | 'warning';
+			}>;
+			healthCheckPath: string;
+			recipeVersion: string;
+		};
 		framework?: string;
 		packageManager?: string;
 		projectDirectory: string;
@@ -217,6 +226,9 @@ function DetectionSummary({ analysis }: { analysis: SourceAnalysis }) {
 	)?.label;
 	const detectedFramework = frameworkDefinition(candidate?.framework)?.label;
 	const evidence = analysis.evidence.map(evidenceParts);
+	const checks = candidate?.deploymentContract?.checks ?? [];
+	const passedChecks = checks.filter(({ status }) => status === 'pass').length;
+	const actionChecks = checks.filter(({ status }) => status !== 'pass').length;
 
 	return (
 		<div className="overflow-hidden rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.06]">
@@ -245,6 +257,12 @@ function DetectionSummary({ analysis }: { analysis: SourceAnalysis }) {
 					],
 					['Package manager', candidate?.packageManager ?? 'Automatic'],
 					[
+						'Configuration checks',
+						checks.length
+							? `${passedChecks} passed${actionChecks ? ` · ${actionChecks} to review` : ''}`
+							: 'Pending',
+					],
+					[
 						'Environment variables',
 						analysis.environmentKeys.length
 							? `${analysis.environmentKeys.length} keys found`
@@ -271,6 +289,18 @@ function DetectionSummary({ analysis }: { analysis: SourceAnalysis }) {
 					<ChevronDown className="size-4 shrink-0 transition-transform group-open:rotate-180" />
 				</summary>
 				<div className="max-h-64 overflow-y-auto border-t border-emerald-500/15 px-4 py-2">
+					{checks.length > 0 && (
+						<ul className="mb-2 divide-y divide-brand-primary/10 border-b border-brand-primary/10">
+							{checks.map((check) => (
+								<li className="flex items-start gap-3 py-3" key={check.code}>
+									<span
+										className={`mt-1 size-2 shrink-0 rounded-full ${check.status === 'pass' ? 'bg-emerald-500' : check.status === 'warning' ? 'bg-amber-500' : 'bg-red-500'}`}
+									/>
+									<p className="text-xs text-app-muted">{check.message}</p>
+								</li>
+							))}
+						</ul>
+					)}
 					{evidence.length ? (
 						<ul className="divide-y divide-brand-primary/10">
 							{evidence.map((item, index) => (
@@ -810,7 +840,9 @@ export function DeployApplicationForm({
 					key: item.key,
 					value: '',
 					isSecret: item.isSecret,
-					scope: 'runtime',
+					scope: /^(?:NEXT_PUBLIC_|VITE_|PUBLIC_)/.test(item.key)
+						? 'both'
+						: 'runtime',
 				})),
 			);
 			if (
@@ -1745,7 +1777,7 @@ export function DeployApplicationForm({
 								<div className="flex items-stretch overflow-hidden rounded-xl border border-brand-primary/15 bg-white focus-within:border-brand-action dark:bg-gray-800">
 									<input
 										className="min-w-0 flex-1 bg-transparent px-4 py-3 text-gray-900 outline-none dark:text-gray-100"
-										maxLength={70}
+										maxLength={56}
 										name="newDatabaseNamePrefix"
 										onChange={(event) => {
 											setDatabaseNameEdited(true);

@@ -2,6 +2,7 @@ import { and, asc, eq, inArray, isNull, lt, lte } from "drizzle-orm";
 
 import { getEnvironment } from "@config/env";
 import { frameworkDefinition } from "@config/frameworkCatalog";
+import { buildSafeInstallCommand } from "@services/applications/deploymentRecipeService";
 import { db } from "@db/client";
 import {
   applicationBuilds,
@@ -19,7 +20,10 @@ import { databaseClusterEndpoint } from "@services/databases/databaseClusterEndp
 import { decryptCredential } from "@services/encryption/credentialEncryptionService";
 import { hostingProvider } from "@services/hosting/hostingProviderFactory";
 import { nixpacksRuntimeVersion } from "@services/provisioning/runtimeCompatibilityService";
-import { ensureApplicationTracker, publishApplicationEvent } from '@services/applications/applicationRealtimeService';
+import {
+  ensureApplicationTracker,
+  publishApplicationEvent,
+} from "@services/applications/applicationRealtimeService";
 
 /** Marks provider states that cannot improve without a new explicit deployment. */
 class TerminalProvisioningError extends Error {}
@@ -75,10 +79,7 @@ export async function processProvisioningJobs(
       .where(
         and(
           inArray(provisioningJobs.status, ["queued", "failed"]),
-          lt(
-            provisioningJobs.attemptCount,
-            provisioningJobs.maximumAttempts,
-          ),
+          lt(provisioningJobs.attemptCount, provisioningJobs.maximumAttempts),
           lte(provisioningJobs.nextAttemptAt, now),
           isNull(provisioningJobs.deletedAt),
         ),
@@ -132,6 +133,7 @@ export async function processProvisioningJobs(
         | {
             buildPack?: "dockerfile" | "nixpacks" | "static";
             coolifyGithubAppUuid?: string;
+            deploymentContract?: Record<string, unknown>;
             name?: string;
           }
         | undefined;
@@ -144,7 +146,11 @@ export async function processProvisioningJobs(
         .slice(0, 40)}-${claimed.workspaceId.slice(0, 8)}`;
       /** Resolves secrets only when submitting or retrying a provider deployment. */
       const deploymentInput = async () => {
-        let databaseEnvironment: Array<{ key: string; value: string }> = [];
+        let databaseEnvironment: Array<{
+          key: string;
+          scope?: "build" | "both" | "runtime";
+          value: string;
+        }> = [];
         let domains: string[] = [];
         if (configuredApplication) {
           domains = (
@@ -208,7 +214,10 @@ export async function processProvisioningJobs(
               if (configuredApplication.build.framework === "laravel")
                 return [
                   ...common,
-                  { key: "DB_CONNECTION", value: cluster.engine === "postgresql" ? "pgsql" : "mysql" },
+                  {
+                    key: "DB_CONNECTION",
+                    value: cluster.engine === "postgresql" ? "pgsql" : "mysql",
+                  },
                   { key: "DB_HOST", value: endpoint.host },
                   { key: "DB_PORT", value: String(endpoint.port) },
                   { key: "DB_DATABASE", value: credential.databaseName },
@@ -218,13 +227,17 @@ export async function processProvisioningJobs(
               if (configuredApplication.build.framework === "wordpress")
                 return [
                   ...common,
-                  { key: "WORDPRESS_DB_HOST", value: `${endpoint.host}:${endpoint.port}` },
+                  {
+                    key: "WORDPRESS_DB_HOST",
+                    value: `${endpoint.host}:${endpoint.port}`,
+                  },
                   { key: "WORDPRESS_DB_NAME", value: credential.databaseName },
                   { key: "WORDPRESS_DB_USER", value: credential.username },
                   { key: "WORDPRESS_DB_PASSWORD", value: credential.password },
                 ];
               if (configuredApplication.build.framework === "rails") {
-                const protocol = cluster.engine === "postgresql" ? "postgres" : "mysql2";
+                const protocol =
+                  cluster.engine === "postgresql" ? "postgres" : "mysql2";
                 return [
                   ...common,
                   {
@@ -241,14 +254,15 @@ export async function processProvisioningJobs(
               ? "NIXPACKS_NODE_VERSION"
               : configuredApplication.runtime.language === "python"
                 ? "NIXPACKS_PYTHON_VERSION"
-              : configuredApplication.runtime.language === "php"
+                : configuredApplication.runtime.language === "php"
                   ? "NIXPACKS_PHP_VERSION"
                   : configuredApplication.runtime.language === "ruby"
                     ? "NIXPACKS_RUBY_VERSION"
-                  : undefined;
+                    : undefined;
           if (runtimeVersionVariable)
             databaseEnvironment.push({
               key: runtimeVersionVariable,
+              scope: "build",
               value: nixpacksRuntimeVersion(
                 configuredApplication.runtime.language,
                 configuredApplication.runtime.version,
@@ -287,7 +301,7 @@ export async function processProvisioningJobs(
             }>)
           : [];
         return {
-		  autoDeployEnabled: configuredApplication?.build.autoDeployEnabled,
+          autoDeployEnabled: configuredApplication?.build.autoDeployEnabled,
           name: resourceName,
           persistentStorages: frameworkDefinition(
             configuredApplication?.build.framework,
@@ -308,14 +322,31 @@ export async function processProvisioningJobs(
               }
             : undefined,
           buildPack: applicationMetadata?.buildPack,
-          installCommand:
+          installCommand: buildSafeInstallCommand(
             configuredApplication?.build.installCommand ?? undefined,
+            configuredApplication?.build.buildCommand ?? undefined,
+          ),
           buildCommand: configuredApplication?.build.buildCommand ?? undefined,
           startCommand: configuredApplication?.build.startCommand ?? undefined,
           baseDirectory: configuredApplication?.build.baseDirectory,
           publishDirectory:
             configuredApplication?.build.publishDirectory ?? undefined,
           domains,
+          healthCheckPath:
+            typeof applicationMetadata?.deploymentContract === "object" &&
+            applicationMetadata.deploymentContract !== null &&
+            typeof (
+              applicationMetadata.deploymentContract as Record<string, unknown>
+            ).healthCheckPath === "string"
+              ? String(
+                  (
+                    applicationMetadata.deploymentContract as Record<
+                      string,
+                      unknown
+                    >
+                  ).healthCheckPath,
+                )
+              : "/",
           databaseEnvironment,
           environmentVariables,
           deploymentEnvironment:
@@ -370,8 +401,7 @@ export async function processProvisioningJobs(
               .update(workspaceResources)
               .set({
                 status: "provisioning",
-                publicUrl:
-                  redeployment.publicUrl ?? existingResource.publicUrl,
+                publicUrl: redeployment.publicUrl ?? existingResource.publicUrl,
                 lastReconciledAt: new Date(),
                 updatedAt: new Date(),
               })
@@ -395,7 +425,11 @@ export async function processProvisioningJobs(
             if (input.applicationBuildId)
               await transaction
                 .update(applicationBuilds)
-                .set({ status: "building", failureReason: null, updatedAt: new Date() })
+                .set({
+                  status: "building",
+                  failureReason: null,
+                  updatedAt: new Date(),
+                })
                 .where(eq(applicationBuilds.id, input.applicationBuildId));
             if (input.deploymentId)
               await transaction
@@ -412,8 +446,16 @@ export async function processProvisioningJobs(
                 .where(eq(applicationDeployments.id, input.deploymentId));
           });
           if (input.applicationBuildId) {
-            publishApplicationEvent({ applicationId: input.applicationBuildId, deploymentStatus: 'deploying', providerStatus: 'provisioning', type: 'deployment' });
-            ensureApplicationTracker(input.applicationBuildId, existingResource.providerResourceId);
+            publishApplicationEvent({
+              applicationId: input.applicationBuildId,
+              deploymentStatus: "deploying",
+              providerStatus: "provisioning",
+              type: "deployment",
+            });
+            ensureApplicationTracker(
+              input.applicationBuildId,
+              existingResource.providerResourceId,
+            );
           }
           continue;
         }

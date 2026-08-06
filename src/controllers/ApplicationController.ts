@@ -34,6 +34,8 @@ import { authenticateSession } from '@services/auth/authenticatedSessionService'
 import { hostingProvider } from '@services/hosting/hostingProviderFactory';
 import { getEffectivePlatformUrls } from '@services/platformUrlService';
 import { analyzeApplicationSource } from '@services/applications/sourceDetectionService';
+import { resolveDeploymentContract } from '@services/applications/deploymentRecipeService';
+import { diagnoseDeploymentLogs } from '@services/applications/deploymentDiagnosticService';
 import {
 	ensureApplicationTracker,
 	publishApplicationEvent,
@@ -497,6 +499,71 @@ export class ApplicationController {
 					undefined,
 					404,
 				);
+			const [runtime] = await db
+				.select({ language: runtimeImages.language })
+				.from(runtimeImages)
+				.where(
+					and(
+						eq(runtimeImages.id, application.runtimeImageId),
+						isNull(runtimeImages.deletedAt),
+					),
+				)
+				.limit(1);
+			if (!runtime)
+				return resp.failure(
+					'Application runtime is unavailable.',
+					resp.codes.RESOURCE_NOT_FOUND,
+					undefined,
+					null,
+					undefined,
+					404,
+				);
+			const frameworkCode =
+				input.framework === undefined ? application.framework : input.framework;
+			const selectedFramework = frameworkDefinition(frameworkCode);
+			if (frameworkCode && !selectedFramework)
+				return resp.failure(
+					'Framework is unsupported.',
+					resp.codes.INVALID_INPUT_DATA,
+					undefined,
+					null,
+					undefined,
+					422,
+				);
+			if (selectedFramework && selectedFramework.language !== runtime.language)
+				return resp.failure(
+					'Framework does not match the selected runtime.',
+					resp.codes.INVALID_INPUT_DATA,
+					undefined,
+					null,
+					undefined,
+					422,
+				);
+			const deploymentContract = resolveDeploymentContract({
+				buildCommand: input.buildCommand,
+				framework: frameworkCode,
+				installCommand: input.installCommand,
+				port: input.port,
+				projectDirectory: input.baseDirectory,
+				publishDirectory: input.publishDirectory,
+				stack: runtime.language,
+				startCommand: input.startCommand,
+			});
+			const contractErrors = deploymentContract.checks.filter(
+				({ status }) => status === 'error',
+			);
+			if (contractErrors.length)
+				return resp.failure(
+					'Deployment configuration did not pass preflight.',
+					resp.codes.VALIDATION_ERROR,
+					contractErrors.map(({ code, message }) => ({
+						field: code,
+						message,
+					})),
+					null,
+					undefined,
+					400,
+				);
 			const now = new Date();
 			const deploymentRetention = await effectiveEntitlement(
 				workspace.id,
@@ -515,22 +582,20 @@ export class ApplicationController {
 						metadata: {
 							...application.metadata,
 							...(input.name ? { name: input.name } : {}),
+							deploymentContract,
 						},
 						sourceRef: input.branch,
 						deploymentEnvironment:
 							input.deploymentEnvironment ?? application.deploymentEnvironment,
-						framework:
-							input.framework === undefined
-								? application.framework
-								: input.framework,
+						framework: frameworkCode,
 						autoDeployEnabled:
 							input.autoDeployEnabled ?? application.autoDeployEnabled,
 						visibility: input.visibility ?? application.visibility,
-						installCommand: input.installCommand,
-						buildCommand: input.buildCommand,
-						startCommand: input.startCommand,
+						installCommand: deploymentContract.installCommand,
+						buildCommand: deploymentContract.buildCommand,
+						startCommand: deploymentContract.startCommand,
 						baseDirectory: input.baseDirectory,
-						publishDirectory: input.publishDirectory,
+						publishDirectory: deploymentContract.publishDirectory,
 						applicationPort: input.port,
 						status: 'queued',
 						completedAt: null,
@@ -736,6 +801,7 @@ export class ApplicationController {
 			const provider = retainedProviderRows.length
 				? await hostingProvider()
 				: null;
+			let logsPermissionRequired = false;
 			const detailedProviderRows = provider
 				? await Promise.all(
 						retainedProviderRows.map(async (row) => {
@@ -745,7 +811,12 @@ export class ApplicationController {
 									...row,
 									...(await provider.getApplicationDeployment(row.id)),
 								};
-							} catch {
+							} catch (error) {
+								if (
+									error instanceof Error &&
+									/^Coolify 403:/i.test(error.message)
+								)
+									logsPermissionRequired = true;
 								return row;
 							}
 						}),
@@ -764,19 +835,26 @@ export class ApplicationController {
 				userAgent: metadata.userAgent,
 			});
 			return resp.success('Deployment history retrieved.', {
-				items: detailedProviderRows.length
-					? detailedProviderRows
-					: localRows.map((row) => ({
+			items: detailedProviderRows.length
+				? detailedProviderRows
+				: localRows.map((row) => {
+						const logs = row.logsCiphertext
+							? decryptCredential(row.logsCiphertext)
+							: null;
+						return {
 							...row,
 							id: row.providerDeploymentId ?? row.id,
-							logs: row.logsCiphertext
-								? decryptCredential(row.logsCiphertext)
-								: null,
-						})),
+							diagnostic: diagnoseDeploymentLogs(logs),
+							logs,
+						};
+					}),
 				limit: limitPolicy.isUnlimited ? null : limit,
 				retentionDays,
 				totalRetained: localRows.length,
-				logsPermissionRequired: detailedProviderRows.some((row) => !row.logs),
+				logsPermissionRequired,
+				logsUnavailable:
+					!logsPermissionRequired &&
+					detailedProviderRows.some((row) => !row.logs),
 			});
 		} catch (error) {
 			return resp.failure(
@@ -1267,6 +1345,31 @@ export class ApplicationController {
 					undefined,
 					422,
 				);
+			const deploymentContract = resolveDeploymentContract({
+				buildCommand: input.buildCommand,
+				framework: input.framework,
+				installCommand: input.installCommand,
+				port: input.port,
+				projectDirectory: input.baseDirectory,
+				publishDirectory: input.publishDirectory,
+				stack: runtime.language,
+				startCommand: input.startCommand,
+			});
+			const contractErrors = deploymentContract.checks.filter(
+				({ status }) => status === 'error',
+			);
+			if (contractErrors.length)
+				return resp.failure(
+					'Deployment configuration did not pass preflight.',
+					resp.codes.VALIDATION_ERROR,
+					contractErrors.map(({ code, message }) => ({
+						field: code,
+						message,
+					})),
+					null,
+					undefined,
+					400,
+				);
 			let githubConnection:
 				typeof workspaceGithubConnections.$inferSelect | undefined;
 			if (input.githubConnectionId) {
@@ -1569,11 +1672,11 @@ export class ApplicationController {
 							: null,
 						sourceRepository: input.repository,
 						sourceRef: input.branch,
-						installCommand: input.installCommand,
-						buildCommand: input.buildCommand,
-						startCommand: input.startCommand,
+						installCommand: deploymentContract.installCommand,
+						buildCommand: deploymentContract.buildCommand,
+						startCommand: deploymentContract.startCommand,
 						baseDirectory: input.baseDirectory,
-						publishDirectory: input.publishDirectory,
+						publishDirectory: deploymentContract.publishDirectory,
 						applicationPort: input.port,
 						requestedDomain: customHostnames[0],
 						metadata: {
@@ -1583,6 +1686,7 @@ export class ApplicationController {
 							githubConnectionId: githubConnection?.id,
 							githubInstallationId: githubConnection?.installationId,
 							coolifyGithubAppUuid: githubConnection?.coolifyGithubAppUuid,
+							deploymentContract,
 						},
 						autoDeployEnabled: input.autoDeployEnabled,
 					})

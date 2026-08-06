@@ -1,4 +1,11 @@
-import { frameworkDefinition, type RuntimeLanguage } from '@config/frameworkCatalog';
+import {
+  frameworkDefinition,
+  type RuntimeLanguage,
+} from "@config/frameworkCatalog";
+import {
+  resolveDeploymentContract,
+  type DeploymentContract,
+} from "@services/applications/deploymentRecipeService";
 
 interface GitHubRepository {
   owner: string;
@@ -13,26 +20,21 @@ interface PackageManifest {
   devDependencies?: Record<string, string>;
   scripts?: Record<string, string>;
 }
-interface NpmLockManifest {
-	packages?: Record<string, {
-		dependencies?: Record<string, string>;
-		devDependencies?: Record<string, string>;
-	}>;
-}
 interface ComposerManifest {
   require?: Record<string, string>;
   "require-dev"?: Record<string, string>;
 }
 
 export interface SourceCandidate {
-	commands?: {
-		build?: string;
-		install?: string;
-		start?: string;
-	};
-	framework?: string;
-	packageManager?: string;
-	projectDirectory: string;
+  commands?: {
+    build?: string;
+    install?: string;
+    start?: string;
+  };
+  framework?: string;
+  packageManager?: string;
+  projectDirectory: string;
+  deploymentContract?: DeploymentContract;
   stack: RuntimeLanguage;
   versionHint?: string;
 }
@@ -108,65 +110,107 @@ function dependency(manifest: PackageManifest, name: string): boolean {
 
 /** Returns the repository-relative path beside a detected manifest. */
 function siblingPath(manifestPath: string, fileName: string): string {
-	const directory = projectDirectory(manifestPath);
-	return directory === '/' ? fileName : `${directory}/${fileName}`;
-}
-
-/** Checks whether the npm lockfile's root dependency declarations match package.json. */
-function npmLockMatchesManifest(
-	manifest: PackageManifest,
-	rawLockfile?: string,
-): boolean {
-	if (!rawLockfile) return false;
-	try {
-		const lockedRoot = (JSON.parse(rawLockfile) as NpmLockManifest).packages?.[''];
-		if (!lockedRoot) return false;
-		return (['dependencies', 'devDependencies'] as const).every((section) => {
-			const declared = manifest[section] ?? {};
-			const locked = lockedRoot[section] ?? {};
-			return Object.entries(declared).every(([name, version]) => locked[name] === version);
-		});
-	} catch {
-		return false;
-	}
+  const directory = projectDirectory(manifestPath);
+  return directory === "/" ? fileName : `${directory}/${fileName}`;
 }
 
 /** Infers safe Node package commands from lockfiles and declared package scripts. */
 function nodeCommands(
-	manifest: PackageManifest,
-	manifestPath: string,
-	paths: string[],
-	npmLockfile?: string,
-): { commands: SourceCandidate['commands']; packageManager: string } {
-	const besideManifest = (name: string) => paths.includes(siblingPath(manifestPath, name));
-	let packageManager = 'npm';
-	let install = 'npm install';
-	let run = 'npm run';
-	if (besideManifest('bun.lock') || besideManifest('bun.lockb')) {
-		packageManager = 'bun';
-		install = 'bun install --frozen-lockfile';
-		run = 'bun run';
-	} else if (besideManifest('pnpm-lock.yaml')) {
-		packageManager = 'pnpm';
-		install = 'corepack enable && pnpm install --frozen-lockfile';
-		run = 'pnpm run';
-	} else if (besideManifest('yarn.lock')) {
-		packageManager = 'yarn';
-		install = 'corepack enable && yarn install --frozen-lockfile';
-		run = 'yarn';
-	} else if (besideManifest('package-lock.json') || besideManifest('npm-shrinkwrap.json')) {
-		install = npmLockMatchesManifest(manifest, npmLockfile)
-			? 'npm ci'
-			: 'npm install';
-	}
-	return {
-		packageManager,
-		commands: {
-			install,
-			...(manifest.scripts?.build ? { build: `${run} build` } : {}),
-			...(manifest.scripts?.start ? { start: `${run} start` } : {}),
-		},
-	};
+  manifest: PackageManifest,
+  manifestPath: string,
+  paths: string[],
+  framework?: string,
+): { commands: SourceCandidate["commands"]; packageManager: string } {
+  const besideManifest = (name: string) =>
+    paths.includes(siblingPath(manifestPath, name));
+  let packageManager = "npm";
+  let install = "npm install";
+  let run = "npm run";
+  const startNeedsEnvironmentFile =
+    manifest.scripts?.start &&
+    /--env-file(?:=|\s+)\.env(?:\s|$)/.test(manifest.scripts.start) &&
+    !manifest.scripts.start.includes("--env-file-if-exists");
+  if (besideManifest("bun.lock") || besideManifest("bun.lockb")) {
+    packageManager = "bun";
+    install = "bun install --frozen-lockfile";
+    run = "bun run";
+  } else if (besideManifest("pnpm-lock.yaml")) {
+    packageManager = "pnpm";
+    install = "corepack enable && pnpm install --frozen-lockfile";
+    run = "pnpm run";
+  } else if (besideManifest("yarn.lock")) {
+    packageManager = "yarn";
+    install = "corepack enable && yarn install --frozen-lockfile";
+    run = "yarn";
+  }
+  return {
+    packageManager,
+    commands: {
+      install,
+      ...(manifest.scripts?.build ? { build: `${run} build` } : {}),
+      ...(manifest.scripts?.start
+        ? {
+            start: `${startNeedsEnvironmentFile ? "touch .env && " : ""}${run} start`,
+          }
+        : framework === "nuxt" && manifest.scripts?.build
+          ? { start: "node .output/server/index.mjs" }
+          : framework === "nestjs" && manifest.scripts?.build
+            ? { start: "node dist/main.js" }
+            : framework === "sveltekit" &&
+                dependency(manifest, "@sveltejs/adapter-node") &&
+                manifest.scripts?.build
+              ? { start: "node build" }
+              : {}),
+    },
+  };
+}
+
+/** Locates a conventional Python application module beside its dependency manifest. */
+function pythonStartCommand(
+  framework: string | undefined,
+  directory: string,
+  paths: string[],
+  manifest: string,
+): string | undefined {
+  const relative = (path: string) =>
+    directory === "/" ? path : `${directory}/${path}`;
+  const modulePath = (path: string) =>
+    path
+      .replace(
+        directory === "/"
+          ? /^/
+          : new RegExp(`^${directory.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/`),
+        "",
+      )
+      .replace(/\.py$/, "")
+      .replace(/\//g, ".");
+  if (framework === "django") {
+    const wsgi = paths.find(
+      (path) =>
+        path.startsWith(directory === "/" ? "" : `${directory}/`) &&
+        /(^|\/)wsgi\.py$/.test(path),
+    );
+    if (wsgi && /(?:^|\n)\s*gunicorn(?:[=<>~!]|$)/i.test(manifest))
+      return `gunicorn ${modulePath(wsgi)}:application --bind 0.0.0.0:$PORT`;
+  }
+  const entry = ["main.py", "app.py"]
+    .map(relative)
+    .find((path) => paths.includes(path));
+  if (!entry) return undefined;
+  const module = modulePath(entry);
+  if (
+    framework === "fastapi" &&
+    /(?:^|\n)\s*uvicorn(?:[=<>~![]|$)/i.test(manifest)
+  )
+    return `uvicorn ${module}:app --host 0.0.0.0 --port $PORT`;
+  if (framework === "flask") {
+    if (/(?:^|\n)\s*gunicorn(?:[=<>~!]|$)/i.test(manifest))
+      return `gunicorn ${module}:app --bind 0.0.0.0:$PORT`;
+    return `flask --app ${module} run --host 0.0.0.0 --port $PORT`;
+  }
+  if (framework === "litestar")
+    return `litestar --app ${module}:app run --host 0.0.0.0 --port $PORT`;
+  return undefined;
 }
 
 /** Detects common frameworks from repository manifests while leaving every suggestion user-overridable. */
@@ -204,10 +248,10 @@ function phpFramework(manifest: ComposerManifest): string | undefined {
 }
 
 function pythonFramework(requirements: string): string | undefined {
-  if (/^django(?:[=<>~!]|$)/im.test(requirements)) return "django";
-  if (/^fastapi(?:[=<>~!]|$)/im.test(requirements)) return "fastapi";
-  if (/^flask(?:[=<>~!]|$)/im.test(requirements)) return "flask";
-  if (/^litestar(?:[=<>~!]|$)/im.test(requirements)) return "litestar";
+  if (/\bdjango(?:[=<>~!["']|$)/i.test(requirements)) return "django";
+  if (/\bfastapi(?:[=<>~!["']|$)/i.test(requirements)) return "fastapi";
+  if (/\bflask(?:[=<>~!["']|$)/i.test(requirements)) return "flask";
+  if (/\blitestar(?:[=<>~!["']|$)/i.test(requirements)) return "litestar";
   return undefined;
 }
 
@@ -235,13 +279,29 @@ export async function analyzeApplicationSource(
   const paths = (tree.tree ?? [])
     .filter((item) => item.type === "blob" && item.path)
     .map((item) => item.path!);
-	const directories = [...new Set(['/'].concat((tree.tree ?? []).filter((item) => item.type === 'tree' && item.path).map((item) => item.path!)))].sort((left, right) => left.localeCompare(right));
+  const directories = [
+    ...new Set(
+      ["/"].concat(
+        (tree.tree ?? [])
+          .filter((item) => item.type === "tree" && item.path)
+          .map((item) => item.path!),
+      ),
+    ),
+  ].sort((left, right) => left.localeCompare(right));
   const candidates: SourceCandidate[] = [];
   const evidence: string[] = [];
-  const wordpressMarker = paths.find((path) => /(^|\/)wp-includes\/version\.php$/.test(path));
+  const wordpressMarker = paths.find((path) =>
+    /(^|\/)wp-includes\/version\.php$/.test(path),
+  );
   if (wordpressMarker) {
-    const directory = projectDirectory(wordpressMarker).replace(/(?:^|\/)wp-includes$/, "") || "/";
-    candidates.push({ projectDirectory: directory, stack: "php", framework: "wordpress" });
+    const directory =
+      projectDirectory(wordpressMarker).replace(/(?:^|\/)wp-includes$/, "") ||
+      "/";
+    candidates.push({
+      projectDirectory: directory,
+      stack: "php",
+      framework: "wordpress",
+    });
     evidence.push(`${wordpressMarker} identifies WordPress`);
   }
   for (const path of paths
@@ -252,19 +312,16 @@ export async function analyzeApplicationSource(
     try {
       const manifest = JSON.parse(raw) as PackageManifest;
       const framework = nodeFramework(manifest);
-	  const npmLockPath = ['package-lock.json', 'npm-shrinkwrap.json']
-		.map((name) => siblingPath(path, name))
-		.find((candidate) => paths.includes(candidate));
-	  const npmLockfile = npmLockPath
-		? await rawFile(repository, branch, npmLockPath, token)
-		: undefined;
-	  const commandSuggestion = nodeCommands(manifest, path, paths, npmLockfile);
+      const commandSuggestion = nodeCommands(manifest, path, paths, framework);
       candidates.push({
-		commands: commandSuggestion.commands,
+        commands: commandSuggestion.commands,
         projectDirectory: projectDirectory(path),
-		packageManager: commandSuggestion.packageManager,
+        packageManager: commandSuggestion.packageManager,
         stack:
-          framework && ["react", "vite", "vue", "angular", "astro", "gatsby"].includes(framework)
+          framework &&
+          ["react", "vite", "vue", "angular", "astro", "gatsby"].includes(
+            framework,
+          )
             ? "static"
             : "node",
         framework,
@@ -284,13 +341,13 @@ export async function analyzeApplicationSource(
     try {
       const framework = phpFramework(JSON.parse(raw) as ComposerManifest);
       candidates.push({
-		commands: {
-			install: paths.includes(siblingPath(path, 'composer.lock'))
-				? 'composer install --no-interaction --prefer-dist --optimize-autoloader'
-				: 'composer install --no-interaction --prefer-dist',
-		},
+        commands: {
+          install: paths.includes(siblingPath(path, "composer.lock"))
+            ? "composer install --no-interaction --prefer-dist --optimize-autoloader"
+            : "composer install --no-interaction --prefer-dist",
+        },
         projectDirectory: projectDirectory(path),
-		packageManager: 'composer',
+        packageManager: "composer",
         stack: "php",
         framework,
       });
@@ -306,47 +363,68 @@ export async function analyzeApplicationSource(
     .slice(0, 20)) {
     const raw = await rawFile(repository, branch, path, token);
     if (!raw) continue;
-    const framework = /^\s*gem\s+["']rails["']/m.test(raw) ? "rails" : undefined;
-	const directory = projectDirectory(path);
-	const locked = paths.includes(directory === '/' ? 'Gemfile.lock' : `${directory}/Gemfile.lock`);
+    const framework = /^\s*gem\s+["']rails["']/m.test(raw)
+      ? "rails"
+      : undefined;
+    const directory = projectDirectory(path);
+    const locked = paths.includes(
+      directory === "/" ? "Gemfile.lock" : `${directory}/Gemfile.lock`,
+    );
     candidates.push({
-		commands: {
-			install: locked ? 'bundle config set deployment true && bundle install' : 'bundle install',
-			...(framework === 'rails' ? { start: 'bundle exec rails server -b 0.0.0.0 -p 3000' } : {}),
-		},
-		packageManager: 'bundler',
-		projectDirectory: directory,
-		stack: "ruby",
-		framework,
-	});
-    evidence.push(`${path}${framework ? " identifies Ruby on Rails" : " identifies Ruby"}`);
+      commands: {
+        install: locked
+          ? "bundle config set deployment true && bundle install"
+          : "bundle install",
+        ...(framework === "rails"
+          ? { start: "bundle exec rails server -b 0.0.0.0 -p $PORT" }
+          : {}),
+      },
+      packageManager: "bundler",
+      projectDirectory: directory,
+      stack: "ruby",
+      framework,
+    });
+    evidence.push(
+      `${path}${framework ? " identifies Ruby on Rails" : " identifies Ruby"}`,
+    );
   }
   for (const path of paths
-    .filter((item) => /(?:requirements\.txt|pyproject\.toml)$/.test(item))
+    .filter((item) =>
+      /(?:requirements(?:[-_.][a-z0-9]+)?\.txt|pyproject\.toml|Pipfile)$/i.test(
+        item,
+      ),
+    )
     .slice(0, 20)) {
     const raw = await rawFile(repository, branch, path, token);
     if (!raw) continue;
     const framework = pythonFramework(raw);
-	const directory = projectDirectory(path);
-	const besideManifest = (name: string) =>
-		paths.includes(directory === '/' ? name : `${directory}/${name}`);
-	const pythonInstall = besideManifest('uv.lock')
-		? 'uv sync --frozen'
-		: besideManifest('poetry.lock')
-			? 'poetry install --no-interaction --no-root'
-			: path.endsWith('pyproject.toml')
-				? 'pip install .'
-				: 'pip install -r requirements.txt';
+    const directory = projectDirectory(path);
+    const besideManifest = (name: string) =>
+      paths.includes(directory === "/" ? name : `${directory}/${name}`);
+    const pythonInstall = besideManifest("uv.lock")
+      ? "uv sync --frozen"
+      : besideManifest("poetry.lock")
+        ? "poetry install --no-interaction --no-root"
+        : path.endsWith("Pipfile")
+          ? besideManifest("Pipfile.lock")
+            ? "pipenv sync"
+            : "pipenv install"
+          : path.endsWith("pyproject.toml")
+            ? "pip install ."
+            : `pip install -r ${path.split("/").pop() ?? "requirements.txt"}`;
     candidates.push({
-	  commands: {
-		install: pythonInstall,
-	  },
-	  projectDirectory: directory,
-	  packageManager: besideManifest('uv.lock')
-		? 'uv'
-		: besideManifest('poetry.lock')
-			? 'poetry'
-			: 'pip',
+      commands: {
+        install: pythonInstall,
+        start: pythonStartCommand(framework, directory, paths, raw),
+      },
+      projectDirectory: directory,
+      packageManager: besideManifest("uv.lock")
+        ? "uv"
+        : besideManifest("poetry.lock")
+          ? "poetry"
+          : path.endsWith("Pipfile")
+            ? "pipenv"
+            : "pip",
       stack: "python",
       framework,
     });
@@ -383,13 +461,40 @@ export async function analyzeApplicationSource(
           item.stack === candidate.stack,
       ) === index,
   );
-  const selected = unique[0];
+  const contracted = unique.map((candidate) => {
+    const definition = frameworkDefinition(candidate.framework);
+    const deploymentContract = resolveDeploymentContract({
+      buildCommand: candidate.commands?.build,
+      framework: candidate.framework,
+      installCommand: candidate.commands?.install,
+      port:
+        definition?.defaultPort ??
+        (candidate.stack === "php" || candidate.stack === "static"
+          ? 80
+          : candidate.stack === "python"
+            ? 8000
+            : 3000),
+      projectDirectory: candidate.projectDirectory,
+      publishDirectory: definition?.outputDirectory,
+      stack: candidate.stack,
+      startCommand: candidate.commands?.start,
+    });
+    return {
+      ...candidate,
+      commands: {
+        ...candidate.commands,
+        install: deploymentContract.installCommand,
+      },
+      deploymentContract,
+    };
+  });
+  const selected = contracted[0];
   return {
     repository: `${repository.owner}/${repository.repository}`,
-	directories,
+    directories,
     branches: branchRows.map(({ name }) => name),
-    candidates: unique.length
-      ? unique
+    candidates: contracted.length
+      ? contracted
       : [{ projectDirectory: "/", stack: "static" }],
     environmentKeys,
     evidence,

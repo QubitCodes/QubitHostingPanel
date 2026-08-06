@@ -63,12 +63,56 @@ describe('application source detection', () => {
 		expect(result.candidates[0]).toMatchObject({
 			commands: {
 				install: 'bundle install',
-				start: 'bundle exec rails server -b 0.0.0.0 -p 3000',
+				start: 'bundle exec rails server -b 0.0.0.0 -p $PORT',
 			},
 			framework: 'rails',
 			projectDirectory: 'app',
 			stack: 'ruby',
 		});
+	});
+
+	it('derives a Django WSGI command only when gunicorn is installed', async () => {
+		const files = {
+			'requirements.txt': 'Django==5.2\ngunicorn==23.0.0\n',
+			'website/wsgi.py': 'application = get_wsgi_application()',
+		};
+		vi.stubGlobal(
+			'fetch',
+			vi.fn((input: string | URL | Request) =>
+				Promise.resolve(githubResponse(String(input), files)),
+			),
+		);
+
+		const result = await analyzeApplicationSource(
+			'https://github.com/ghostdeploy/django-example',
+			'main',
+		);
+
+		expect(result.candidates[0]?.commands?.start).toBe(
+			'gunicorn website.wsgi:application --bind 0.0.0.0:$PORT',
+		);
+	});
+
+	it('derives a FastAPI command from a conventional entry module', async () => {
+		const files = {
+			'api/main.py': 'app = FastAPI()',
+			'api/requirements.txt': 'fastapi==0.116.0\nuvicorn[standard]==0.35.0\n',
+		};
+		vi.stubGlobal(
+			'fetch',
+			vi.fn((input: string | URL | Request) =>
+				Promise.resolve(githubResponse(String(input), files)),
+			),
+		);
+
+		const result = await analyzeApplicationSource(
+			'https://github.com/ghostdeploy/fastapi-example',
+			'main',
+		);
+
+		expect(result.candidates[0]?.commands?.start).toBe(
+			'uvicorn main:app --host 0.0.0.0 --port $PORT',
+		);
 	});
 
 	it('infers reproducible Node commands from the nearest lockfile and scripts', async () => {
@@ -101,7 +145,7 @@ describe('application source detection', () => {
 		});
 	});
 
-	it('falls back to npm install when package-lock declarations are stale', async () => {
+	it('uses repairable npm install when a package lock cannot be executed during source inspection', async () => {
 		const files = {
 			'package.json': JSON.stringify({
 				dependencies: { react: '^19.2.0' },
@@ -124,6 +168,35 @@ describe('application source detection', () => {
 			'main',
 		);
 
-		expect(result.candidates[0]?.commands?.install).toBe('npm install');
+		expect(result.candidates[0]?.commands?.install).toBe(
+			'npm install --include=dev',
+		);
+	});
+
+	it('creates an empty env file when a Node start script requires one', async () => {
+		const files = {
+			'package.json': JSON.stringify({
+				dependencies: { next: '^16.0.0' },
+				scripts: {
+					build: 'next build',
+					start: 'node --env-file=.env node_modules/next/dist/bin/next start',
+				},
+			}),
+		};
+		vi.stubGlobal(
+			'fetch',
+			vi.fn((input: string | URL | Request) =>
+				Promise.resolve(githubResponse(String(input), files)),
+			),
+		);
+
+		const result = await analyzeApplicationSource(
+			'https://github.com/ghostdeploy/next-example',
+			'main',
+		);
+
+		expect(result.candidates[0]?.commands?.start).toBe(
+			'touch .env && npm run start',
+		);
 	});
 });

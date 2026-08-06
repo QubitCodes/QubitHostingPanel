@@ -1,3 +1,4 @@
+
 import { randomBytes, randomUUID } from "node:crypto";
 import { and, asc, count, eq, inArray, isNull, sql } from "drizzle-orm";
 import { resp } from "@qubitcodes/qcresp";
@@ -114,6 +115,11 @@ export function composeLogicalDatabaseResponse<
   };
 }
 
+/** Keeps the customer-confirmed unique name as the real database identifier. */
+export function logicalDatabasePhysicalName(inputName: string): string {
+  return inputName;
+}
+
 /** Customer-authorized shared logical database lifecycle. */
 export class LogicalDatabaseController {
 	/** Permanently removes a managed database after validating its live dependency confirmations. */
@@ -179,20 +185,32 @@ export class LogicalDatabaseController {
   ): Promise<Response> {
     try {
       const { workspace } = await workspaceAccess(request, workspacePublicId, metadata);
-      const [existing] = await db
-        .select({ id: workspaceResources.id })
-        .from(workspaceResources)
-        .where(
-          and(
-            eq(workspaceResources.workspaceId, workspace.id),
-            eq(workspaceResources.kind, "database"),
-            eq(workspaceResources.name, name),
-            isNull(workspaceResources.deletedAt),
-          ),
-        )
-        .limit(1);
+      const [[existingResource], [existingDatabase]] = await Promise.all([
+        db
+          .select({ id: workspaceResources.id })
+          .from(workspaceResources)
+          .where(
+            and(
+              eq(workspaceResources.workspaceId, workspace.id),
+              eq(workspaceResources.kind, "database"),
+              eq(workspaceResources.name, name),
+              isNull(workspaceResources.deletedAt),
+            ),
+          )
+          .limit(1),
+        db
+          .select({ id: logicalDatabases.id })
+          .from(logicalDatabases)
+          .where(
+            and(
+              eq(logicalDatabases.databaseName, name),
+              isNull(logicalDatabases.deletedAt),
+            ),
+          )
+          .limit(1),
+      ]);
       return resp.success("Database name availability checked.", {
-        available: !existing,
+        available: !existingResource && !existingDatabase,
         name,
       });
     } catch (error) {
@@ -285,6 +303,25 @@ export class LogicalDatabaseController {
           undefined,
           409,
         );
+      const [physicalDuplicate] = await db
+        .select({ id: logicalDatabases.id })
+        .from(logicalDatabases)
+        .where(
+          and(
+            eq(logicalDatabases.databaseName, input.name),
+            isNull(logicalDatabases.deletedAt),
+          ),
+        )
+        .limit(1);
+      if (physicalDuplicate)
+        return resp.failure(
+          "Database name is already in use.",
+          resp.codes.RESOURCE_ALREADY_EXISTS,
+          [{ field: "name", message: "Choose another database name." }],
+          null,
+          undefined,
+          409,
+        );
       const [{ value: used }] = await db
         .select({ value: count() })
         .from(logicalDatabases)
@@ -330,7 +367,7 @@ export class LogicalDatabaseController {
       reservationId = reservation.reservationId;
       if (!reservation.allowed || !reservationId) return resp.failure("Workspace database limit reached.", resp.codes.ORDER_CANNOT_BE_PROCESSED, undefined, { quota: reservation }, undefined, 422);
       const suffix = randomBytes(6).toString("hex");
-      const databaseName = `q_${workspace.publicId}_${suffix}`;
+      const databaseName = logicalDatabasePhysicalName(input.name);
       const username = `u_${workspace.publicId}_${suffix}`;
       const password = randomBytes(32).toString("base64url");
       const admin = JSON.parse(

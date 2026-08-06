@@ -1,4 +1,5 @@
 import { getEnvironment } from '@config/env';
+import { diagnoseDeploymentLogs } from '@services/applications/deploymentDiagnosticService';
 import type {
 	HostingProvider,
 	ProviderConnectionResult,
@@ -18,6 +19,37 @@ interface CoolifyApplication {
 	name?: string;
 	status?: string;
 	uuid?: string;
+}
+
+/** Converts Coolify's string or structured deployment-log payload into readable text. */
+export function normalizeCoolifyDeploymentLogs(value: unknown): string | null {
+	if (typeof value !== 'string') return null;
+	const trimmed = value.trim();
+	if (!trimmed) return null;
+	try {
+		const rows = JSON.parse(trimmed) as unknown;
+		if (!Array.isArray(rows)) return value;
+		const lines = rows
+			.map((row) => {
+				if (!row || typeof row !== 'object') return '';
+				const item = row as Record<string, unknown>;
+				return typeof item.output === 'string' ? item.output : '';
+			})
+			.filter(Boolean);
+		return lines.length ? lines.join('\n') : null;
+	} catch {
+		return value;
+	}
+}
+
+/** Maps compound Coolify states without treating an unhealthy running container as success. */
+export function coolifyJobStatus(value?: string | null): ProviderJobStatus {
+	const status = value?.toLowerCase() ?? '';
+	if (/failed|exited|unhealthy|dead|cancelled|canceled/.test(status))
+		return 'failed';
+	if (/running:healthy|^running$|healthy/.test(status)) return 'succeeded';
+	if (/building|starting|deploying|progress/.test(status)) return 'running';
+	return 'pending';
 }
 interface CoolifyDatabase {
 	name?: string;
@@ -186,6 +218,7 @@ export class CoolifyHostingProvider implements HostingProvider {
 		return Array.isArray(rows)
 			? rows.map((row) => {
 					const item = row as Record<string, unknown>;
+					const logs = normalizeCoolifyDeploymentLogs(item.logs);
 					return {
 						id: String(item.deployment_uuid ?? item.uuid ?? item.id ?? ''),
 						status: String(item.status ?? 'unknown'),
@@ -203,7 +236,8 @@ export class CoolifyHostingProvider implements HostingProvider {
 							typeof item.created_at === 'string' ? item.created_at : null,
 						finishedAt:
 							typeof item.finished_at === 'string' ? item.finished_at : null,
-						logs: typeof item.logs === 'string' ? item.logs : null,
+						diagnostic: diagnoseDeploymentLogs(logs),
+						logs,
 						trigger:
 							item.is_webhook === true
 								? 'webhook'
@@ -230,6 +264,7 @@ export class CoolifyHostingProvider implements HostingProvider {
 		const item = await this.request<Record<string, unknown>>(
 			`/deployments/${encodeURIComponent(deploymentId)}`,
 		);
+		const logs = normalizeCoolifyDeploymentLogs(item.logs);
 		return {
 			id: String(item.deployment_uuid ?? item.uuid ?? item.id ?? deploymentId),
 			status: String(item.status ?? 'unknown'),
@@ -244,7 +279,8 @@ export class CoolifyHostingProvider implements HostingProvider {
 			createdAt: typeof item.created_at === 'string' ? item.created_at : null,
 			finishedAt:
 				typeof item.finished_at === 'string' ? item.finished_at : null,
-			logs: typeof item.logs === 'string' ? item.logs : null,
+			diagnostic: diagnoseDeploymentLogs(logs),
+			logs,
 			trigger:
 				item.is_webhook === true
 					? 'webhook'
@@ -301,6 +337,7 @@ export class CoolifyHostingProvider implements HostingProvider {
 		applicationUuid: string,
 		key: string,
 		value: string,
+		scope: 'build' | 'both' | 'runtime' = 'runtime',
 	): Promise<void> {
 		const path = `/applications/${encodeURIComponent(applicationUuid)}/envs`;
 		const body = JSON.stringify({
@@ -309,6 +346,8 @@ export class CoolifyHostingProvider implements HostingProvider {
 			is_preview: false,
 			is_literal: true,
 			is_multiline: value.includes('\n'),
+			is_buildtime: scope === 'build' || scope === 'both',
+			is_runtime: scope === 'runtime' || scope === 'both',
 		});
 		try {
 			await this.request(path, { method: 'POST', body });
@@ -421,7 +460,7 @@ export class CoolifyHostingProvider implements HostingProvider {
 			is_auto_deploy_enabled: input.source
 				? (input.autoDeployEnabled ?? false)
 				: false,
-			health_check_path: '/',
+			health_check_path: input.healthCheckPath ?? '/',
 			health_check_port: runtimePort,
 			instant_deploy: !input.persistentStorages?.length,
 			force_domain_override: false,
@@ -490,13 +529,23 @@ export class CoolifyHostingProvider implements HostingProvider {
 				body.uuid,
 				variable.key,
 				variable.value,
+				variable.scope,
 			);
 		for (const variable of input.environmentVariables ?? [])
 			await this.upsertApplicationEnvironment(
 				body.uuid,
 				variable.key,
 				variable.value,
+				variable.scope,
 			);
+		// PORT is platform-owned. It is container-local, so applications in
+		// different containers can safely use the same value without collisions.
+		await this.upsertApplicationEnvironment(
+			body.uuid,
+			'PORT',
+			runtimePort,
+			'both',
+		);
 		if (input.persistentStorages?.length) {
 			const currentStorages = await this.request<{
 				persistent_storages?: Array<{ mount_path?: string; name?: string }>;
@@ -541,12 +590,7 @@ export class CoolifyHostingProvider implements HostingProvider {
 		const application = await this.request<CoolifyApplication>(
 			`/applications/${encodeURIComponent(jobId)}`,
 		);
-		const status = application.status?.toLowerCase() ?? '';
-		if (status.includes('running')) return 'succeeded';
-		if (status.includes('failed') || status.includes('exited')) return 'failed';
-		return status.includes('building') || status.includes('starting')
-			? 'running'
-			: 'pending';
+		return coolifyJobStatus(application.status);
 	}
 
 	public async getApplicationLogs(
@@ -556,7 +600,7 @@ export class CoolifyHostingProvider implements HostingProvider {
 		const result = await this.request<{ logs?: string }>(
 			`/applications/${encodeURIComponent(applicationId)}/logs?lines=${Math.max(1, Math.min(1000, Math.trunc(lines)))}`,
 		);
-		return result.logs ?? '';
+		return normalizeCoolifyDeploymentLogs(result.logs) ?? '';
 	}
 
 	public async updateApplicationDomains(

@@ -28,7 +28,11 @@ export interface ProvisionApplicationInput {
 	baseDirectory?: string;
 	buildCommand?: string;
 	buildPack?: 'dockerfile' | 'nixpacks' | 'static';
-	databaseEnvironment?: Array<{ key: string; value: string }>;
+	databaseEnvironment?: Array<{
+		key: string;
+		scope?: 'build' | 'both' | 'runtime';
+		value: string;
+	}>;
 	environmentVariables?: Array<{
 		key: string;
 		value: string;
@@ -36,6 +40,7 @@ export interface ProvisionApplicationInput {
 	}>;
 	deploymentEnvironment?: 'development' | 'testing' | 'staging' | 'production';
 	domains?: string[];
+	healthCheckPath?: string;
 	installCommand?: string;
 	name: string;
 	persistentStorages?: Array<{ mountPath: string; name: string }>;
@@ -72,6 +77,9 @@ export interface ProviderScheduledTaskExecution {
 	uuid: string;
 }
 export interface ProviderDeployment {
+	diagnostic?:
+		| import('@services/applications/deploymentDiagnosticService').DeploymentDiagnostic
+		| null;
 	commitMessage?: string | null;
 	commitSha?: string | null;
 	createdAt?: string | null;

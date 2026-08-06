@@ -3,7 +3,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { resetEnvironmentForTests } from '@config/env';
 import {
 	CoolifyHostingProvider,
+	coolifyJobStatus,
 	isCoolifyEnvironmentConflict,
+	normalizeCoolifyDeploymentLogs,
 	normalizeCoolifyWildcardDomain,
 	reusableCoolifyApplication,
 	shouldRedeployCoolifyApplication,
@@ -64,6 +66,27 @@ describe('shouldRedeployCoolifyApplication', () => {
 	});
 });
 
+describe('Coolify state and log normalization', () => {
+	it('never reports compound unhealthy states as successful', () => {
+		expect(coolifyJobStatus('running:healthy')).toBe('succeeded');
+		expect(coolifyJobStatus('running:unhealthy')).toBe('failed');
+		expect(coolifyJobStatus('exited:unhealthy')).toBe('failed');
+		expect(coolifyJobStatus('building')).toBe('running');
+	});
+
+	it('turns Coolify structured logs into readable lines', () => {
+		expect(
+			normalizeCoolifyDeploymentLogs(
+				JSON.stringify([
+					{ output: 'Installing dependencies' },
+					{ output: 'Build failed' },
+				]),
+			),
+		).toBe('Installing dependencies\nBuild failed');
+		expect(normalizeCoolifyDeploymentLogs('plain output')).toBe('plain output');
+	});
+});
+
 describe('Coolify API errors', () => {
 	it('preserves field validation details for provisioning diagnostics', async () => {
 		process.env.DATABASE_URL =
@@ -73,7 +96,10 @@ describe('Coolify API errors', () => {
 			'fetch',
 			vi.fn(async () =>
 				Response.json(
-					{ message: 'Validation failed.', errors: { build_command: ['The build command is invalid.'] } },
+					{
+						message: 'Validation failed.',
+						errors: { build_command: ['The build command is invalid.'] },
+					},
 					{ status: 422 },
 				),
 			),
@@ -90,7 +116,7 @@ describe('Coolify API errors', () => {
 });
 
 describe('Coolify environment variables', () => {
-	it('uses the current API fields without removed build-time/runtime flags', async () => {
+	it('uses the current API build-time and runtime scope fields', async () => {
 		process.env.DATABASE_URL =
 			'postgresql://test:test@localhost:5432/ghost_deploy_test';
 		resetEnvironmentForTests();
@@ -112,17 +138,33 @@ describe('Coolify environment variables', () => {
 		});
 
 		await provider.provisionApplication({
-			environmentVariables: [{ key: 'API_URL', value: 'https://example.com', scope: 'build' }],
+			environmentVariables: [
+				{ key: 'API_URL', value: 'https://example.com', scope: 'build' },
+			],
 			name: 'example',
+			runtimeImage: { port: 3000, repository: 'example/node', tag: '22' },
 			source: { branch: 'main', repository: 'https://github.com/example/app' },
 			workspaceId: 'workspace',
 		});
 
-		const environmentBody = bodies.map((body) => JSON.parse(body) as Record<string, unknown>)
+		const environmentBody = bodies
+			.map((body) => JSON.parse(body) as Record<string, unknown>)
 			.find((body) => body.key === 'API_URL');
-		expect(environmentBody).toMatchObject({ key: 'API_URL', is_literal: true });
-		expect(environmentBody).not.toHaveProperty('is_build_time');
-		expect(environmentBody).not.toHaveProperty('is_runtime');
+		expect(environmentBody).toMatchObject({
+			key: 'API_URL',
+			is_buildtime: true,
+			is_literal: true,
+			is_runtime: false,
+		});
+		const portBody = bodies
+			.map((body) => JSON.parse(body) as Record<string, unknown>)
+			.find((body) => body.key === 'PORT');
+		expect(portBody).toMatchObject({
+			key: 'PORT',
+			value: '3000',
+			is_buildtime: true,
+			is_runtime: true,
+		});
 	});
 });
 
@@ -188,21 +230,70 @@ describe('framework persistent storage', () => {
 
 describe('Coolify scheduled tasks', () => {
 	it('uses documented task and execution endpoints', async () => {
-		process.env.DATABASE_URL = 'postgresql://test:test@localhost:5432/ghost_deploy_test';
+		process.env.DATABASE_URL =
+			'postgresql://test:test@localhost:5432/ghost_deploy_test';
 		resetEnvironmentForTests();
 		const requests: Array<{ body?: string; method: string; url: string }> = [];
-		vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
-			const url = String(input); const method = init?.method ?? 'GET'; requests.push({ body: typeof init?.body === 'string' ? init.body : undefined, method, url });
-			if (url.endsWith('/executions')) return Response.json([{ uuid: 'execution-1', status: 'success', duration: 2, message: 'done' }]);
-			return Response.json({ uuid: 'task-1', name: 'Scheduler', command: 'php artisan schedule:run', frequency: '* * * * *', timeout: 300, enabled: true });
-		}));
-		const provider = new CoolifyHostingProvider({ apiToken: 'token', baseUrl: 'https://coolify.example' });
-		const input = { name: 'Scheduler', command: 'php artisan schedule:run', frequency: '* * * * *', timeout: 300, enabled: true };
-		expect((await provider.createApplicationScheduledTask('app-1', input)).uuid).toBe('task-1');
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+				const url = String(input);
+				const method = init?.method ?? 'GET';
+				requests.push({
+					body: typeof init?.body === 'string' ? init.body : undefined,
+					method,
+					url,
+				});
+				if (url.endsWith('/executions'))
+					return Response.json([
+						{
+							uuid: 'execution-1',
+							status: 'success',
+							duration: 2,
+							message: 'done',
+						},
+					]);
+				return Response.json({
+					uuid: 'task-1',
+					name: 'Scheduler',
+					command: 'php artisan schedule:run',
+					frequency: '* * * * *',
+					timeout: 300,
+					enabled: true,
+				});
+			}),
+		);
+		const provider = new CoolifyHostingProvider({
+			apiToken: 'token',
+			baseUrl: 'https://coolify.example',
+		});
+		const input = {
+			name: 'Scheduler',
+			command: 'php artisan schedule:run',
+			frequency: '* * * * *',
+			timeout: 300,
+			enabled: true,
+		};
+		expect(
+			(await provider.createApplicationScheduledTask('app-1', input)).uuid,
+		).toBe('task-1');
 		await provider.updateApplicationScheduledTask('app-1', 'task-1', input);
-		expect((await provider.listApplicationScheduledTaskExecutions('app-1', 'task-1'))[0]?.status).toBe('success');
+		expect(
+			(
+				await provider.listApplicationScheduledTaskExecutions('app-1', 'task-1')
+			)[0]?.status,
+		).toBe('success');
 		await provider.deleteApplicationScheduledTask('app-1', 'task-1');
-		expect(requests.map(({ method }) => method)).toEqual(['POST', 'PATCH', 'GET', 'DELETE']);
-		expect(requests.every(({ url }) => url.includes('/applications/app-1/scheduled-tasks'))).toBe(true);
+		expect(requests.map(({ method }) => method)).toEqual([
+			'POST',
+			'PATCH',
+			'GET',
+			'DELETE',
+		]);
+		expect(
+			requests.every(({ url }) =>
+				url.includes('/applications/app-1/scheduled-tasks'),
+			),
+		).toBe(true);
 	});
 });

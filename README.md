@@ -236,6 +236,7 @@ The application uses native React Router routing and Web `Request` parsing. API 
 - [Infrastructure requirements](Docs/INFRASTRUCTURE_REQUIREMENTS.md)
 - [Implementation plan](Docs/IMPLEMENTATION_PLAN.md)
 - [Original Coolify integration reference](Docs/COOLIFY_INTEGRATION_DOCS.md)
+- [Deployment reliability and framework acceptance](Docs/DEPLOYMENT_RELIABILITY.md)
 
 ## Development rule
 

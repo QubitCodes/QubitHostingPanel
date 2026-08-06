@@ -82,6 +82,13 @@ interface DeploymentHistory {
 		createdAt?: string | null;
 		finishedAt?: string | null;
 		id: string;
+		diagnostic?: {
+			code: string;
+			developerActionRequired: boolean;
+			explanation: string;
+			suggestion: string;
+			title: string;
+		} | null;
 		logs?: string | null;
 		status: string;
 		trigger?: string;
@@ -90,6 +97,7 @@ interface DeploymentHistory {
 	retentionDays: number | null;
 	totalRetained: number;
 	logsPermissionRequired?: boolean;
+	logsUnavailable?: boolean;
 }
 interface Options {
 	applicationBaseDomain?: string;
@@ -1275,6 +1283,12 @@ export default function CustomerApplicationsPage() {
 											<code>read:sensitive</code> permission.
 										</p>
 									)}
+									{history?.logsUnavailable && (
+										<p className="rounded-xl bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-300">
+											Some older deployments have no build output stored by the
+											provider. New deployment output will appear here live.
+										</p>
+									)}
 									{history ? (
 										history.items.map((deployment) => (
 											<details
@@ -1306,6 +1320,30 @@ export default function CustomerApplicationsPage() {
 													<p className="mt-3 text-sm">
 														{deployment.commitMessage}
 													</p>
+												)}
+												{deployment.diagnostic && (
+													<div
+														className={`mt-4 rounded-xl border p-4 ${
+															deployment.diagnostic.developerActionRequired
+																? 'border-red-500/30 bg-red-500/10 text-red-700 dark:text-red-200'
+																: 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-200'
+														}`}
+													>
+														<p className="text-xs font-bold uppercase tracking-wide">
+															{deployment.diagnostic.developerActionRequired
+																? 'Repository change required'
+																: 'Deployment configuration issue'}
+														</p>
+														<p className="mt-1 font-bold">
+															{deployment.diagnostic.title}
+														</p>
+														<p className="mt-1 text-sm">
+															{deployment.diagnostic.explanation}
+														</p>
+														<p className="mt-2 text-sm font-medium">
+															Next: {deployment.diagnostic.suggestion}
+														</p>
+													</div>
 												)}
 												<p className="mt-3 text-xs text-app-muted">
 													{deployment.finishedAt

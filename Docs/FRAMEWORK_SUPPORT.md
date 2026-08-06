@@ -20,9 +20,14 @@ Generic Node.js, PHP, Python, Ruby, and static repositories remain deployable wi
 - PHP frameworks are detected from `composer.json` dependencies.
 - WordPress is detected from `wp-includes/version.php`, including repositories without Composer metadata.
 - Python frameworks are detected from `requirements.txt` or `pyproject.toml`.
+- Python dependency discovery also accepts named requirements files and Pipenv projects. Conventional Django WSGI, FastAPI, Flask and Litestar entry points produce reviewable start commands only when the required server package can be proven.
 - Rails is detected from a `Gemfile` containing the `rails` gem.
 - Monorepo project directories are retained for every detected candidate.
 - Environment templates are inspected for keys only; real `.env` files are never read.
+
+Every source candidate receives a versioned deployment contract. A selected server framework cannot be queued until a start command is either detected or supplied. The contract also validates the project directory, static output directory and container-local port. The contract is provider-independent and is saved with the application so a future recipe revision does not silently reinterpret an existing deployment.
+
+For npm projects, Ghost Deploy installs development dependencies during the build phase. A clean lockfile uses `npm ci`; if npm proves that the lockfile and manifest disagree, the same isolated build falls back to `npm install`. This prioritises a working first deployment while the deployment output still identifies the lockfile repair that should be committed.
 
 ## Data and process requirements
 
@@ -46,3 +51,7 @@ Each advertised framework requires a maintained fixture covering:
 6. Framework-specific scheduler and worker behavior when those features are enabled.
 
 The runtime-image workflow publishes and scans the shared Node.js, PHP, Python, Ruby, and static foundations. Ruby `3.4.10` is the initial Rails runtime and must be published to GHCR before Rails is enabled on a live catalogue.
+
+Node.js 22 is the current source-builder default. Node.js 24 remains in the administrator catalogue as deprecated until the pinned Coolify/Nixpacks package set can resolve it without silently building with an older major version.
+
+See `DEPLOYMENT_RELIABILITY.md` for the preflight, status, logging and acceptance rules shared by all frameworks.

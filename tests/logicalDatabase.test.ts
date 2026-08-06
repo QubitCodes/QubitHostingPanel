@@ -1,25 +1,71 @@
 import { describe, expect, it } from 'vitest';
 
-import { composeLogicalDatabaseResponse } from '@controllers/LogicalDatabaseController';
-import { createLogicalDatabaseSchema, logicalDatabaseNameAvailabilitySchema, logicalDatabasePublicIdSchema } from '@schemas/logicalDatabase';
+import {
+	composeLogicalDatabaseResponse,
+	logicalDatabasePhysicalName,
+} from '@controllers/LogicalDatabaseController';
+import {
+	createLogicalDatabaseSchema,
+	logicalDatabaseNameAvailabilitySchema,
+	logicalDatabasePublicIdSchema,
+} from '@schemas/logicalDatabase';
 
 describe('logical database validation', () => {
+	it('uses the confirmed snake-case name as the physical database name', () => {
+		expect(logicalDatabasePhysicalName('sleebas_pkwvw0')).toBe(
+			'sleebas_pkwvw0',
+		);
+	});
 	it('applies conservative connection and storage defaults', () => {
-		expect(createLogicalDatabaseSchema.parse({ engine: 'postgresql', name: 'main_database_a1b2c3' })).toMatchObject({ connectionLimit: 10, storageQuotaMb: 1024 });
+		expect(
+			createLogicalDatabaseSchema.parse({
+				engine: 'postgresql',
+				name: 'main_database_a1b2c3',
+			}),
+		).toMatchObject({ connectionLimit: 10, storageQuotaMb: 1024 });
 	});
 
 	it('rejects SQL-shaped names and unsupported engines', () => {
-		expect(createLogicalDatabaseSchema.safeParse({ engine: 'sqlite', name: 'main; DROP DATABASE' }).success).toBe(false);
-		expect(createLogicalDatabaseSchema.safeParse({ engine: 'postgresql', name: 'Main database' }).success).toBe(false);
-		expect(logicalDatabaseNameAvailabilitySchema.safeParse({ name: 'main_database_a1b2c3' }).success).toBe(true);
-		expect(logicalDatabaseNameAvailabilitySchema.safeParse({ name: 'main-database' }).success).toBe(false);
+		expect(
+			createLogicalDatabaseSchema.safeParse({
+				engine: 'sqlite',
+				name: 'main; DROP DATABASE',
+			}).success,
+		).toBe(false);
+		expect(
+			createLogicalDatabaseSchema.safeParse({
+				engine: 'postgresql',
+				name: 'Main database',
+			}).success,
+		).toBe(false);
+		expect(
+			logicalDatabaseNameAvailabilitySchema.safeParse({
+				name: 'main_database_a1b2c3',
+			}).success,
+		).toBe(true);
+		expect(
+			logicalDatabaseNameAvailabilitySchema.safeParse({ name: 'main-database' })
+				.success,
+		).toBe(false);
 	});
 
 	it('requires a UUID for credential routes', () => {
-		expect(logicalDatabasePublicIdSchema.safeParse('database-one').success).toBe(false);
+		expect(
+			logicalDatabasePublicIdSchema.safeParse('database-one').success,
+		).toBe(false);
 	});
 
 	it('composes inserted database fields with cluster engine metadata', () => {
-		expect(composeLogicalDatabaseResponse({ id: 'database-id', status: 'active' }, { engine: 'postgresql', engineVersion: '18.4' })).toEqual({ id: 'database-id', status: 'active', engine: 'postgresql', engineVersion: '18.4' });
+		expect(
+			composeLogicalDatabaseResponse(
+				{ id: 'database-id', status: 'active' },
+				{ engine: 'postgresql', engineVersion: '18.4' },
+			),
+		).toEqual({
+			id: 'database-id',
+			status: 'active',
+			engine: 'postgresql',
+			engineVersion: '18.4',
+		});
 	});
 });
