@@ -18,6 +18,7 @@ import {
 import type { CreateLogicalDatabaseRequest, DeleteLogicalDatabaseRequest } from "@schemas/logicalDatabase";
 import { recordAuditLog } from "@services/auditLogService";
 import { authenticateSession } from "@services/auth/authenticatedSessionService";
+import { authenticationFailureResponse } from '@services/auth/authenticationFailureService';
 import { sharedDatabaseProvisioner } from "@services/databases/sharedDatabaseProvisionerFactory";
 import { databaseClusterEndpoint } from "@services/databases/databaseClusterEndpointService";
 import {
@@ -163,6 +164,8 @@ export class LogicalDatabaseController {
 			await recordAuditLog({ actorUserId, action: 'logical_database.deleted', resourceType: 'logical_database', resourceId: record.database.id, metadata: { workspacePublicId, databaseName: record.database.databaseName, connectedApplicationCount: applicationNames.length }, ipAddress: metadata.ipAddress, userAgent: metadata.userAgent });
 			return resp.success('Database permanently deleted.', { id: record.database.id }, resp.codes.UPDATED);
 		} catch (error) {
+			const authenticationFailure = authenticationFailureResponse(error);
+			if (authenticationFailure) return authenticationFailure;
 			if (actorUserId) await recordAuditLog({ actorUserId, action: 'logical_database.delete_failed', resourceType: 'logical_database', resourceId: databaseId, metadata: { workspacePublicId, reason: error instanceof Error ? error.message : 'Unknown deletion failure.' }, ipAddress: metadata.ipAddress, userAgent: metadata.userAgent }).catch(() => undefined);
 			return resp.failure(error instanceof Error ? error.message : 'Database deletion failed.', resp.codes.INTERNAL_SERVICE_ERROR, undefined, null, undefined, 500);
 		}
@@ -192,7 +195,9 @@ export class LogicalDatabaseController {
         available: !existing,
         name,
       });
-    } catch {
+    } catch (error) {
+      const authenticationFailure = authenticationFailureResponse(error);
+      if (authenticationFailure) return authenticationFailure;
       return resp.failure(
         "Workspace not found.",
         resp.codes.RESOURCE_NOT_FOUND,
@@ -232,7 +237,9 @@ export class LogicalDatabaseController {
       const ids = rows.map(({ id }) => id);
       const bindings = ids.length ? await db.select({ applicationId: applicationBuilds.id, applicationName: applicationBuilds.metadata, databaseId: applicationDatabaseBindings.logicalDatabaseId }).from(applicationDatabaseBindings).innerJoin(applicationBuilds, eq(applicationBuilds.id, applicationDatabaseBindings.applicationBuildId)).where(and(inArray(applicationDatabaseBindings.logicalDatabaseId, ids), isNull(applicationDatabaseBindings.deletedAt), isNull(applicationBuilds.deletedAt))) : [];
       return resp.success("Workspace databases retrieved.", rows.map((row) => ({ ...row, displayName: String(row.metadata?.displayName ?? row.databaseName), connectedApplications: bindings.filter(({ databaseId }) => databaseId === row.id).map((binding) => ({ id: binding.applicationId, name: String(binding.applicationName?.name ?? 'Application') })) })));
-    } catch {
+    } catch (error) {
+      const authenticationFailure = authenticationFailureResponse(error);
+      if (authenticationFailure) return authenticationFailure;
       return resp.failure(
         "Workspace not found.",
         resp.codes.RESOURCE_NOT_FOUND,
@@ -403,6 +410,8 @@ export class LogicalDatabaseController {
       );
     } catch (error) {
       if (reservationId) await releaseUsageReservation(reservationId, error instanceof Error ? error.message : "Database creation failed.");
+      const authenticationFailure = authenticationFailureResponse(error);
+      if (authenticationFailure) return authenticationFailure;
       return resp.failure(
         error instanceof Error ? error.message : "Database creation failed.",
         resp.codes.INTERNAL_SERVICE_ERROR,
@@ -462,7 +471,9 @@ export class LogicalDatabaseController {
         "Database credential revealed.",
         JSON.parse(decryptCredential(record.credential)),
       );
-    } catch {
+    } catch (error) {
+      const authenticationFailure = authenticationFailureResponse(error);
+      if (authenticationFailure) return authenticationFailure;
       return resp.failure(
         "Database not found.",
         resp.codes.RESOURCE_NOT_FOUND,
@@ -567,6 +578,8 @@ export class LogicalDatabaseController {
         resp.codes.UPDATED,
       );
     } catch (error) {
+      const authenticationFailure = authenticationFailureResponse(error);
+      if (authenticationFailure) return authenticationFailure;
       return resp.failure(
         error instanceof Error ? error.message : "Credential rotation failed.",
         resp.codes.INTERNAL_SERVICE_ERROR,

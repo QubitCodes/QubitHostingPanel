@@ -15,7 +15,9 @@ export interface AuthenticatedSession {
 export async function authenticateSession(request: Request, metadata?: RequestMetadata): Promise<AuthenticatedSession> {
 	const [scheme, token] = request.headers.get('authorization')?.split(' ') ?? [];
 	if (scheme?.toLowerCase() !== 'bearer' || !token) throw new Error('Authentication required.');
-	const claims = await verifyAccessToken(token);
+	let claims: Awaited<ReturnType<typeof verifyAccessToken>>;
+	try { claims = await verifyAccessToken(token); }
+	catch { throw new Error('Authentication required.'); }
 	const [session] = await db.select().from(userSessions).where(and(
 		eq(userSessions.id, claims.sessionId),
 		eq(userSessions.userId, claims.userId),
@@ -36,4 +38,3 @@ export async function authenticateSession(request: Request, metadata?: RequestMe
 	}
 	return { context: claims.context, sessionId: session.id, userId: session.userId };
 }
-
