@@ -9,6 +9,7 @@ import {
   Globe2,
   Info,
   LoaderCircle,
+  Pencil,
   Plus,
   ServerCog,
   Settings,
@@ -21,6 +22,7 @@ import { toast } from "sonner";
 
 import { authenticatedFetch } from "@root/app/utils/authenticatedFetch";
 import { SearchableSelect } from "@root/app/components/forms/searchable-select";
+import { Offcanvas } from "@root/app/components/ui/offcanvas";
 import {
   frameworkDefinition,
   frameworksForLanguage,
@@ -155,6 +157,16 @@ function slug(value: string): string {
     .slice(0, 50);
 }
 
+/** Converts a customer label into a database-safe snake_case identifier. */
+function databaseIdentifier(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .replace(/_+/g, "_")
+    .slice(0, 70);
+}
+
 function Hint({ children }: { children: string }) {
   return (
     <span className={hintClass}>
@@ -267,11 +279,13 @@ function openGithubPopup(url: string, name: string): Window | null {
 }
 
 function Section({
+  action,
   children,
   description,
   icon: Icon,
   title,
 }: {
+  action?: React.ReactNode;
   children: React.ReactNode;
   description: string;
   icon: typeof Code2;
@@ -283,10 +297,11 @@ function Section({
         <span className="rounded-xl bg-brand-action/15 p-2 text-brand-primary dark:text-brand-action">
           <Icon className="size-5" />
         </span>
-        <div>
+        <div className="min-w-0 flex-1">
           <h3 className="font-black">{title}</h3>
           <p className="mt-1 text-xs leading-5 text-app-muted">{description}</p>
         </div>
+        {action}
       </div>
       <div className="grid gap-4">{children}</div>
     </section>
@@ -327,6 +342,12 @@ export function DeployApplicationForm({
   const [projectDirectory, setProjectDirectory] = useState("/");
   const [outputDirectory, setOutputDirectory] = useState("");
   const [variables, setVariables] = useState<EnvironmentVariable[]>([]);
+  const [environmentEditorOpen, setEnvironmentEditorOpen] = useState(false);
+  const databaseSuffixRef = useRef(
+    options.suggestedDomainSuffix ?? crypto.randomUUID().replaceAll("-", "").slice(0, 6),
+  );
+  const [newDatabaseName, setNewDatabaseName] = useState("");
+  const [databaseNameEdited, setDatabaseNameEdited] = useState(false);
   const [databaseMode, setDatabaseMode] = useState<"new" | "existing" | "none">(
     "new",
   );
@@ -511,6 +532,12 @@ export function DeployApplicationForm({
   function changeName(value: string): void {
     setName(value);
     if (!labelEdited) setDomainLabel(slug(value));
+    if (!databaseNameEdited) {
+      const identifier = databaseIdentifier(value);
+      setNewDatabaseName(
+        identifier ? `${identifier}_${databaseSuffixRef.current}` : "",
+      );
+    }
   }
   function selectStack(value: RuntimeOption["language"]): void {
     setStack(value);
@@ -620,7 +647,6 @@ export function DeployApplicationForm({
     try {
       let databaseId = existingDatabaseId;
       if (databaseMode === "new") {
-        const data = new FormData(event.currentTarget);
         const created = await request<{ database: { id: string } }>(
           `/api/v1/workspaces/${workspaceId}/databases`,
           {
@@ -628,7 +654,7 @@ export function DeployApplicationForm({
             headers: { "content-type": "application/json" },
             body: JSON.stringify({
               engine: databaseEngine,
-              name: String(data.get("newDatabaseName") || `${name} database`),
+              name: newDatabaseName,
               connectionLimit: 10,
               storageQuotaMb: 1024,
             }),
@@ -1309,15 +1335,20 @@ export function DeployApplicationForm({
                 Database name
                 <input
                   className={inputClass}
-                  defaultValue={name ? `${name} database` : ""}
-                  key={name || "database"}
+                  maxLength={80}
                   name="newDatabaseName"
-                  placeholder="Customer API database"
+                  onChange={(event) => {
+                    setDatabaseNameEdited(true);
+                    setNewDatabaseName(databaseIdentifier(event.target.value));
+                  }}
+                  pattern="[a-z0-9]+(?:_[a-z0-9]+)*"
+                  placeholder="customer_api_a1b2c3"
                   required
+                  value={newDatabaseName}
                 />
                 <Hint>
-                  This is the workspace display name. The actual database,
-                  username, and password are generated securely by the platform.
+                  Use lowercase snake_case. A stable six-character suffix is
+                  generated from this deployment to keep the name unique.
                 </Hint>
               </label>
             </>
@@ -1346,91 +1377,65 @@ export function DeployApplicationForm({
           )}
         </Section>
         <Section
+          action={
+            <button
+              aria-label="Edit environment variables"
+              className="rounded-lg border border-brand-primary/15 p-2 transition hover:bg-brand-primary/5"
+              onClick={() => setEnvironmentEditorOpen(true)}
+              title="Edit environment variables"
+              type="button"
+            >
+              <Pencil className="size-4" />
+            </button>
+          }
           description="Repository templates generate keys only. Secret values are encrypted and never returned in plain text after saving."
           icon={Braces}
           title="Environment variables"
         >
-          {variables.map((variable, index) => (
-            <div
-              className="grid gap-2 rounded-xl border border-brand-primary/10 p-3 sm:grid-cols-[1fr_1.4fr_auto]"
-              key={`${variable.key}-${index}`}
-            >
-              <input
-                aria-label="Variable key"
-                className={inputClass}
-                onChange={(event) =>
-                  updateVariable(index, {
-                    key: event.target.value.toUpperCase(),
-                  })
-                }
-                placeholder="VARIABLE_NAME"
-                value={variable.key}
-              />
-              <input
-                aria-label={`Value for ${variable.key || "variable"}`}
-                className={inputClass}
-                onChange={(event) =>
-                  updateVariable(index, { value: event.target.value })
-                }
-                placeholder={variable.isSecret ? "Secret value" : "Value"}
-                type={variable.isSecret ? "password" : "text"}
-                value={variable.value}
-              />
-              <button
-                aria-label="Remove variable"
-                className="rounded-xl border p-3"
-                onClick={() =>
-                  setVariables((current) =>
-                    current.filter((_, position) => position !== index),
-                  )
-                }
-                type="button"
-              >
-                <Trash2 className="size-4" />
-              </button>
-              <label className="flex items-center gap-2 text-xs">
-                <input
-                  checked={variable.isSecret}
-                  onChange={(event) =>
-                    updateVariable(index, { isSecret: event.target.checked })
-                  }
-                  type="checkbox"
-                />{" "}
-                Secret
-              </label>
-              <label className="grid gap-1 text-xs sm:col-span-2">
-                Available during
-                <select
-                  className="rounded-lg border bg-white px-2 py-1 dark:bg-gray-800"
-                  onChange={(event) =>
-                    updateVariable(index, {
-                      scope: event.target.value as EnvironmentVariable["scope"],
-                    })
-                  }
-                  value={variable.scope}
-                >
-                  <option value="runtime">Runtime</option>
-                  <option value="build">Build only</option>
-                  <option value="both">Build and runtime</option>
-                </select>
-              </label>
-            </div>
-          ))}
-          <button
-            className="inline-flex w-fit items-center gap-2 rounded-xl border border-brand-primary/15 px-4 py-2 text-sm font-bold"
-            onClick={() =>
-              setVariables((current) => [
-                ...current,
-                { key: "", value: "", isSecret: true, scope: "runtime" },
-              ])
-            }
-            type="button"
-          >
-            <Plus className="size-4" /> Add Variable
-          </button>
+          <div className="max-h-64 overflow-auto rounded-xl border border-brand-primary/10">
+            <table className="w-full min-w-[34rem] table-fixed text-left text-xs">
+              <thead className="sticky top-0 bg-app-canvas text-[0.68rem] font-bold uppercase tracking-wide text-app-muted">
+                <tr>
+                  <th className="w-[34%] px-3 py-2">Key</th>
+                  <th className="w-[36%] px-3 py-2">Value</th>
+                  <th className="w-[18%] px-3 py-2">Scope</th>
+                  <th className="w-[12%] px-3 py-2">Type</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-brand-primary/10">
+                {variables.map((variable, index) => (
+                  <tr key={`${variable.key}-${index}`}>
+                    <td className="truncate px-3 py-2 font-mono font-semibold" title={variable.key}>
+                      {variable.key || "Untitled variable"}
+                    </td>
+                    <td className="truncate px-3 py-2 font-mono text-app-muted" title={variable.isSecret ? "Secret value is masked" : variable.value}>
+                      {variable.value
+                        ? variable.isSecret
+                          ? "••••••••"
+                          : variable.value
+                        : "Not set"}
+                    </td>
+                    <td className="px-3 py-2 capitalize text-app-muted">
+                      {variable.scope === "both" ? "Build + runtime" : variable.scope}
+                    </td>
+                    <td className="px-3 py-2 text-app-muted">
+                      {variable.isSecret ? "Secret" : "Plain"}
+                    </td>
+                  </tr>
+                ))}
+                {!variables.length && (
+                  <tr>
+                    <td className="px-3 py-6 text-center text-app-muted" colSpan={4}>
+                      No environment variables configured.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
           <Hint>
-            Use uppercase keys. Database connection variables are managed
-            separately and override conflicting manual keys.
+            Use the edit button to manage values. Database connection variables
+            are injected separately and override conflicting manual keys.
           </Hint>
         </Section>
         <Section
@@ -1465,6 +1470,104 @@ export function DeployApplicationForm({
           </dl>
         </Section>
       </div>
+      {environmentEditorOpen && (
+        <Offcanvas
+          onClose={() => setEnvironmentEditorOpen(false)}
+          title="Edit environment variables"
+          width="lg"
+        >
+          <div className="mt-6 grid gap-4 pb-24">
+            <p className="text-sm leading-6 text-app-muted">
+              Use uppercase keys. Secret values are encrypted when the application is saved.
+            </p>
+            {variables.map((variable, index) => (
+              <div
+                className="grid gap-3 rounded-2xl border border-brand-primary/10 p-4"
+                key={`${variable.key}-${index}`}
+              >
+                <div className="flex items-start gap-3">
+                  <input
+                    aria-label="Variable key"
+                    className={`${inputClass} min-w-0 flex-1 font-mono`}
+                    onChange={(event) =>
+                      updateVariable(index, { key: event.target.value.toUpperCase() })
+                    }
+                    placeholder="VARIABLE_NAME"
+                    value={variable.key}
+                  />
+                  <button
+                    aria-label="Remove variable"
+                    className="rounded-xl border border-red-500/20 p-3 text-red-600 dark:text-red-300"
+                    onClick={() =>
+                      setVariables((current) =>
+                        current.filter((_, position) => position !== index),
+                      )
+                    }
+                    type="button"
+                  >
+                    <Trash2 className="size-4" />
+                  </button>
+                </div>
+                <input
+                  aria-label={`Value for ${variable.key || "variable"}`}
+                  className={`${inputClass} font-mono`}
+                  onChange={(event) => updateVariable(index, { value: event.target.value })}
+                  placeholder={variable.isSecret ? "Secret value" : "Value"}
+                  type={variable.isSecret ? "password" : "text"}
+                  value={variable.value}
+                />
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="flex items-center gap-2 rounded-xl border border-brand-primary/10 px-3 py-2 text-sm">
+                    <input
+                      checked={variable.isSecret}
+                      onChange={(event) =>
+                        updateVariable(index, { isSecret: event.target.checked })
+                      }
+                      type="checkbox"
+                    />
+                    Treat as secret
+                  </label>
+                  <label className="grid gap-1 text-xs font-semibold">
+                    Available during
+                    <select
+                      className="rounded-xl border border-brand-primary/15 bg-white px-3 py-2 text-gray-900 dark:bg-gray-800 dark:text-gray-100"
+                      onChange={(event) =>
+                        updateVariable(index, {
+                          scope: event.target.value as EnvironmentVariable["scope"],
+                        })
+                      }
+                      value={variable.scope}
+                    >
+                      <option value="runtime">Runtime</option>
+                      <option value="build">Build only</option>
+                      <option value="both">Build and runtime</option>
+                    </select>
+                  </label>
+                </div>
+              </div>
+            ))}
+            <button
+              className="inline-flex w-fit items-center gap-2 rounded-xl border border-brand-primary/15 px-4 py-2.5 text-sm font-bold"
+              onClick={() =>
+                setVariables((current) => [
+                  ...current,
+                  { key: "", value: "", isSecret: true, scope: "runtime" },
+                ])
+              }
+              type="button"
+            >
+              <Plus className="size-4" /> Add Variable
+            </button>
+            <button
+              className="rounded-xl bg-brand-action px-5 py-3 font-bold text-brand-ink"
+              onClick={() => setEnvironmentEditorOpen(false)}
+              type="button"
+            >
+              Done
+            </button>
+          </div>
+        </Offcanvas>
+      )}
       <div className="fixed bottom-0 left-0 right-0 z-10 flex justify-end border-t border-brand-primary/10 bg-app-surface/95 px-5 py-4 backdrop-blur lg:left-[var(--app-sidebar-width,16rem)]">
         <button
           className="inline-flex items-center gap-2 rounded-xl bg-brand-action px-6 py-3 font-black text-brand-ink disabled:opacity-60"

@@ -58,6 +58,7 @@ export function Offcanvas({
 							aria-label="Close"
 							className="rounded-lg p-2 hover:bg-stone-100 dark:hover:bg-stone-800"
 							onClick={onClose}
+							type="button"
 						>
 							<X className="size-5" />
 						</button>

@@ -5,11 +5,12 @@ import { createLogicalDatabaseSchema, logicalDatabasePublicIdSchema } from '@sch
 
 describe('logical database validation', () => {
 	it('applies conservative connection and storage defaults', () => {
-		expect(createLogicalDatabaseSchema.parse({ engine: 'postgresql', name: 'Main database' })).toMatchObject({ connectionLimit: 10, storageQuotaMb: 1024 });
+		expect(createLogicalDatabaseSchema.parse({ engine: 'postgresql', name: 'main_database_a1b2c3' })).toMatchObject({ connectionLimit: 10, storageQuotaMb: 1024 });
 	});
 
 	it('rejects SQL-shaped names and unsupported engines', () => {
 		expect(createLogicalDatabaseSchema.safeParse({ engine: 'sqlite', name: 'main; DROP DATABASE' }).success).toBe(false);
+		expect(createLogicalDatabaseSchema.safeParse({ engine: 'postgresql', name: 'Main database' }).success).toBe(false);
 	});
 
 	it('requires a UUID for credential routes', () => {
