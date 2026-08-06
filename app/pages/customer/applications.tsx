@@ -39,6 +39,20 @@ export default function CustomerApplicationsPage() {
 	useEffect(() => { const timeout = window.setTimeout(() => void load(), 0); return () => window.clearTimeout(timeout); }, [load]);
 	useEffect(() => { if (!creating || !active) return; setOptionsLoading(true); void api<Options>(`/api/v1/workspaces/${active.publicId}/applications/options`).then(setOptions).catch((error) => toast.error(error instanceof Error ? error.message : 'Unable to load deployment options.')).finally(() => setOptionsLoading(false)); }, [active, creating]);
 	useEffect(() => {
+		const params = new URLSearchParams(location.search);
+		const connected = params.get('github') === 'connected';
+		const error = params.get('github_error');
+		if (!connected && !error) return;
+		if (window.opener && !window.opener.closed) {
+			window.opener.postMessage({ type: connected ? 'ghostdeploy:github-connected' : 'ghostdeploy:github-error', message: error }, window.location.origin);
+			window.close();
+			return;
+		}
+		if (connected) toast.success('GitHub connected to this workspace.');
+		if (error) toast.error(error);
+		navigate('/dashboard/applications/create', { replace: true });
+	}, [location.search, navigate]);
+	useEffect(() => {
 		if (!active) return;
 		const timers = customDomains.map((hostname, index) => window.setTimeout(() => {
 			const value = hostname.trim().toLowerCase();

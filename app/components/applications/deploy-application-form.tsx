@@ -14,7 +14,7 @@ import {
   Sparkles,
   Trash2,
 } from "lucide-react";
-import { type FormEvent, useEffect, useMemo, useState } from "react";
+import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { authenticatedFetch } from "@root/app/utils/authenticatedFetch";
@@ -160,6 +160,16 @@ function Hint({ children }: { children: string }) {
     </span>
   );
 }
+
+/** Opens a centered GitHub setup window while keeping the deployment form mounted. */
+function openGithubPopup(url: string, name: string): Window | null {
+  const width = Math.min(960, window.screen.availWidth - 40);
+  const height = Math.min(760, window.screen.availHeight - 80);
+  const left = Math.max(0, window.screenX + (window.outerWidth - width) / 2);
+  const top = Math.max(0, window.screenY + (window.outerHeight - height) / 2);
+  return window.open(url, name, `popup=yes,width=${Math.round(width)},height=${Math.round(height)},left=${Math.round(left)},top=${Math.round(top)},resizable=yes,scrollbars=yes`);
+}
+
 function Section({
   children,
   description,
@@ -208,6 +218,9 @@ export function DeployApplicationForm({
   const [githubRepositories, setGithubRepositories] = useState<
     GithubRepository[]
   >([]);
+  const [githubConnecting, setGithubConnecting] = useState(false);
+  const githubPopupRef = useRef<Window | null>(null);
+  const githubPollRef = useRef<number | undefined>(undefined);
   const [branch, setBranch] = useState("main");
   const [analysis, setAnalysis] = useState<SourceAnalysis>();
   const [analyzing, setAnalyzing] = useState(false);
@@ -239,15 +252,46 @@ export function DeployApplicationForm({
     stackRuntimes[0];
   const selectedFramework = frameworkDefinition(framework);
 
-  useEffect(() => {
-    void request<GithubConnection[]>(
+  const loadGithubConnections = useCallback(async (): Promise<GithubConnection[]> => {
+    const connections = await request<GithubConnection[]>(
       `/api/v1/workspaces/${workspaceId}/applications/github-connections`,
-    )
-      .then((connections) => {
-        setGithubConnections(connections);
-        if (connections[0]) setGithubConnectionId(connections[0].id);
-      })
-      .catch(() => undefined);
+    );
+    setGithubConnections(connections);
+    setGithubConnectionId((current) => connections.some(({ id }) => id === current) ? current : connections[0]?.id ?? "");
+    return connections;
+  }, [workspaceId]);
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => void loadGithubConnections().catch(() => undefined), 0);
+    return () => window.clearTimeout(timeout);
+  }, [loadGithubConnections]);
+
+  useEffect(() => {
+    const refresh = (): void => {
+      if (sourceMode !== "github") return;
+      void loadGithubConnections().catch(() => undefined);
+    };
+    const message = (event: MessageEvent): void => {
+      if (event.origin !== window.location.origin) return;
+      if (event.data?.type === "ghostdeploy:github-connected") refresh();
+      if (event.data?.type === "ghostdeploy:github-error") {
+        if (githubPollRef.current !== undefined) window.clearInterval(githubPollRef.current);
+        githubPollRef.current = undefined;
+        setGithubConnecting(false);
+        toast.error(typeof event.data.message === "string" ? event.data.message : "GitHub connection failed.");
+      }
+    };
+    window.addEventListener("focus", refresh);
+    window.addEventListener("message", message);
+    return () => {
+      window.removeEventListener("focus", refresh);
+      window.removeEventListener("message", message);
+    };
+  }, [loadGithubConnections, sourceMode]);
+
+  useEffect(() => () => {
+    if (githubPollRef.current !== undefined) window.clearInterval(githubPollRef.current);
+    if (githubPopupRef.current && !githubPopupRef.current.closed) githubPopupRef.current.close();
   }, [workspaceId]);
 
   useEffect(() => {
@@ -284,6 +328,13 @@ export function DeployApplicationForm({
   }
 
   async function connectGithub(): Promise<void> {
+    const popup = openGithubPopup("about:blank", "ghostdeploy-github-install");
+    if (!popup) {
+      toast.error("Allow popups for Ghost Deploy, then try connecting GitHub again.");
+      return;
+    }
+    githubPopupRef.current = popup;
+    setGithubConnecting(true);
     try {
       const result = await request<{ url: string }>(
         `/api/v1/workspaces/${workspaceId}/applications/github-connections`,
@@ -293,12 +344,38 @@ export function DeployApplicationForm({
           body: "{}",
         },
       );
-      window.location.assign(result.url);
+      popup.location.replace(result.url);
+      const deadline = Date.now() + 5 * 60_000;
+      if (githubPollRef.current !== undefined) window.clearInterval(githubPollRef.current);
+      githubPollRef.current = window.setInterval(() => {
+        if (Date.now() >= deadline) {
+          if (githubPollRef.current !== undefined) window.clearInterval(githubPollRef.current);
+          githubPollRef.current = undefined;
+          setGithubConnecting(false);
+          return;
+        }
+        void loadGithubConnections().then((connections) => {
+          if (!connections.length) return;
+          if (githubPollRef.current !== undefined) window.clearInterval(githubPollRef.current);
+          githubPollRef.current = undefined;
+          setGithubConnecting(false);
+          if (!popup.closed) popup.close();
+          toast.success("GitHub connected to this workspace.");
+        }).catch(() => undefined);
+      }, 2_000);
     } catch (error) {
+      popup.close();
+      setGithubConnecting(false);
       toast.error(
         error instanceof Error ? error.message : "Unable to connect GitHub.",
       );
     }
+  }
+
+  function configureGithub(reviewUrl: string | undefined): void {
+    if (!reviewUrl) return;
+    const popup = openGithubPopup(reviewUrl, "ghostdeploy-github-configure");
+    if (!popup) toast.error("Allow popups for Ghost Deploy, then try configuring GitHub again.");
   }
 
   async function syncGithubProvider(): Promise<void> {
@@ -592,18 +669,13 @@ export function DeployApplicationForm({
                     </Hint>
                   </label>
                   <div className="flex flex-wrap gap-2">
-                    <a
+                    <button
                       className="rounded-xl border border-brand-primary/15 px-4 py-2 text-sm font-bold"
-                      href={
-                        githubConnections.find(
-                          (item) => item.id === githubConnectionId,
-                        )?.reviewUrl
-                      }
-                      rel="noreferrer"
-                      target="_blank"
+                      onClick={() => configureGithub(githubConnections.find((item) => item.id === githubConnectionId)?.reviewUrl)}
+                      type="button"
                     >
-                      Review repository access
-                    </a>
+                      Configure GitHub
+                    </button>
                     <button
                       className="rounded-xl border border-brand-primary/15 px-4 py-2 text-sm font-bold"
                       onClick={() => void connectGithub()}
@@ -668,10 +740,11 @@ export function DeployApplicationForm({
                   </p>
                   <button
                     className="rounded-xl bg-brand-action px-4 py-3 font-black text-slate-950"
+                    disabled={githubConnecting}
                     onClick={() => void connectGithub()}
                     type="button"
                   >
-                    Connect GitHub
+                    {githubConnecting ? "Waiting for GitHub…" : "Connect GitHub"}
                   </button>
                 </>
               )}
