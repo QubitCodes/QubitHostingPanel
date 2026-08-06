@@ -20,6 +20,9 @@ import { decryptCredential } from "@services/encryption/credentialEncryptionServ
 import { hostingProvider } from "@services/hosting/hostingProviderFactory";
 import { nixpacksRuntimeVersion } from "@services/provisioning/runtimeCompatibilityService";
 
+/** Marks provider states that cannot improve without a new explicit deployment. */
+class TerminalProvisioningError extends Error {}
+
 /** Queues exactly one initial application provision per subscription. */
 export async function queueInitialProvisioning(
   workspaceId: string,
@@ -411,8 +414,19 @@ export async function processProvisioningJobs(
         const providerStatus = await provider.getDeployment(
           existingResource.providerResourceId,
         );
-        if (providerStatus === "failed")
-          throw new Error("The provider reports that deployment failed.");
+        if (providerStatus === "failed") {
+          await db
+            .update(workspaceResources)
+            .set({
+              status: "failed",
+              lastReconciledAt: new Date(),
+              updatedAt: new Date(),
+            })
+            .where(eq(workspaceResources.id, existingResource.id));
+          throw new TerminalProvisioningError(
+            "The provider reports that deployment failed.",
+          );
+        }
         if (providerStatus !== "succeeded") {
           await db.transaction(async (transaction) => {
             await transaction
@@ -565,11 +579,16 @@ export async function processProvisioningJobs(
       if (result.status === "succeeded") succeeded += 1;
     } catch (error) {
       failed += 1;
+      const terminal = error instanceof TerminalProvisioningError;
       const delayMinutes = Math.min(60, 2 ** claimed.attemptCount);
       await db
         .update(provisioningJobs)
         .set({
           status: "failed",
+          attemptCount: terminal
+            ? claimed.maximumAttempts
+            : claimed.attemptCount,
+          completedAt: terminal ? new Date() : null,
           lockedAt: null,
           lastError:
             error instanceof Error
