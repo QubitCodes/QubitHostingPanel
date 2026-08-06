@@ -11,13 +11,16 @@ import {
   LoaderCircle,
   Plus,
   ServerCog,
+  Settings,
   Sparkles,
   Trash2,
+  UserPlus,
 } from "lucide-react";
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { authenticatedFetch } from "@root/app/utils/authenticatedFetch";
+import { SearchableSelect } from "@root/app/components/forms/searchable-select";
 import {
   frameworkDefinition,
   frameworksForLanguage,
@@ -222,6 +225,7 @@ export function DeployApplicationForm({
   const githubPopupRef = useRef<Window | null>(null);
   const githubPollRef = useRef<number | undefined>(undefined);
   const [branch, setBranch] = useState("main");
+  const [availableBranches, setAvailableBranches] = useState<string[]>([]);
   const [analysis, setAnalysis] = useState<SourceAnalysis>();
   const [analyzing, setAnalyzing] = useState(false);
   const [stack, setStack] = useState<RuntimeOption["language"]>("node");
@@ -251,6 +255,7 @@ export function DeployApplicationForm({
     stackRuntimes.find((runtime) => runtime.isDefault) ??
     stackRuntimes[0];
   const selectedFramework = frameworkDefinition(framework);
+  const branchOptions = useMemo(() => [...new Set([...availableBranches, branch].filter(Boolean))].map((item) => ({ label: item, value: item })), [availableBranches, branch]);
 
   const loadGithubConnections = useCallback(async (): Promise<GithubConnection[]> => {
     const connections = await request<GithubConnection[]>(
@@ -438,7 +443,24 @@ export function DeployApplicationForm({
     )
       setDatabaseEngine(definition.databaseEngines[0]);
   }
-  async function inspectSource(): Promise<void> {
+  function selectSourceMode(mode: "public" | "github"): void {
+    setSourceMode(mode);
+    setRepository("");
+    setBranch("main");
+    setAvailableBranches([]);
+    setAnalysis(undefined);
+  }
+  function selectGithubConnection(connectionId: string): void {
+    setGithubConnectionId(connectionId);
+    setRepository("");
+    setBranch("main");
+    setAvailableBranches([]);
+    setAnalysis(undefined);
+    setGithubRepositories([]);
+  }
+  async function inspectSource(source?: { branch: string; repository: string }): Promise<void> {
+    const sourceRepository = source?.repository ?? repository;
+    const sourceBranch = source?.branch ?? branch;
     setAnalyzing(true);
     try {
       const result = await request<SourceAnalysis>(
@@ -447,14 +469,15 @@ export function DeployApplicationForm({
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
-            repository,
-            branch,
+            repository: sourceRepository,
+            branch: sourceBranch,
             githubConnectionId:
               sourceMode === "github" ? githubConnectionId : undefined,
           }),
         },
       );
       setAnalysis(result);
+      setAvailableBranches(result.branches);
       const candidate = result.candidates[0];
       if (candidate) {
         selectStack(candidate.stack);
@@ -470,7 +493,7 @@ export function DeployApplicationForm({
           scope: "runtime",
         })),
       );
-      if (result.branches.includes(branch) === false && result.branches[0])
+      if (result.branches.includes(sourceBranch) === false && result.branches[0])
         setBranch(result.branches[0]);
       toast.success(
         "Repository configuration detected. Review every suggestion before deploying.",
@@ -630,7 +653,7 @@ export function DeployApplicationForm({
                 <button
                   className={`rounded-xl border px-4 py-3 text-left font-bold ${sourceMode === mode ? "border-brand-action bg-brand-action/10" : "border-brand-primary/10"}`}
                   key={mode}
-                  onClick={() => setSourceMode(mode)}
+                  onClick={() => selectSourceMode(mode)}
                   type="button"
                 >
                   {mode === "public"
@@ -650,40 +673,43 @@ export function DeployApplicationForm({
                 <>
                   <label className="grid gap-2 font-semibold">
                     GitHub account
-                    <select
-                      className={inputClass}
-                      onChange={(event) =>
-                        setGithubConnectionId(event.target.value)
-                      }
-                      value={githubConnectionId}
-                    >
-                      {githubConnections.map((connection) => (
-                        <option key={connection.id} value={connection.id}>
-                          {connection.accountName} (@{connection.accountLogin})
-                        </option>
-                      ))}
-                    </select>
+                    <div className="grid grid-cols-[minmax(0,1fr)_3rem_3rem] gap-2">
+                      <SearchableSelect
+                        ariaLabel="Choose connected GitHub account"
+                        onChange={(value) => selectGithubConnection(value)}
+                        options={githubConnections.map((connection) => ({
+                          keywords: `${connection.accountName} ${connection.accountLogin}`,
+                          label: `${connection.accountName} (@${connection.accountLogin})`,
+                          value: connection.id,
+                        }))}
+                        placeholder="Choose GitHub account"
+                        searchPlaceholder="Search GitHub accounts"
+                        value={githubConnectionId}
+                      />
+                      <button
+                        aria-label="Configure GitHub connection"
+                        className="grid size-12 place-items-center rounded-xl border border-brand-primary/15"
+                        onClick={() => configureGithub(githubConnections.find((item) => item.id === githubConnectionId)?.reviewUrl)}
+                        title="Configure GitHub connection"
+                        type="button"
+                      >
+                        <Settings className="size-4" />
+                      </button>
+                      <button
+                        aria-label="Connect another GitHub account"
+                        className="grid size-12 place-items-center rounded-xl border border-brand-primary/15"
+                        onClick={() => void connectGithub()}
+                        title="Connect another GitHub account"
+                        type="button"
+                      >
+                        <UserPlus className="size-4" />
+                      </button>
+                    </div>
                     <Hint>
                       This workspace can deploy only repositories granted to the
                       selected GitHub App installation.
                     </Hint>
                   </label>
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      className="rounded-xl border border-brand-primary/15 px-4 py-2 text-sm font-bold"
-                      onClick={() => configureGithub(githubConnections.find((item) => item.id === githubConnectionId)?.reviewUrl)}
-                      type="button"
-                    >
-                      Configure GitHub
-                    </button>
-                    <button
-                      className="rounded-xl border border-brand-primary/15 px-4 py-2 text-sm font-bold"
-                      onClick={() => void connectGithub()}
-                      type="button"
-                    >
-                      Connect another account
-                    </button>
-                  </div>
                   {githubConnections.find(
                     (item) => item.id === githubConnectionId,
                   )?.providerSyncStatus !== "ready" && (
@@ -706,27 +732,27 @@ export function DeployApplicationForm({
                   )}
                   <label className="grid gap-2 font-semibold">
                     Permitted repository
-                    <select
-                      className={inputClass}
-                      onChange={(event) => {
-                        const selected = githubRepositories.find(
-                          (item) => item.url === event.target.value,
-                        );
-                        setRepository(event.target.value);
-                        setBranch(selected?.defaultBranch ?? "main");
+                    <SearchableSelect
+                      ariaLabel="Choose a permitted GitHub repository"
+                      emptyMessage="No permitted repositories found. Use the gear button to review access."
+                      onChange={(value) => {
+                        const selected = githubRepositories.find((item) => item.url === value);
+                        const defaultBranch = selected?.defaultBranch ?? "main";
+                        setRepository(value);
+                        setBranch(defaultBranch);
+                        setAvailableBranches([defaultBranch]);
                         setAnalysis(undefined);
+                        if (value) void inspectSource({ repository: value, branch: defaultBranch });
                       }}
-                      required
+                      options={githubRepositories.map((item) => ({
+                        keywords: `${item.fullName} ${item.isPrivate ? "private" : "public"}`,
+                        label: `${item.fullName}${item.isPrivate ? " (private)" : ""}`,
+                        value: item.url,
+                      }))}
+                      placeholder="Select a repository"
+                      searchPlaceholder="Search permitted repositories"
                       value={repository}
-                    >
-                      <option value="">Select a repository</option>
-                      {githubRepositories.map((item) => (
-                        <option key={item.fullName} value={item.url}>
-                          {item.fullName}
-                            {item.isPrivate ? " (private)" : ""}
-                        </option>
-                      ))}
-                    </select>
+                    />
                     <Hint>
                       Only repositories explicitly approved in GitHub are listed
                       here.
@@ -750,7 +776,7 @@ export function DeployApplicationForm({
               )}
             </div>
           )}
-          <label className="grid gap-2 font-semibold">
+          {sourceMode === "public" && <label className="grid gap-2 font-semibold">
             Repository URL
             <div className="flex gap-2">
               <input
@@ -760,7 +786,6 @@ export function DeployApplicationForm({
                   setAnalysis(undefined);
                 }}
                 placeholder="https://github.com/organisation/repository"
-                readOnly={sourceMode === "github"}
                 required
                 type="url"
                 value={repository}
@@ -783,32 +808,29 @@ export function DeployApplicationForm({
               Use the repository root URL. Detection reads manifests and
               environment templates but never reads real .env files.
             </Hint>
-          </label>
-          <label className="grid gap-2 font-semibold">
+          </label>}
+          {repository.trim() && <label className="grid gap-2 font-semibold">
             Branch
-            {analysis?.branches.length ? (
-              <select
-                className={inputClass}
-                onChange={(event) => setBranch(event.target.value)}
-                value={branch}
-              >
-                {analysis.branches.map((item) => (
-                  <option key={item}>{item}</option>
-                ))}
-              </select>
-            ) : (
-              <input
-                className={inputClass}
-                onChange={(event) => setBranch(event.target.value)}
-                required
-                value={branch}
-              />
-            )}
+            <SearchableSelect
+              allowCreate
+              ariaLabel="Choose repository branch"
+              emptyMessage="No matching branches found. Enter the exact branch name to add it."
+              onChange={(value) => {
+                setBranch(value);
+                setAnalysis(undefined);
+                if (sourceMode === "github") void inspectSource({ repository, branch: value });
+              }}
+              onCreate={(label) => ({ label, value: label })}
+              options={branchOptions}
+              placeholder="Choose a branch"
+              searchPlaceholder="Search or enter a branch"
+              value={branch}
+            />
             <Hint>
               The selected branch is built and redeployed. Available branches
               appear after repository detection.
             </Hint>
-          </label>
+          </label>}
           {analysis && (
             <div className="rounded-xl bg-emerald-500/10 p-3 text-xs text-emerald-700 dark:text-emerald-300">
               <Check className="mr-1 inline size-4" />
