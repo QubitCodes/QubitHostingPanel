@@ -766,6 +766,7 @@ export function DeployApplicationForm({
 
   async function submit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
+    const data = new FormData(event.currentTarget);
     if (!selectedRuntime) {
       toast.error("Choose a stack version.");
       return;
@@ -797,7 +798,6 @@ export function DeployApplicationForm({
         );
         databaseId = created.database.id;
       }
-      const data = new FormData(event.currentTarget);
       const result = await request<{ id: string }>(
         `/api/v1/workspaces/${workspaceId}/applications`,
         {
