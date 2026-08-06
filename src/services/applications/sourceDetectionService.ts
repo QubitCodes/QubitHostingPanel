@@ -13,6 +13,12 @@ interface PackageManifest {
   devDependencies?: Record<string, string>;
   scripts?: Record<string, string>;
 }
+interface NpmLockManifest {
+	packages?: Record<string, {
+		dependencies?: Record<string, string>;
+		devDependencies?: Record<string, string>;
+	}>;
+}
 interface ComposerManifest {
   require?: Record<string, string>;
   "require-dev"?: Record<string, string>;
@@ -105,11 +111,31 @@ function siblingPath(manifestPath: string, fileName: string): string {
 	return directory === '/' ? fileName : `${directory}/${fileName}`;
 }
 
+/** Checks whether the npm lockfile's root dependency declarations match package.json. */
+function npmLockMatchesManifest(
+	manifest: PackageManifest,
+	rawLockfile?: string,
+): boolean {
+	if (!rawLockfile) return false;
+	try {
+		const lockedRoot = (JSON.parse(rawLockfile) as NpmLockManifest).packages?.[''];
+		if (!lockedRoot) return false;
+		return (['dependencies', 'devDependencies'] as const).every((section) => {
+			const declared = manifest[section] ?? {};
+			const locked = lockedRoot[section] ?? {};
+			return Object.entries(declared).every(([name, version]) => locked[name] === version);
+		});
+	} catch {
+		return false;
+	}
+}
+
 /** Infers safe Node package commands from lockfiles and declared package scripts. */
 function nodeCommands(
 	manifest: PackageManifest,
 	manifestPath: string,
 	paths: string[],
+	npmLockfile?: string,
 ): { commands: SourceCandidate['commands']; packageManager: string } {
 	const besideManifest = (name: string) => paths.includes(siblingPath(manifestPath, name));
 	let packageManager = 'npm';
@@ -128,7 +154,9 @@ function nodeCommands(
 		install = 'corepack enable && yarn install --frozen-lockfile';
 		run = 'yarn';
 	} else if (besideManifest('package-lock.json') || besideManifest('npm-shrinkwrap.json')) {
-		install = 'npm ci';
+		install = npmLockMatchesManifest(manifest, npmLockfile)
+			? 'npm ci'
+			: 'npm install';
 	}
 	return {
 		packageManager,
@@ -222,7 +250,13 @@ export async function analyzeApplicationSource(
     try {
       const manifest = JSON.parse(raw) as PackageManifest;
       const framework = nodeFramework(manifest);
-	  const commandSuggestion = nodeCommands(manifest, path, paths);
+	  const npmLockPath = ['package-lock.json', 'npm-shrinkwrap.json']
+		.map((name) => siblingPath(path, name))
+		.find((candidate) => paths.includes(candidate));
+	  const npmLockfile = npmLockPath
+		? await rawFile(repository, branch, npmLockPath, token)
+		: undefined;
+	  const commandSuggestion = nodeCommands(manifest, path, paths, npmLockfile);
       candidates.push({
 		commands: commandSuggestion.commands,
         projectDirectory: projectDirectory(path),

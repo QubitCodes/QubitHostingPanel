@@ -100,4 +100,30 @@ describe('application source detection', () => {
 			packageManager: 'pnpm',
 		});
 	});
+
+	it('falls back to npm install when package-lock declarations are stale', async () => {
+		const files = {
+			'package.json': JSON.stringify({
+				dependencies: { react: '^19.2.0' },
+				scripts: { build: 'vite build', start: 'vite preview' },
+			}),
+			'package-lock.json': JSON.stringify({
+				lockfileVersion: 3,
+				packages: { '': { dependencies: { react: '^19.1.0' } } },
+			}),
+		};
+		vi.stubGlobal(
+			'fetch',
+			vi.fn((input: string | URL | Request) =>
+				Promise.resolve(githubResponse(String(input), files)),
+			),
+		);
+
+		const result = await analyzeApplicationSource(
+			'https://github.com/ghostdeploy/react-example',
+			'main',
+		);
+
+		expect(result.candidates[0]?.commands?.install).toBe('npm install');
+	});
 });
