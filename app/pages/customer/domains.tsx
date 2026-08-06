@@ -9,7 +9,7 @@ import {
 	Trash2,
 	X,
 } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { type FormEvent, useCallback, useEffect, useState } from 'react';
 import {
 	Link,
 	useNavigate,
@@ -69,6 +69,12 @@ interface ApiBody<T> {
 	message: string;
 	status: boolean;
 }
+interface DomainCheck {
+	available: boolean;
+	dnsReady: boolean;
+	reason?: string | null;
+	records: string[];
+}
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
 	const response = await authenticatedFetch(path, init);
@@ -85,12 +91,15 @@ export default function CustomerDomainsPage() {
 	const navigate = useNavigate();
 	const [searchParams] = useSearchParams();
 	const selectedId = searchParams.get('domain');
+	const adding = searchParams.get('action') === 'add';
 	const tab = searchParams.get('tab') ?? 'overview';
 	const [domains, setDomains] = useState<RootDomain[]>([]);
 	const [detail, setDetail] = useState<DomainDetail>();
 	const [editingRecord, setEditingRecord] = useState<DnsRecord>();
 	const [loading, setLoading] = useState(true);
 	const [working, setWorking] = useState(false);
+	const [newHostname, setNewHostname] = useState('');
+	const [newDomainCheck, setNewDomainCheck] = useState<DomainCheck | 'checking'>();
 	const load = useCallback(async () => {
 		if (!workspaceId) return;
 		setLoading(true);
@@ -131,6 +140,26 @@ export default function CustomerDomainsPage() {
 		const timeout = window.setTimeout(() => void loadDetail(), 0);
 		return () => window.clearTimeout(timeout);
 	}, [loadDetail]);
+	useEffect(() => {
+		if (!adding || !workspaceId || !newHostname) return;
+		const timeout = window.setTimeout(() => {
+			setNewDomainCheck('checking');
+			void api<DomainCheck>(`/api/v1/workspaces/${workspaceId}/domains`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ hostname: newHostname, purpose: 'ownership' }) }).then(setNewDomainCheck).catch((error: unknown) => setNewDomainCheck({ available: false, dnsReady: false, records: [], reason: error instanceof Error ? error.message : 'Domain check failed.' }));
+		}, 500);
+		return () => window.clearTimeout(timeout);
+	}, [adding, newHostname, workspaceId]);
+	async function addDomain(event: FormEvent<HTMLFormElement>): Promise<void> {
+		event.preventDefault();
+		if (!workspaceId || newDomainCheck === 'checking' || !newDomainCheck?.available) return;
+		setWorking(true);
+		try {
+			const ownership = await api<RootDomain>(`/api/v1/workspaces/${workspaceId}/domain-ownership`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ hostname: newHostname }) });
+			toast.success('Domain Added.');
+			await load();
+			navigate(`/dashboard/domains?domain=${ownership.id}&tab=overview`, { replace: true });
+		} catch (error) { toast.error(error instanceof Error ? error.message : 'Unable to add domain.'); }
+		finally { setWorking(false); }
+	}
 	async function post(
 		path: string,
 		body: unknown,
@@ -237,6 +266,7 @@ export default function CustomerDomainsPage() {
 		navigate(`/dashboard/domains?domain=${selectedId}&tab=${next}`);
 	return (
 		<main className="mx-auto max-w-7xl">
+			<div className="flex flex-wrap items-end justify-between gap-4"><div>
 			<p className="text-sm font-semibold text-brand-primary dark:text-brand-action">
 				Workspace routing
 			</p>
@@ -245,6 +275,7 @@ export default function CustomerDomainsPage() {
 				Root domains owned by this workspace. External application subdomains
 				remain with their applications.
 			</p>
+			</div><Link className="inline-flex items-center gap-2 rounded-xl bg-brand-action px-5 py-3 font-bold text-brand-ink" to="/dashboard/domains?action=add"><Plus className="size-4" />Add Domain</Link></div>
 			{loading ? (
 				<LoaderCircle className="mt-8 size-6 animate-spin" />
 			) : (
@@ -329,7 +360,7 @@ export default function CustomerDomainsPage() {
 												onClick={() => void importRecords('public_scan')}
 												type="button"
 											>
-												Public scan
+												Public Scan
 											</button>
 										</div>
 										<div className="mt-4 grid gap-4 lg:grid-cols-2">
@@ -393,7 +424,7 @@ export default function CustomerDomainsPage() {
 												className="w-fit rounded-xl border border-brand-primary/15 px-4 py-2 font-bold"
 												disabled={working}
 											>
-												Import zone file
+											Import Zone File
 											</button>
 										</form>
 									</section>
@@ -421,8 +452,8 @@ export default function CustomerDomainsPage() {
 												>
 													<ServerCog className="mr-2 inline size-4" />
 													{detail.zone.provisioned
-														? 'Sync records'
-														: 'Enable managed DNS'}
+														? 'Sync Records'
+														: 'Enable Managed DNS'}
 												</button>
 												<button
 													className="rounded-xl border border-brand-primary/15 px-4 py-2 text-sm font-bold"
@@ -532,7 +563,7 @@ export default function CustomerDomainsPage() {
 											disabled={working}
 										>
 											<Plus className="mr-2 inline size-4" />
-											Add record
+											Add Record
 										</button>
 									</form>
 									<DataTable minimumWidth="55rem">
@@ -777,6 +808,7 @@ export default function CustomerDomainsPage() {
 					)}
 				</Offcanvas>
 			)}
+			{adding && <Offcanvas onClose={() => navigate('/dashboard/domains')} title="Add Domain" width="md"><form className="mt-6 grid gap-4" onSubmit={(event) => void addDomain(event)}><label className="grid gap-2 font-semibold">Root Domain<input autoFocus className="rounded-xl border border-brand-primary/15 bg-white px-4 py-3 text-gray-900 dark:bg-gray-800 dark:text-gray-100" onChange={(event) => { setNewHostname(event.target.value.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/$/, '')); setNewDomainCheck(undefined); }} placeholder="example.com" required value={newHostname} /></label><p className="text-sm text-app-muted">Add the registrable root domain. Application subdomains are created while deploying or editing an application.</p>{newDomainCheck === 'checking' ? <p className="flex items-center gap-2 text-sm text-app-muted"><LoaderCircle className="size-4 animate-spin" />Checking Availability...</p> : newDomainCheck ? <p className={`text-sm ${newDomainCheck.available ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-600 dark:text-rose-300'}`}>{newDomainCheck.available ? newDomainCheck.dnsReady ? `Available · DNS visible: ${newDomainCheck.records.join(', ')}` : 'Available · DNS can be configured after adding.' : newDomainCheck.reason}</p> : null}<button className="rounded-xl bg-brand-action px-5 py-3 font-bold text-brand-ink disabled:opacity-50" disabled={working || newDomainCheck === 'checking' || !newDomainCheck?.available} type="submit">Add Domain</button></form></Offcanvas>}
 		</main>
 	);
 }

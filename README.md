@@ -158,7 +158,8 @@ Initial publication policy: Launch, Growth, and Business may be public after the
 - `/api/v1/workspaces/:workspaceId/applications/github-connections` - connect and list workspace-owned GitHub App installations.
 - `/api/v1/workspaces/:workspaceId/applications/github-connections/:connectionId/repositories` - list repositories explicitly granted to that installation.
 - `/api/v1/workspaces/:workspaceId/applications/:applicationId` - update deployable configuration and queue a fresh deployment.
-- `/api/v1/workspaces/:workspaceId/applications/options` - workspace-authorized runtime and database choices.
+- `/api/v1/workspaces/:workspaceId/applications/options` - workspace-authorized runtime, database, entitlement, and reusable-domain choices loaded only when deployment starts.
+- `/api/v1/workspaces/:workspaceId/domain-ownership` - list or register audited root-domain ownership claims.
 - `/api/v1/workspaces/:workspaceId/applications/:applicationId/logs` - workspace-authorized provider logs.
 - `/api/v1/workspaces/:workspaceId/applications/:applicationId/domains` - custom-domain registration and domain/TLS state.
 - `/api/v1/workspaces/:workspaceId/applications/:applicationId/domains/:domainId` - primary selection, platform-domain toggle, TLS refresh, and custom-domain removal.

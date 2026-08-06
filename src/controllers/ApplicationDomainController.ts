@@ -9,7 +9,7 @@ import type { CreateApplicationDomainRequest, UpdateApplicationDomainRequest } f
 import { recordAuditLog } from '@services/auditLogService';
 import { authenticateSession } from '@services/auth/authenticatedSessionService';
 import { hostingProvider } from '@services/hosting/hostingProviderFactory';
-import { controllingOwnership, createOwnershipClaim } from '@services/domains/domainOwnershipService';
+import { controllingOwnership, createOwnershipClaim, workspaceOwnershipClaim } from '@services/domains/domainOwnershipService';
 import { ensureManagedApplicationDns, removeManagedApplicationDns } from '@services/domains/dnsManagementService';
 import type { RequestMetadata } from '@utils/request';
 
@@ -65,6 +65,24 @@ async function inspectTls(hostname: string): Promise<{ failureReason: string | n
 }
 
 export class ApplicationDomainController {
+	/** Register a workspace-owned root domain pending the configured ownership proof. */
+	public static async registerOwnership(request: Request, workspaceId: number, hostname: string, metadata: RequestMetadata): Promise<Response> {
+		try {
+			const workspace = await ownedWorkspace(request, workspaceId, metadata);
+			if (getDomain(hostname, { allowPrivateDomains: true }) !== hostname) return resp.failure('Add the registrable root domain here. Subdomains are attached from an application.', resp.codes.VALIDATION_ERROR, [{ field: 'hostname', message: 'A root domain is required.' }], null, undefined, 400);
+			const [existing] = await db.select({ id: domainOwnerships.id, workspaceId: domainOwnerships.workspaceId }).from(domainOwnerships).where(and(eq(domainOwnerships.hostname, hostname), ne(domainOwnerships.status, 'revoked'), isNull(domainOwnerships.deletedAt))).limit(1);
+			if (existing) return existing.workspaceId === workspace.id
+				? resp.failure('Domain is already added to this workspace.', resp.codes.RESOURCE_ALREADY_EXISTS, undefined, null, undefined, 409)
+				: resp.failure('Domain is owned by another workspace.', resp.codes.PERMISSION_DENIED, undefined, null, undefined, 403);
+			const ownership = await createOwnershipClaim(workspace.id, hostname);
+			await recordAuditLog({ actorUserId: (await authenticateSession(request, metadata)).userId, action: 'domain_ownership.created', resourceType: 'domain_ownership', resourceId: ownership?.id, metadata: { hostname }, ipAddress: metadata.ipAddress, userAgent: metadata.userAgent });
+			return resp.success('Domain added. Complete ownership verification to activate it.', ownership, resp.codes.CREATED, undefined, 201);
+		} catch (error) {
+			if (error instanceof Error && /unique|duplicate/i.test(error.message)) return resp.failure('Domain is already registered.', resp.codes.RESOURCE_ALREADY_EXISTS, undefined, null, undefined, 409);
+			return resp.failure(error instanceof Error ? error.message : 'Unable to add domain.', resp.codes.GENERAL_BUSINESS_LOGIC_ERROR, undefined, null, undefined, 422);
+		}
+	}
+
 	/** List only registrable domain ownerships; application-linked subdomains belong in domain detail. */
 	public static async workspaceIndex(request: Request, workspaceId: number, metadata: RequestMetadata): Promise<Response> {
 		try {
@@ -81,11 +99,13 @@ export class ApplicationDomainController {
 	}
 
 	/** Check hostname availability and current public DNS without blocking application creation. */
-	public static async check(request: Request, workspaceId: number, hostname: string, metadata: RequestMetadata): Promise<Response> {
+	public static async check(request: Request, workspaceId: number, hostname: string, purpose: 'attach' | 'ownership', metadata: RequestMetadata): Promise<Response> {
 		try {
 			const workspace = await ownedWorkspace(request, workspaceId, metadata);
 			const [assigned] = await db.select({ id: applicationDomains.id }).from(applicationDomains).where(and(eq(applicationDomains.hostname, hostname), isNull(applicationDomains.deletedAt))).limit(1);
 			if (assigned) return resp.success('Domain check completed.', { available: false, dnsReady: false, records: [], reason: 'Domain is already connected to an application.' });
+			const [exactOwnership] = await db.select({ workspaceId: domainOwnerships.workspaceId }).from(domainOwnerships).where(and(eq(domainOwnerships.hostname, hostname), ne(domainOwnerships.status, 'revoked'), isNull(domainOwnerships.deletedAt))).limit(1);
+			if (exactOwnership && (purpose === 'ownership' || exactOwnership.workspaceId !== workspace.id)) return resp.success('Domain check completed.', { available: false, dnsReady: false, records: [], reason: exactOwnership.workspaceId === workspace.id ? 'Domain is already added to this workspace.' : 'Domain is owned by another workspace.' });
 			const ownership = await controllingOwnership(hostname);
 			const records: string[] = [];
 			for (const resolver of [resolveCname, resolve4, resolve6]) {
@@ -168,8 +188,9 @@ export class ApplicationDomainController {
 		try {
 			const application = await ownedApplication(request, workspaceId, applicationId, metadata);
 			const controlling = await controllingOwnership(input.hostname);
-			const ownVerified = controlling?.workspaceId === application.workspaceId;
-			const claim = controlling ?? await createOwnershipClaim(application.workspaceId, input.hostname);
+			const workspaceClaim = await workspaceOwnershipClaim(application.workspaceId, input.hostname);
+			const claim = controlling ?? workspaceClaim ?? await createOwnershipClaim(application.workspaceId, input.hostname);
+			const ownVerified = claim.workspaceId === application.workspaceId && claim.status === 'verified';
 			const needsApproval = controlling && controlling.workspaceId !== application.workspaceId;
 			const immediatelyVerified = ownVerified || (!needsApproval && claim.status === 'verified');
 			const [domain] = await db.insert(applicationDomains).values({ applicationBuildId: applicationId, hostname: input.hostname, type: 'custom', status: immediatelyVerified ? 'verified' : 'pending', isEnabled: immediatelyVerified, verifiedAt: immediatelyVerified ? new Date() : null, tlsStatus: immediatelyVerified ? 'provisioning' : 'pending', verificationToken: needsApproval ? null : claim.verificationToken }).returning();
@@ -191,7 +212,7 @@ export class ApplicationDomainController {
 			if (!domain) throw new Error('Domain not found.');
 			const ownership = await controllingOwnership(domain.hostname);
 			if (ownership && ownership.workspaceId !== application.workspaceId) return resp.failure('This domain is controlled by another workspace. Owner approval is required.', resp.codes.PERMISSION_DENIED, undefined, null, undefined, 403);
-			const [claim] = ownership ? [ownership] : await db.select().from(domainOwnerships).where(and(eq(domainOwnerships.hostname, domain.hostname), eq(domainOwnerships.workspaceId, application.workspaceId), isNull(domainOwnerships.deletedAt))).limit(1);
+			const claim = ownership ?? await workspaceOwnershipClaim(application.workspaceId, domain.hostname);
 			if (!claim) throw new Error('Domain ownership claim not found.');
 			if (claim.status !== 'verified') {
 				if (!claim.verificationToken) throw new Error('Domain verification token is unavailable.');

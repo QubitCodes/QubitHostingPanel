@@ -8,7 +8,18 @@ let pool: Pool | undefined;
 
 /** Returns the shared PostgreSQL pool and creates it only on first database use. */
 export function getDatabasePool(): Pool {
-	pool ??= new Pool({ connectionString: getEnvironment().DATABASE_URL });
+	if (!pool) {
+		pool = new Pool({
+			connectionString: getEnvironment().DATABASE_URL,
+			connectionTimeoutMillis: 5_000,
+			idleTimeoutMillis: 30_000,
+			keepAlive: true,
+			max: 10,
+			query_timeout: 15_000,
+			statement_timeout: 15_000,
+		});
+		pool.on('error', (error) => console.error('Idle PostgreSQL connection failed.', error));
+	}
 	return pool;
 }
 

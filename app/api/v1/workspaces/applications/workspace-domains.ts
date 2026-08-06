@@ -14,5 +14,5 @@ export async function action({ params, request }: { params: { workspaceId?: stri
 	const workspaceId = workspacePublicIdSchema.safeParse(Number(params.workspaceId));
 	if (!workspaceId.success) return resp.failure('Workspace not found.', resp.codes.RESOURCE_NOT_FOUND, undefined, null, undefined, 404);
 	const input = await parseJson(request, checkApplicationDomainSchema);
-	return input instanceof Response ? input : ApplicationDomainController.check(request, workspaceId.data, input.hostname, getRequestMetadata(request));
+	return input instanceof Response ? input : ApplicationDomainController.check(request, workspaceId.data, input.hostname, input.purpose, getRequestMetadata(request));
 }

@@ -37,6 +37,13 @@ interface DatabaseOption {
 }
 interface Options {
   applicationBaseDomain?: string;
+  availableDomains?: Array<{
+    attachedHostnames: string[];
+    hostname: string;
+    id: string;
+    rootAvailable: boolean;
+    status: string;
+  }>;
   databases: DatabaseOption[];
   limits?: {
     customDomains: { allowed: boolean; current: number; limit: number | null };
@@ -80,6 +87,13 @@ interface ApiBody<T> {
   data?: T;
   message: string;
   status: boolean;
+}
+interface DomainCheck {
+  approvalRequired?: boolean;
+  available: boolean;
+  dnsReady: boolean;
+  reason?: string | null;
+  records: string[];
 }
 
 const inputClass =
@@ -211,6 +225,9 @@ export function DeployApplicationForm({
   );
   const [existingDatabaseId, setExistingDatabaseId] = useState("");
   const [customDomains, setCustomDomains] = useState<string[]>([""]);
+  const [domainChecks, setDomainChecks] = useState<Record<number, DomainCheck | "checking">>({});
+  const [selectedOwnedDomain, setSelectedOwnedDomain] = useState("");
+  const [ownedSubdomain, setOwnedSubdomain] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const stackRuntimes = useMemo(
     () => options.runtimes.filter((runtime) => runtime.language === stack),
@@ -247,6 +264,24 @@ export function DeployApplicationForm({
         ),
       );
   }, [githubConnectionId, workspaceId]);
+
+  useEffect(() => {
+    const timers = customDomains.map((hostname, index) => window.setTimeout(() => {
+      const value = hostname.trim().toLowerCase();
+      if (!/^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/.test(value)) return;
+      setDomainChecks((current) => ({ ...current, [index]: "checking" }));
+      void request<DomainCheck>(`/api/v1/workspaces/${workspaceId}/domains`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ hostname: value }) })
+        .then((result) => setDomainChecks((current) => ({ ...current, [index]: result })))
+        .catch((error: unknown) => setDomainChecks((current) => ({ ...current, [index]: { available: false, dnsReady: false, records: [], reason: error instanceof Error ? error.message : "Domain check failed." } })));
+    }, 500));
+    return () => timers.forEach((timer) => window.clearTimeout(timer));
+  }, [customDomains, workspaceId]);
+
+  function addCustomDomain(hostname: string): void {
+    const normalized = hostname.trim().toLowerCase();
+    if (!normalized) return;
+    setCustomDomains((current) => current.includes(normalized) ? current : [...current.filter(Boolean), normalized]);
+  }
 
   async function connectGithub(): Promise<void> {
     try {
@@ -930,6 +965,35 @@ export function DeployApplicationForm({
               for this form and makes the complete hostname globally unique.
             </Hint>
           </label>
+          {!!options.availableDomains?.length && (
+            <div className="rounded-xl border border-brand-primary/10 p-4">
+              <h4 className="font-bold">Workspace Domains</h4>
+              <Hint>
+                Reuse an unattached root domain, or create a unique subdomain under any domain owned by this workspace.
+              </Hint>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {options.availableDomains.filter(({ rootAvailable }) => rootAvailable).map((domain) => (
+                  <button
+                    className={`rounded-xl border px-3 py-2 text-sm font-bold ${customDomains.includes(domain.hostname) ? "border-brand-action bg-brand-action/10" : "border-brand-primary/10"}`}
+                    key={domain.id}
+                    onClick={() => addCustomDomain(domain.hostname)}
+                    type="button"
+                  >
+                    {domain.hostname}
+                  </button>
+                ))}
+                {!options.availableDomains.some(({ rootAvailable }) => rootAvailable) && <span className="text-sm text-app-muted">No unused root domains.</span>}
+              </div>
+              <div className="mt-4 grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
+                <input className={inputClass} onChange={(event) => setOwnedSubdomain(slug(event.target.value))} placeholder="Subdomain, e.g. api" value={ownedSubdomain} />
+                <select className={inputClass} onChange={(event) => setSelectedOwnedDomain(event.target.value)} value={selectedOwnedDomain}>
+                  <option value="">Choose an owned domain</option>
+                  {options.availableDomains.map((domain) => <option key={domain.id} value={domain.hostname}>{domain.hostname}</option>)}
+                </select>
+                <button className="rounded-xl border border-brand-primary/15 px-4 py-3 font-bold" disabled={!ownedSubdomain || !selectedOwnedDomain} onClick={() => { addCustomDomain(`${ownedSubdomain}.${selectedOwnedDomain}`); setOwnedSubdomain(""); }} type="button">Add Subdomain</button>
+              </div>
+            </div>
+          )}
           <fieldset
             className={`rounded-xl border p-4 ${options.limits?.customDomains.allowed ? "border-brand-primary/10" : "border-amber-500/30 bg-amber-500/5"}`}
             disabled={!options.limits?.customDomains.allowed}
@@ -958,17 +1022,19 @@ export function DeployApplicationForm({
               </p>
             )}
             <div className="mt-3 grid gap-2">
-              {customDomains.map((domain, index) => (
-                <div className="flex gap-2" key={index}>
+              {customDomains.map((domain, index) => {
+                const check = domainChecks[index];
+                return <div className="grid gap-1" key={index}><div className="flex gap-2">
                   <input
                     className={`${inputClass} min-w-0 flex-1`}
-                    onChange={(event) =>
+                    onChange={(event) => {
                       setCustomDomains((current) =>
                         current.map((item, position) =>
                           position === index ? event.target.value : item,
                         ),
-                      )
-                    }
+                      );
+                      setDomainChecks((current) => { const next = { ...current }; delete next[index]; return next; });
+                    }}
                     placeholder="app.example.com"
                     value={domain}
                   />
@@ -984,8 +1050,8 @@ export function DeployApplicationForm({
                   >
                     <Trash2 className="size-4" />
                   </button>
-                </div>
-              ))}
+                </div>{check === "checking" ? <span className="flex items-center gap-2 text-xs text-app-muted"><LoaderCircle className="size-3 animate-spin" />Checking Availability...</span> : check ? <span className={`text-xs ${check.available ? "text-emerald-700 dark:text-emerald-300" : "text-rose-600 dark:text-rose-300"}`}>{check.available ? check.approvalRequired ? check.reason : check.dnsReady ? `Available · DNS visible: ${check.records.join(", ")}` : "Available · DNS can be configured later" : check.reason}</span> : null}</div>;
+              })}
             </div>
           </fieldset>
         </Section>
@@ -997,9 +1063,9 @@ export function DeployApplicationForm({
           <div className="grid gap-2 sm:grid-cols-3">
             {(
               [
-                ["new", "Create new"],
-                ["existing", "Use existing"],
-                ["none", "No database"],
+                ["new", "Create New"],
+                ["existing", "Use Existing"],
+                ["none", "No Database"],
               ] as const
             ).map(([code, label]) => (
               <button
@@ -1178,7 +1244,7 @@ export function DeployApplicationForm({
             }
             type="button"
           >
-            <Plus className="size-4" /> Add variable
+            <Plus className="size-4" /> Add Variable
           </button>
           <Hint>
             Use uppercase keys. Database connection variables are managed
@@ -1227,7 +1293,7 @@ export function DeployApplicationForm({
           ) : (
             <ServerCog className="size-4" />
           )}{" "}
-          Deploy application
+          Deploy Application
         </button>
       </div>
     </form>

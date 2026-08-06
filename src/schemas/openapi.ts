@@ -1407,6 +1407,7 @@ export const OPENAPI_DOCUMENT = {
 								required: ['hostname'],
 								properties: {
 									hostname: { type: 'string', format: 'hostname' },
+									purpose: { type: 'string', enum: ['attach', 'ownership'], default: 'attach' },
 								},
 							},
 						},
@@ -1434,6 +1435,14 @@ export const OPENAPI_DOCUMENT = {
 					},
 					'404': { description: 'Workspace not found.' },
 				},
+			},
+			post: {
+				summary: 'Register a root domain ownership claim for a workspace',
+				operationId: 'registerWorkspaceDomainOwnership',
+				security: [{ bearerAuth: [] }],
+				parameters: [{ $ref: '#/components/parameters/WorkspaceId' }],
+				requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', additionalProperties: false, required: ['hostname'], properties: { hostname: { type: 'string', format: 'hostname', example: 'example.com' } } } } } },
+				responses: { '201': { description: 'Root-domain ownership claim created and audit logged.' }, '400': { description: 'Hostname is not a registrable root domain.' }, '403': { description: 'Domain belongs to another workspace.' }, '409': { description: 'Domain is already registered.' } },
 			},
 		},
 		'/workspaces/{workspaceId}/domain-access/{requestId}': {
@@ -1505,12 +1514,12 @@ export const OPENAPI_DOCUMENT = {
 		},
 		'/workspaces/{workspaceId}/applications/options': {
 			get: {
-				summary: 'List approved runtimes and workspace databases',
+				summary: 'List deployment runtimes, databases, limits, and reusable workspace domains',
 				operationId: 'workspaceApplicationOptions',
 				security: [{ bearerAuth: [] }],
 				parameters: [{ $ref: '#/components/parameters/WorkspaceId' }],
 				responses: {
-					'200': { description: 'Active runtime and database options.' },
+					'200': { description: 'Active runtime, database, entitlement, and owned-domain options including attached hostnames.' },
 				},
 			},
 		},

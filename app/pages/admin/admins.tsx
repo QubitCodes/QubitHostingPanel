@@ -475,7 +475,7 @@ export default function AdminsPage() {
           to={`/admin/administrators/create/basic${location.search}`}
         >
           <Plus className="size-4" />
-          Add administrator
+          Add Administrator
         </Link>
       </div>
       <div className="mt-8">
@@ -591,7 +591,7 @@ export default function AdminsPage() {
           onClose={close}
           title={
             creating
-              ? "Add administrator"
+              ? "Add Administrator"
               : detail?.displayName || "Administrator details"
           }
           width="full"

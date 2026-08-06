@@ -40,6 +40,7 @@ import {
 import {
   controllingOwnership,
   ownershipVerificationEnabled,
+  workspaceOwnershipClaim,
 } from "@services/domains/domainOwnershipService";
 import {
   commitUsageReservation,
@@ -172,7 +173,7 @@ export class ApplicationController {
   ): Promise<Response> {
     try {
       const workspace = await access(request, workspacePublicId, metadata);
-      const [runtimes, databases] = await Promise.all([
+      const [runtimes, databases, ownerships, attachedDomains] = await Promise.all([
         db
           .select({
             code: runtimeImages.code,
@@ -203,6 +204,8 @@ export class ApplicationController {
             ),
           )
           .orderBy(asc(logicalDatabases.databaseName)),
+		db.select({ id: domainOwnerships.id, hostname: domainOwnerships.hostname, status: domainOwnerships.status }).from(domainOwnerships).where(and(eq(domainOwnerships.workspaceId, workspace.id), sql`${domainOwnerships.status} <> 'revoked'`, isNull(domainOwnerships.deletedAt))).orderBy(asc(domainOwnerships.hostname)),
+		db.select({ hostname: applicationDomains.hostname }).from(applicationDomains).innerJoin(applicationBuilds, and(eq(applicationBuilds.id, applicationDomains.applicationBuildId), eq(applicationBuilds.workspaceId, workspace.id), isNull(applicationBuilds.deletedAt))).where(and(eq(applicationDomains.type, 'custom'), isNull(applicationDomains.deletedAt))),
       ]);
       const platform = await getEffectivePlatformUrls();
       const [domainEntitlement, [{ customDomainCount }]] = await Promise.all([
@@ -226,6 +229,7 @@ export class ApplicationController {
       return resp.success("Application options retrieved.", {
         runtimes,
         databases,
+		availableDomains: ownerships.map((ownership) => ({ ...ownership, attachedHostnames: attachedDomains.filter(({ hostname }) => hostname === ownership.hostname || hostname.endsWith(`.${ownership.hostname}`)).map(({ hostname }) => hostname), rootAvailable: !attachedDomains.some(({ hostname }) => hostname === ownership.hostname) })),
         applicationBaseDomain: platform.applicationBaseDomain,
         applicationDomainReady: platform.applicationDomainReady,
         suggestedDomainSuffix: randomBytes(4)
@@ -630,12 +634,7 @@ export class ApplicationController {
         ...new Set([...(input.domain ? [input.domain] : []), ...input.domains]),
       ];
       const verificationRequired = await ownershipVerificationEnabled();
-      const domainPolicies = await Promise.all(
-        customHostnames.map(async (hostname) => ({
-          hostname,
-          ownership: await controllingOwnership(hostname),
-        })),
-      );
+      const domainPolicies = await Promise.all(customHostnames.map(async (hostname) => ({ hostname, ownership: await controllingOwnership(hostname) ?? await workspaceOwnershipClaim(workspace.id, hostname) })));
       if (customHostnames.length) {
         const conflicts = await db
           .select({ id: applicationBuilds.id })
@@ -838,7 +837,7 @@ export class ApplicationController {
               verifiedAt: platform.applicationDomainReady ? new Date() : null,
             },
             ...domainPolicies.map(({ hostname, ownership }) => {
-              const owned = ownership?.workspaceId === workspace.id;
+              const owned = ownership?.workspaceId === workspace.id && ownership.status === 'verified';
               const direct = owned || (!ownership && !verificationRequired);
               return {
                 applicationBuildId: build.id,

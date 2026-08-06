@@ -11,11 +11,13 @@ import {
 	Settings2,
 	ShieldCheck,
 	Sun,
+	X,
 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { type CSSProperties, useEffect, useMemo, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router';
 
 import { SearchableSelect } from '@root/app/components/forms/searchable-select';
+import { FullScreenMenuContext, type FullScreenMenuState } from '@root/app/contexts/full-screen-menu';
 import {
 	authenticatedFetch,
 	clearAuthentication,
@@ -50,6 +52,7 @@ export default function CustomerLayout() {
 		mobileE164?: string;
 	}>({});
 	const [dark, setDark] = useState(false);
+	const [fullScreenMenu, setFullScreenMenu] = useState<FullScreenMenuState>();
 	const active =
 		workspaces.find((workspace) => String(workspace.publicId) === activeId) ??
 		workspaces[0];
@@ -144,7 +147,8 @@ export default function CustomerLayout() {
 		{ icon: ShieldCheck, label: 'Security', to: '/dashboard/security' },
 	];
 	return (
-		<main className="min-h-screen bg-app-canvas text-app-text lg:grid lg:grid-cols-[16rem_1fr]">
+		<FullScreenMenuContext.Provider value={{ menu: fullScreenMenu, setMenu: setFullScreenMenu }}>
+		<main className="min-h-screen bg-app-canvas text-app-text lg:grid lg:grid-cols-[16rem_1fr]" style={{ '--app-sidebar-width': '16rem' } as CSSProperties}>
 			<aside className="border-b border-brand-primary/10 bg-brand-primary p-5 text-white lg:sticky lg:top-0 lg:h-screen">
 				<Link className="flex items-center gap-3 font-bold" to="/">
 					<span className="grid size-10 place-items-center rounded-xl bg-brand-action text-brand-ink">
@@ -171,7 +175,7 @@ export default function CustomerLayout() {
 			<section className="min-w-0">
 				<header className="sticky top-0 z-40 flex min-h-20 flex-wrap items-center justify-between gap-3 border-b border-brand-primary/10 bg-app-canvas/90 px-5 py-3 backdrop-blur-xl sm:px-8">
 					<div className="min-w-[12rem] flex-1 sm:max-w-sm">
-						{workspaces.length ? (
+						{fullScreenMenu ? <h1 className="text-lg font-black">{fullScreenMenu.title}</h1> : workspaces.length ? (
 							<SearchableSelect
 								ariaLabel="Choose active workspace"
 								onChange={(value) => {
@@ -190,6 +194,7 @@ export default function CustomerLayout() {
 						)}
 					</div>
 					<div className="ml-auto flex items-center gap-3">
+						{fullScreenMenu && <button aria-label="Close drawer" className="rounded-xl border border-brand-primary/15 p-2.5 hover:bg-brand-primary/5" onClick={fullScreenMenu.onClose} type="button"><X className="size-5" /></button>}
 						<button
 							aria-label="Toggle colour theme"
 							className="rounded-xl border border-brand-primary/15 p-2.5 hover:bg-brand-primary/5"
@@ -239,5 +244,6 @@ export default function CustomerLayout() {
 				</div>
 			</section>
 		</main>
+		</FullScreenMenuContext.Provider>
 	);
 }

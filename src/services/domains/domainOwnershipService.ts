@@ -20,6 +20,18 @@ export async function controllingOwnership(hostname: string) {
 	return ownership;
 }
 
+/** Find this workspace's most-specific active ownership claim, including pending proof. */
+export async function workspaceOwnershipClaim(workspaceId: string, hostname: string) {
+	const normalized = normalizeHostname(hostname);
+	const [ownership] = await db.select().from(domainOwnerships).where(and(
+		eq(domainOwnerships.workspaceId, workspaceId),
+		isNull(domainOwnerships.deletedAt),
+		sql`${domainOwnerships.status} <> 'revoked'`,
+		sql`(${normalized} = ${domainOwnerships.hostname} OR ${normalized} LIKE ('%.' || ${domainOwnerships.hostname}))`,
+	)).orderBy(desc(sql`length(${domainOwnerships.hostname})`)).limit(1);
+	return ownership;
+}
+
 /** Read whether new custom-domain claims require external DNS proof. */
 export async function ownershipVerificationEnabled(): Promise<boolean> {
 	const [settings] = await db.select({ enabled: platformSettings.domainOwnershipVerificationEnabled }).from(platformSettings).where(and(eq(platformSettings.key, 'default'), isNull(platformSettings.deletedAt))).limit(1);
