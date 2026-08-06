@@ -1,32 +1,27 @@
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
 
-import { getEnvironment } from '@config/env';
 import * as schema from '@db/schema';
 
-let pool: Pool | undefined;
+const pool = new Pool({
+	connectionString: process.env.DATABASE_URL,
+	connectionTimeoutMillis: 5_000,
+	idleTimeoutMillis: 30_000,
+	keepAlive: true,
+	max: 10,
+	query_timeout: 15_000,
+	statement_timeout: 15_000,
+});
 
-/** Returns the shared PostgreSQL pool and creates it only on first database use. */
+pool.on('error', (error) => console.error('Idle PostgreSQL connection failed.', error));
+
+/** Returns the shared PostgreSQL pool for diagnostics and graceful shutdown. */
 export function getDatabasePool(): Pool {
-	if (!pool) {
-		pool = new Pool({
-			connectionString: getEnvironment().DATABASE_URL,
-			connectionTimeoutMillis: 5_000,
-			idleTimeoutMillis: 30_000,
-			keepAlive: true,
-			max: 10,
-			query_timeout: 15_000,
-			statement_timeout: 15_000,
-		});
-		pool.on('error', (error) => console.error('Idle PostgreSQL connection failed.', error));
-	}
 	return pool;
 }
 
 /** Drizzle database bound to the application schema and lazy PostgreSQL pool. */
 export const db = drizzle({
-	client: new Proxy({} as Pool, {
-		get: (_target, property) => Reflect.get(getDatabasePool(), property, getDatabasePool())
-	}),
+	client: pool,
 	schema
 });

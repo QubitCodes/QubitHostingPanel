@@ -98,7 +98,8 @@ export class AuthController {
 				countryCodeRequired: candidates.length !== 1,
 				suggestedCountryCode: `+${getCountryCallingCode(country)}`,
 			});
-		} catch {
+		} catch (error) {
+			console.error('Unable to resolve mobile country.', error);
 			return resp.failure('Unable to resolve mobile country.', resp.codes.DATABASE_ERROR, undefined, null, undefined, 500);
 		}
 	}
@@ -206,7 +207,8 @@ export class AuthController {
 				expiresAt: challenge.expiresAt,
 				resendAvailableAt: challenge.resendAvailableAt
 			}, resp.codes.ACCEPTED, undefined, 202);
-		} catch {
+		} catch (error) {
+			console.error('Unable to request OTP.', error);
 			return resp.failure('Unable to request OTP.', resp.codes.INTERNAL_SERVICE_ERROR, undefined, null, undefined, 500);
 		}
 	}
