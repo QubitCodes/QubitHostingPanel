@@ -114,6 +114,42 @@ export function composeLogicalDatabaseResponse<
 
 /** Customer-authorized shared logical database lifecycle. */
 export class LogicalDatabaseController {
+  public static async nameAvailability(
+    request: Request,
+    workspacePublicId: number,
+    name: string,
+    metadata: RequestMetadata,
+  ): Promise<Response> {
+    try {
+      const { workspace } = await workspaceAccess(request, workspacePublicId, metadata);
+      const [existing] = await db
+        .select({ id: workspaceResources.id })
+        .from(workspaceResources)
+        .where(
+          and(
+            eq(workspaceResources.workspaceId, workspace.id),
+            eq(workspaceResources.kind, "database"),
+            eq(workspaceResources.name, name),
+            isNull(workspaceResources.deletedAt),
+          ),
+        )
+        .limit(1);
+      return resp.success("Database name availability checked.", {
+        available: !existing,
+        name,
+      });
+    } catch {
+      return resp.failure(
+        "Workspace not found.",
+        resp.codes.RESOURCE_NOT_FOUND,
+        undefined,
+        null,
+        undefined,
+        404,
+      );
+    }
+  }
+
   public static async index(
     request: Request,
     workspacePublicId: number,
@@ -167,6 +203,27 @@ export class LogicalDatabaseController {
         workspacePublicId,
         metadata,
       );
+      const [duplicate] = await db
+        .select({ id: workspaceResources.id })
+        .from(workspaceResources)
+        .where(
+          and(
+            eq(workspaceResources.workspaceId, workspace.id),
+            eq(workspaceResources.kind, "database"),
+            eq(workspaceResources.name, input.name),
+            isNull(workspaceResources.deletedAt),
+          ),
+        )
+        .limit(1);
+      if (duplicate)
+        return resp.failure(
+          "Database name is already in use.",
+          resp.codes.RESOURCE_ALREADY_EXISTS,
+          [{ field: "name", message: "Choose another database name." }],
+          null,
+          undefined,
+          409,
+        );
       const [{ value: used }] = await db
         .select({ value: count() })
         .from(logicalDatabases)

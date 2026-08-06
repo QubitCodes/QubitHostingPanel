@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { composeLogicalDatabaseResponse } from '@controllers/LogicalDatabaseController';
-import { createLogicalDatabaseSchema, logicalDatabasePublicIdSchema } from '@schemas/logicalDatabase';
+import { createLogicalDatabaseSchema, logicalDatabaseNameAvailabilitySchema, logicalDatabasePublicIdSchema } from '@schemas/logicalDatabase';
 
 describe('logical database validation', () => {
 	it('applies conservative connection and storage defaults', () => {
@@ -11,6 +11,8 @@ describe('logical database validation', () => {
 	it('rejects SQL-shaped names and unsupported engines', () => {
 		expect(createLogicalDatabaseSchema.safeParse({ engine: 'sqlite', name: 'main; DROP DATABASE' }).success).toBe(false);
 		expect(createLogicalDatabaseSchema.safeParse({ engine: 'postgresql', name: 'Main database' }).success).toBe(false);
+		expect(logicalDatabaseNameAvailabilitySchema.safeParse({ name: 'main_database_a1b2c3' }).success).toBe(true);
+		expect(logicalDatabaseNameAvailabilitySchema.safeParse({ name: 'main-database' }).success).toBe(false);
 	});
 
 	it('requires a UUID for credential routes', () => {

@@ -3,6 +3,7 @@ import {
   Check,
   ChevronDown,
   Code2,
+  Copy,
   Database,
   FileCode2,
   Github,
@@ -350,6 +351,9 @@ export function DeployApplicationForm({
   );
   const [databaseNamePrefix, setDatabaseNamePrefix] = useState("");
   const [databaseNameEdited, setDatabaseNameEdited] = useState(false);
+  const [databaseNameAvailability, setDatabaseNameAvailability] = useState<
+    "idle" | "checking" | "available" | "unavailable" | "error"
+  >("idle");
   const [databaseMode, setDatabaseMode] = useState<"new" | "existing" | "none">(
     "new",
   );
@@ -372,6 +376,34 @@ export function DeployApplicationForm({
     stackRuntimes[0];
   const selectedFramework = frameworkDefinition(framework);
   const branchOptions = useMemo(() => [...new Set([...availableBranches, branch].filter(Boolean))].map((item) => ({ label: item, value: item })), [availableBranches, branch]);
+  const combinedDatabaseName = databaseNamePrefix
+    ? `${databaseNamePrefix}_${databaseSuffix}`
+    : "";
+
+  useEffect(() => {
+    if (databaseMode !== "new" || !combinedDatabaseName) return;
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => {
+      setDatabaseNameAvailability("checking");
+      void request<{ available: boolean; name: string }>(
+        `/api/v1/workspaces/${workspaceId}/databases/name-availability?name=${encodeURIComponent(combinedDatabaseName)}`,
+        { signal: controller.signal },
+      )
+        .then((result) => {
+          setDatabaseNameAvailability(
+            result.available ? "available" : "unavailable",
+          );
+        })
+        .catch((error: unknown) => {
+          if (error instanceof DOMException && error.name === "AbortError") return;
+          setDatabaseNameAvailability("error");
+        });
+    }, 450);
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [combinedDatabaseName, databaseMode, workspaceId]);
 
   const loadGithubConnections = useCallback(async (): Promise<GithubConnection[]> => {
     const connections = await request<GithubConnection[]>(
@@ -537,6 +569,7 @@ export function DeployApplicationForm({
     if (!databaseNameEdited) {
       const identifier = databaseIdentifier(value);
       setDatabaseNamePrefix(identifier);
+      setDatabaseNameAvailability(identifier ? "checking" : "idle");
     }
   }
   function selectStack(value: RuntimeOption["language"]): void {
@@ -643,6 +676,14 @@ export function DeployApplicationForm({
       toast.error("Choose a stack version.");
       return;
     }
+    if (databaseMode === "new" && databaseNameAvailability !== "available") {
+      toast.error(
+        databaseNameAvailability === "unavailable"
+          ? "Choose an available database name."
+          : "Wait for database name verification to finish.",
+      );
+      return;
+    }
     setSubmitting(true);
     try {
       let databaseId = existingDatabaseId;
@@ -654,7 +695,7 @@ export function DeployApplicationForm({
             headers: { "content-type": "application/json" },
             body: JSON.stringify({
               engine: databaseEngine,
-              name: `${databaseNamePrefix}_${databaseSuffix}`,
+              name: combinedDatabaseName,
               connectionLimit: 10,
               storageQuotaMb: 1024,
             }),
@@ -1279,7 +1320,11 @@ export function DeployApplicationForm({
               <button
                 className={`rounded-xl border p-3 text-sm font-bold ${databaseMode === code ? "border-brand-action bg-brand-action/10" : "border-brand-primary/10"}`}
                 key={code}
-                onClick={() => setDatabaseMode(code)}
+                onClick={() => {
+                  setDatabaseMode(code);
+                  if (code === "new" && combinedDatabaseName)
+                    setDatabaseNameAvailability("checking");
+                }}
                 type="button"
               >
                 {label}
@@ -1340,7 +1385,9 @@ export function DeployApplicationForm({
                     name="newDatabaseNamePrefix"
                     onChange={(event) => {
                       setDatabaseNameEdited(true);
-                      setDatabaseNamePrefix(databaseIdentifier(event.target.value));
+                      const prefix = databaseIdentifier(event.target.value);
+                      setDatabaseNamePrefix(prefix);
+                      setDatabaseNameAvailability(prefix ? "checking" : "idle");
                     }}
                     pattern="[a-z0-9]+(?:_[a-z0-9]+)*"
                     placeholder="customer_api"
@@ -1351,10 +1398,46 @@ export function DeployApplicationForm({
                     _{databaseSuffix}
                   </span>
                 </div>
-                <Hint>
-                  Edit the snake_case prefix only. The six-character suffix is
-                  fixed for this form and keeps the complete name unique.
-                </Hint>
+                {combinedDatabaseName && (
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <span className="text-app-muted">Combined name:</span>
+                      <code className="select-all truncate font-semibold" title={combinedDatabaseName}>
+                        {combinedDatabaseName}
+                      </code>
+                      <button
+                        aria-label="Copy combined database name"
+                        className="rounded-md p-1 text-app-muted transition hover:bg-brand-primary/5 hover:text-app-text"
+                        onClick={() => {
+                          void navigator.clipboard.writeText(combinedDatabaseName);
+                          toast.success("Database name copied.");
+                        }}
+                        title="Copy database name"
+                        type="button"
+                      >
+                        <Copy className="size-3.5" />
+                      </button>
+                    </div>
+                    <span
+                      className={
+                        databaseNameAvailability === "available"
+                          ? "font-semibold text-emerald-700 dark:text-emerald-300"
+                          : databaseNameAvailability === "unavailable" ||
+                              databaseNameAvailability === "error"
+                            ? "font-semibold text-red-600 dark:text-red-300"
+                            : "text-app-muted"
+                      }
+                    >
+                      {databaseNameAvailability === "available"
+                        ? "Database name available"
+                        : databaseNameAvailability === "unavailable"
+                          ? "Database name already used"
+                          : databaseNameAvailability === "error"
+                            ? "Unable to verify database name"
+                            : "Checking database name…"}
+                    </span>
+                  </div>
+                )}
               </label>
             </>
           )}

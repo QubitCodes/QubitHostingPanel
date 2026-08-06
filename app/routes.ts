@@ -173,6 +173,10 @@ export default [
       "api/v1/workspaces/databases/index.ts",
     ),
     route(
+      "workspaces/:workspaceId/databases/name-availability",
+      "api/v1/workspaces/databases/name-availability.ts",
+    ),
+    route(
       "workspaces/:workspaceId/databases/:databaseId/credentials",
       "api/v1/workspaces/databases/credentials.ts",
     ),

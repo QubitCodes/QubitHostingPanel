@@ -1187,6 +1187,27 @@ export const OPENAPI_DOCUMENT = {
 				},
 			},
 		},
+		'/workspaces/{workspaceId}/databases/name-availability': {
+			get: {
+				summary: 'Check workspace database name availability',
+				operationId: 'checkWorkspaceDatabaseNameAvailability',
+				security: [{ bearerAuth: [] }],
+				parameters: [
+					{ $ref: '#/components/parameters/WorkspaceId' },
+					{
+						name: 'name',
+						in: 'query',
+						required: true,
+						schema: { type: 'string', pattern: '^[a-z0-9]+(?:_[a-z0-9]+)*$' },
+					},
+				],
+				responses: {
+					'200': { description: 'Database name availability result.' },
+					'400': { description: 'Database name is invalid.' },
+					'404': { description: 'Workspace not found.' },
+				},
+			},
+		},
 		'/workspaces/{workspaceId}/databases/{databaseId}/credentials': {
 			post: {
 				summary: 'Reveal an encrypted workspace database credential',
