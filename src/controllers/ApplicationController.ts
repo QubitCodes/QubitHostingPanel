@@ -32,6 +32,7 @@ import { authenticateSession } from "@services/auth/authenticatedSessionService"
 import { hostingProvider } from "@services/hosting/hostingProviderFactory";
 import { getEffectivePlatformUrls } from "@services/platformUrlService";
 import { analyzeApplicationSource } from "@services/applications/sourceDetectionService";
+import { processProvisioningJobs } from "@services/provisioning/provisioningService";
 import { encryptCredential } from "@services/encryption/credentialEncryptionService";
 import {
   githubInstallationRepositories,
@@ -454,6 +455,9 @@ export class ApplicationController {
         ipAddress: metadata.ipAddress,
         userAgent: metadata.userAgent,
       });
+	  void processProvisioningJobs(10).catch((error: unknown) =>
+		console.error("Immediate application provisioning failed.", error),
+	  );
       return resp.success(
         "Application updated and deployment queued.",
         result,
@@ -948,6 +952,9 @@ export class ApplicationController {
         ipAddress: metadata.ipAddress,
         userAgent: metadata.userAgent,
       });
+	  void processProvisioningJobs(10).catch((error: unknown) =>
+		console.error("Immediate application provisioning failed.", error),
+	  );
       return resp.success(
         "Application deployment queued.",
         result,

@@ -19,8 +19,14 @@ interface ComposerManifest {
 }
 
 export interface SourceCandidate {
-  framework?: string;
-  projectDirectory: string;
+	commands?: {
+		build?: string;
+		install?: string;
+		start?: string;
+	};
+	framework?: string;
+	packageManager?: string;
+	projectDirectory: string;
   stack: RuntimeLanguage;
   versionHint?: string;
 }
@@ -91,6 +97,47 @@ function dependency(manifest: PackageManifest, name: string): boolean {
   return Boolean(
     manifest.dependencies?.[name] ?? manifest.devDependencies?.[name],
   );
+}
+
+/** Returns the repository-relative path beside a detected manifest. */
+function siblingPath(manifestPath: string, fileName: string): string {
+	const directory = projectDirectory(manifestPath);
+	return directory === '/' ? fileName : `${directory}/${fileName}`;
+}
+
+/** Infers safe Node package commands from lockfiles and declared package scripts. */
+function nodeCommands(
+	manifest: PackageManifest,
+	manifestPath: string,
+	paths: string[],
+): { commands: SourceCandidate['commands']; packageManager: string } {
+	const besideManifest = (name: string) => paths.includes(siblingPath(manifestPath, name));
+	let packageManager = 'npm';
+	let install = 'npm install';
+	let run = 'npm run';
+	if (besideManifest('bun.lock') || besideManifest('bun.lockb')) {
+		packageManager = 'bun';
+		install = 'bun install --frozen-lockfile';
+		run = 'bun run';
+	} else if (besideManifest('pnpm-lock.yaml')) {
+		packageManager = 'pnpm';
+		install = 'corepack enable && pnpm install --frozen-lockfile';
+		run = 'pnpm run';
+	} else if (besideManifest('yarn.lock')) {
+		packageManager = 'yarn';
+		install = 'corepack enable && yarn install --frozen-lockfile';
+		run = 'yarn';
+	} else if (besideManifest('package-lock.json') || besideManifest('npm-shrinkwrap.json')) {
+		install = 'npm ci';
+	}
+	return {
+		packageManager,
+		commands: {
+			install,
+			...(manifest.scripts?.build ? { build: `${run} build` } : {}),
+			...(manifest.scripts?.start ? { start: `${run} start` } : {}),
+		},
+	};
 }
 
 /** Detects common frameworks from repository manifests while leaving every suggestion user-overridable. */
@@ -175,8 +222,11 @@ export async function analyzeApplicationSource(
     try {
       const manifest = JSON.parse(raw) as PackageManifest;
       const framework = nodeFramework(manifest);
+	  const commandSuggestion = nodeCommands(manifest, path, paths);
       candidates.push({
+		commands: commandSuggestion.commands,
         projectDirectory: projectDirectory(path),
+		packageManager: commandSuggestion.packageManager,
         stack:
           framework && ["react", "vite", "vue", "angular", "astro", "gatsby"].includes(framework)
             ? "static"
@@ -198,7 +248,13 @@ export async function analyzeApplicationSource(
     try {
       const framework = phpFramework(JSON.parse(raw) as ComposerManifest);
       candidates.push({
+		commands: {
+			install: paths.includes(siblingPath(path, 'composer.lock'))
+				? 'composer install --no-interaction --prefer-dist --optimize-autoloader'
+				: 'composer install --no-interaction --prefer-dist',
+		},
         projectDirectory: projectDirectory(path),
+		packageManager: 'composer',
         stack: "php",
         framework,
       });
@@ -215,7 +271,18 @@ export async function analyzeApplicationSource(
     const raw = await rawFile(repository, branch, path, token);
     if (!raw) continue;
     const framework = /^\s*gem\s+["']rails["']/m.test(raw) ? "rails" : undefined;
-    candidates.push({ projectDirectory: projectDirectory(path), stack: "ruby", framework });
+	const directory = projectDirectory(path);
+	const locked = paths.includes(directory === '/' ? 'Gemfile.lock' : `${directory}/Gemfile.lock`);
+    candidates.push({
+		commands: {
+			install: locked ? 'bundle config set deployment true && bundle install' : 'bundle install',
+			...(framework === 'rails' ? { start: 'bundle exec rails server -b 0.0.0.0 -p 3000' } : {}),
+		},
+		packageManager: 'bundler',
+		projectDirectory: directory,
+		stack: "ruby",
+		framework,
+	});
     evidence.push(`${path}${framework ? " identifies Ruby on Rails" : " identifies Ruby"}`);
   }
   for (const path of paths
@@ -224,8 +291,26 @@ export async function analyzeApplicationSource(
     const raw = await rawFile(repository, branch, path, token);
     if (!raw) continue;
     const framework = pythonFramework(raw);
+	const directory = projectDirectory(path);
+	const besideManifest = (name: string) =>
+		paths.includes(directory === '/' ? name : `${directory}/${name}`);
+	const pythonInstall = besideManifest('uv.lock')
+		? 'uv sync --frozen'
+		: besideManifest('poetry.lock')
+			? 'poetry install --no-interaction --no-root'
+			: path.endsWith('pyproject.toml')
+				? 'pip install .'
+				: 'pip install -r requirements.txt';
     candidates.push({
-      projectDirectory: projectDirectory(path),
+	  commands: {
+		install: pythonInstall,
+	  },
+	  projectDirectory: directory,
+	  packageManager: besideManifest('uv.lock')
+		? 'uv'
+		: besideManifest('poetry.lock')
+			? 'poetry'
+			: 'pip',
       stack: "python",
       framework,
     });

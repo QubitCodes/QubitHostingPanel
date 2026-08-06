@@ -66,7 +66,9 @@ interface Options {
 interface SourceAnalysis {
   branches: string[];
   candidates: Array<{
+	commands?: { build?: string; install?: string; start?: string };
     framework?: string;
+	packageManager?: string;
     projectDirectory: string;
     stack: RuntimeOption["language"];
   }>;
@@ -225,6 +227,7 @@ function DetectionSummary({ analysis }: { analysis: SourceAnalysis }) {
           ["Stack", stackLabel ?? "Not detected"],
           ["Framework", detectedFramework ?? "Not detected"],
           ["Project directory", candidate?.projectDirectory || "Repository root"],
+		  ["Package manager", candidate?.packageManager ?? "Automatic"],
           [
             "Environment variables",
             analysis.environmentKeys.length
@@ -348,6 +351,9 @@ export function DeployApplicationForm({
   const [framework, setFramework] = useState<string>("");
   const [projectDirectory, setProjectDirectory] = useState("/");
   const [outputDirectory, setOutputDirectory] = useState("");
+	const [installCommand, setInstallCommand] = useState("");
+	const [buildCommand, setBuildCommand] = useState("");
+	const [startCommand, setStartCommand] = useState("");
   const [variables, setVariables] = useState<EnvironmentVariable[]>([]);
   const [environmentEditorOpen, setEnvironmentEditorOpen] = useState(false);
   const [environmentImportOpen, setEnvironmentImportOpen] = useState(false);
@@ -679,6 +685,9 @@ export function DeployApplicationForm({
         selectStack(candidate.stack);
         setProjectDirectory(candidate.projectDirectory);
         if (candidate.framework) selectFramework(candidate.framework);
+		setInstallCommand(candidate.commands?.install ?? "");
+		setBuildCommand(candidate.commands?.build ?? "");
+		setStartCommand(candidate.commands?.start ?? "");
       }
       setOutputDirectory(result.outputDirectory ?? "");
       setVariables(
@@ -818,9 +827,9 @@ export function DeployApplicationForm({
             baseDirectory: projectDirectory,
             publishDirectory:
               stack === "static" ? outputDirectory || undefined : undefined,
-            installCommand: data.get("installCommand") || undefined,
-            buildCommand: data.get("buildCommand") || undefined,
-            startCommand: data.get("startCommand") || undefined,
+			installCommand: installCommand || undefined,
+			buildCommand: buildCommand || undefined,
+			startCommand: startCommand || undefined,
             domains: options.limits?.customDomains.allowed
               ? customDomains
                   .map((item) => item.trim().toLowerCase())
@@ -1244,7 +1253,9 @@ export function DeployApplicationForm({
                 <input
                   className={inputClass}
                   name="installCommand"
+				  onChange={(event) => setInstallCommand(event.target.value)}
                   placeholder="Detected automatically"
+				  value={installCommand}
                 />
                 <Hint>
                   Optional override for installing dependencies. Leave blank to
@@ -1256,7 +1267,9 @@ export function DeployApplicationForm({
                 <input
                   className={inputClass}
                   name="buildCommand"
+				  onChange={(event) => setBuildCommand(event.target.value)}
                   placeholder="Detected automatically"
+				  value={buildCommand}
                 />
                 <Hint>
                   Optional command that compiles or prepares the application
@@ -1268,7 +1281,9 @@ export function DeployApplicationForm({
                 <input
                   className={inputClass}
                   name="startCommand"
+				  onChange={(event) => setStartCommand(event.target.value)}
                   placeholder="Detected automatically"
+				  value={startCommand}
                 />
                 <Hint>
                   Optional command used to start server applications. Static
