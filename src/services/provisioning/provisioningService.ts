@@ -18,6 +18,7 @@ import {
 import { databaseClusterEndpoint } from "@services/databases/databaseClusterEndpointService";
 import { decryptCredential } from "@services/encryption/credentialEncryptionService";
 import { hostingProvider } from "@services/hosting/hostingProviderFactory";
+import { nixpacksRuntimeVersion } from "@services/provisioning/runtimeCompatibilityService";
 
 /** Queues exactly one initial application provision per subscription. */
 export async function queueInitialProvisioning(
@@ -241,7 +242,10 @@ export async function processProvisioningJobs(
           if (runtimeVersionVariable)
             databaseEnvironment.push({
               key: runtimeVersionVariable,
-              value: configuredApplication.runtime.version,
+              value: nixpacksRuntimeVersion(
+                configuredApplication.runtime.language,
+                configuredApplication.runtime.version,
+              ),
             });
           await db
             .update(applicationBuilds)
@@ -317,22 +321,40 @@ export async function processProvisioningJobs(
             : undefined,
         };
       };
+      /**
+       * An application owns one long-lived provider resource, while each
+       * deployment can have a new provisioning job. Resolve the resource from
+       * the application first so retries and later deployments cannot create
+       * duplicate Coolify applications merely because their job IDs differ.
+       */
       const [existingResource] = await db
         .select()
         .from(workspaceResources)
         .where(
           and(
-            eq(workspaceResources.provisioningJobId, claimed.id),
+            configuredApplication?.build.resourceId
+              ? eq(
+                  workspaceResources.id,
+                  configuredApplication.build.resourceId,
+                )
+              : eq(workspaceResources.provisioningJobId, claimed.id),
+            eq(workspaceResources.workspaceId, claimed.workspaceId),
             isNull(workspaceResources.deletedAt),
           ),
         )
         .limit(1);
       if (existingResource) {
-        const providerStatus = await provider.getDeployment(
-          existingResource.providerResourceId,
-        );
-        if (providerStatus === "failed" && configuredApplication) {
-          const retry = await provider.provisionApplication(
+        const previousResult = claimed.result as {
+          providerResourceId?: string;
+        };
+        /**
+         * A newly-created deployment job has not submitted work to Coolify
+         * yet. Submit exactly once, record the provider resource, then let
+         * later worker passes poll it. A failed poll must never submit another
+         * deployment implicitly; an explicit user retry creates a new job.
+         */
+        if (!previousResult.providerResourceId && configuredApplication) {
+          const redeployment = await provider.provisionApplication(
             await deploymentInput(),
           );
           await db.transaction(async (transaction) => {
@@ -340,7 +362,8 @@ export async function processProvisioningJobs(
               .update(workspaceResources)
               .set({
                 status: "provisioning",
-                publicUrl: retry.publicUrl ?? existingResource.publicUrl,
+                publicUrl:
+                  redeployment.publicUrl ?? existingResource.publicUrl,
                 lastReconciledAt: new Date(),
                 updatedAt: new Date(),
               })
@@ -353,16 +376,38 @@ export async function processProvisioningJobs(
                 nextAttemptAt: new Date(Date.now() + 30_000),
                 result: {
                   providerResourceId: existingResource.providerResourceId,
-                  providerStatus: retry.status,
-                  publicUrl: retry.publicUrl,
+                  providerStatus: redeployment.status,
+                  publicUrl:
+                    redeployment.publicUrl ?? existingResource.publicUrl,
                 },
                 lastError: null,
                 updatedAt: new Date(),
               })
               .where(eq(provisioningJobs.id, claimed.id));
+            if (input.applicationBuildId)
+              await transaction
+                .update(applicationBuilds)
+                .set({ status: "building", failureReason: null, updatedAt: new Date() })
+                .where(eq(applicationBuilds.id, input.applicationBuildId));
+            if (input.deploymentId)
+              await transaction
+                .update(applicationDeployments)
+                .set({
+                  status: "deploying",
+                  resourceId: existingResource.id,
+                  providerDeploymentId: existingResource.providerResourceId,
+                  publicUrl:
+                    redeployment.publicUrl ?? existingResource.publicUrl,
+                  failureReason: null,
+                  updatedAt: new Date(),
+                })
+                .where(eq(applicationDeployments.id, input.deploymentId));
           });
           continue;
         }
+        const providerStatus = await provider.getDeployment(
+          existingResource.providerResourceId,
+        );
         if (providerStatus === "failed")
           throw new Error("The provider reports that deployment failed.");
         if (providerStatus !== "succeeded") {
