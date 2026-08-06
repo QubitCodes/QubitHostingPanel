@@ -64,6 +64,31 @@ describe('shouldRedeployCoolifyApplication', () => {
 	});
 });
 
+describe('Coolify API errors', () => {
+	it('preserves field validation details for provisioning diagnostics', async () => {
+		process.env.DATABASE_URL =
+			'postgresql://test:test@localhost:5432/ghost_deploy_test';
+		resetEnvironmentForTests();
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async () =>
+				Response.json(
+					{ message: 'Validation failed.', errors: { build_command: ['The build command is invalid.'] } },
+					{ status: 422 },
+				),
+			),
+		);
+		const provider = new CoolifyHostingProvider({
+			apiToken: 'token',
+			baseUrl: 'https://coolify.example',
+		});
+
+		await expect(provider.validateConnection()).rejects.toThrow(
+			'Coolify 422: Validation failed. (build_command: The build command is invalid.)',
+		);
+	});
+});
+
 describe('framework persistent storage', () => {
 	it('creates missing volumes before the first deployment', async () => {
 		process.env.DATABASE_URL =

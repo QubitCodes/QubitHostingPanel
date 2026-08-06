@@ -117,10 +117,17 @@ export class CoolifyHostingProvider implements HostingProvider {
     } catch {
       body = { message: text };
     }
-    if (!response.ok)
-      throw new Error(
-        `Coolify ${response.status}: ${String((body as { message?: unknown }).message ?? "request failed")}`,
-      );
+	if (!response.ok) {
+		const failure = body as { errors?: unknown; message?: unknown };
+		const details = failure.errors && typeof failure.errors === 'object'
+			? Object.entries(failure.errors as Record<string, unknown>)
+				.map(([field, messages]) => `${field}: ${Array.isArray(messages) ? messages.join(', ') : String(messages)}`)
+				.join('; ')
+			: '';
+		throw new Error(
+			`Coolify ${response.status}: ${String(failure.message ?? 'request failed')}${details ? ` (${details})` : ''}`,
+		);
+	}
     return body as T;
   }
 

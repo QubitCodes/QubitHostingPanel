@@ -15,7 +15,7 @@
 		"test": "vitest run",
 		"test:watch": "vitest",
 		"env:generate-secrets": "tsx scripts/generateEnvironmentSecrets.ts",
-		"jobs:process": "node --env-file=.env --import tsx scripts/processProvisioningJobs.ts",
+		"jobs:process": "node --env-file-if-exists=.env --import tsx scripts/processProvisioningJobs.ts",
 		"usage:observe": "node --env-file=.env --import tsx scripts/observeInfrastructureUsage.ts",
 		"provider:bootstrap": "node --env-file=.env --import tsx scripts/bootstrapProviderConnection.ts",
 		"provider:reconcile": "node --env-file=.env --import tsx scripts/reconcileProviderConnections.ts",
