@@ -26,6 +26,8 @@ import type {
   AnalyzeApplicationSourceRequest,
   CreateApplicationRequest,
   UpdateApplicationRequest,
+  ApplicationActionRequest,
+  DeleteApplicationRequest,
 } from "@schemas/application";
 import { recordAuditLog } from "@services/auditLogService";
 import { authenticateSession } from "@services/auth/authenticatedSessionService";
@@ -33,7 +35,8 @@ import { hostingProvider } from "@services/hosting/hostingProviderFactory";
 import { getEffectivePlatformUrls } from "@services/platformUrlService";
 import { analyzeApplicationSource } from "@services/applications/sourceDetectionService";
 import { processProvisioningJobs } from "@services/provisioning/provisioningService";
-import { encryptCredential } from "@services/encryption/credentialEncryptionService";
+import { decryptCredential, encryptCredential } from "@services/encryption/credentialEncryptionService";
+import { LogicalDatabaseController } from '@controllers/LogicalDatabaseController';
 import {
   githubInstallationRepositories,
   githubInstallationToken,
@@ -109,6 +112,9 @@ const fields = {
   requestedDomain: applicationBuilds.requestedDomain,
   failureReason: applicationBuilds.failureReason,
   metadata: applicationBuilds.metadata,
+	operationalStatus: applicationBuilds.operationalStatus,
+	visibility: applicationBuilds.visibility,
+	autoDeployEnabled: applicationBuilds.autoDeployEnabled,
   createdAt: applicationBuilds.createdAt,
   runtimeCode: runtimeImages.code,
   runtimeLanguage: runtimeImages.language,
@@ -209,9 +215,11 @@ export class ApplicationController {
 		db.select({ hostname: applicationDomains.hostname }).from(applicationDomains).innerJoin(applicationBuilds, and(eq(applicationBuilds.id, applicationDomains.applicationBuildId), eq(applicationBuilds.workspaceId, workspace.id), isNull(applicationBuilds.deletedAt))).where(and(eq(applicationDomains.type, 'custom'), isNull(applicationDomains.deletedAt))),
       ]);
       const platform = await getEffectivePlatformUrls();
-      const [domainEntitlement, databaseEntitlement, [{ customDomainCount }]] = await Promise.all([
+      const [domainEntitlement, databaseEntitlement, manualDeploymentEntitlement, autoDeploymentEntitlement, [{ customDomainCount }]] = await Promise.all([
         effectiveEntitlement(workspace.id, "domains.count"),
         effectiveEntitlement(workspace.id, "databases.count"),
+		effectiveEntitlement(workspace.id, 'deployments.manual_enabled'),
+		effectiveEntitlement(workspace.id, 'deployments.auto_enabled'),
         db
           .select({ customDomainCount: count() })
           .from(applicationDomains)
@@ -241,6 +249,7 @@ export class ApplicationController {
           .slice(0, 6)
           .padEnd(6, "0"),
         limits: {
+		  deployments: { autoEnabled: autoDeploymentEntitlement.booleanValue === true, manualEnabled: manualDeploymentEntitlement.booleanValue !== false },
           databases: {
             allowed: databaseEntitlement.isUnlimited || databases.length < databaseEntitlement.limit,
             current: databases.length,
@@ -352,6 +361,7 @@ export class ApplicationController {
               "Application",
           ),
           buildPack: String(row.metadata?.buildPack ?? "nixpacks"),
+		  githubConnectionId: typeof row.metadata?.githubConnectionId === 'string' ? row.metadata.githubConnectionId : null,
           domains: domains.filter(
             (domain) => domain.applicationBuildId === row.id,
           ),
@@ -385,6 +395,10 @@ export class ApplicationController {
   ): Promise<Response> {
     try {
       const workspace = await access(request, workspacePublicId, metadata);
+	  if (input.autoDeployEnabled === true) {
+		const autoPolicy = await effectiveEntitlement(workspace.id, 'deployments.auto_enabled');
+		if (autoPolicy.booleanValue !== true) return resp.failure('Automatic deployments are not included in this package.', resp.codes.ORDER_CANNOT_BE_PROCESSED, undefined, null, undefined, 422);
+	  }
       const [application] = await db
         .select()
         .from(applicationBuilds)
@@ -406,11 +420,18 @@ export class ApplicationController {
           404,
         );
       const now = new Date();
+	  const deploymentRetention = await effectiveEntitlement(workspace.id, 'deployments.retention_days');
+	  const deploymentExpiresAt = deploymentRetention.isUnlimited ? null : new Date(Date.now() + Math.max(1, deploymentRetention.limit || 7) * 86_400_000);
       const result = await db.transaction(async (transaction) => {
         await transaction
           .update(applicationBuilds)
           .set({
+			metadata: { ...application.metadata, ...(input.name ? { name: input.name } : {}) },
             sourceRef: input.branch,
+			deploymentEnvironment: input.deploymentEnvironment ?? application.deploymentEnvironment,
+			framework: input.framework === undefined ? application.framework : input.framework,
+			autoDeployEnabled: input.autoDeployEnabled ?? application.autoDeployEnabled,
+			visibility: input.visibility ?? application.visibility,
             installCommand: input.installCommand,
             buildCommand: input.buildCommand,
             startCommand: input.startCommand,
@@ -428,6 +449,7 @@ export class ApplicationController {
           .values({
             workspaceId: workspace.id,
             applicationBuildId: applicationId,
+			expiresAt: deploymentExpiresAt,
           })
           .returning({ id: applicationDeployments.id });
         const [job] = await transaction
@@ -446,6 +468,17 @@ export class ApplicationController {
           .returning({ id: provisioningJobs.id });
         return { deploymentId: deployment?.id, jobId: job?.id };
       });
+	  if (application.resourceId && (input.autoDeployEnabled !== undefined || input.visibility !== undefined)) {
+		const [resource] = await db.select({ providerId: workspaceResources.providerResourceId }).from(workspaceResources).where(and(eq(workspaceResources.id, application.resourceId), isNull(workspaceResources.deletedAt))).limit(1);
+		if (resource) {
+			const provider = await hostingProvider();
+			await provider.updateApplicationSettings(resource.providerId, { autoDeployEnabled: input.autoDeployEnabled });
+			if (input.visibility) {
+				const enabledDomains = input.visibility === 'private' ? [] : (await db.select({ hostname: applicationDomains.hostname }).from(applicationDomains).where(and(eq(applicationDomains.applicationBuildId, application.id), eq(applicationDomains.isEnabled, true), isNull(applicationDomains.deletedAt)))).map(({ hostname }) => hostname);
+				await provider.updateApplicationDomains(resource.providerId, enabledDomains);
+			}
+		}
+	  }
       await recordAuditLog({
         actorUserId: workspace.actorUserId,
         action: "application.configuration_updated",
@@ -476,6 +509,79 @@ export class ApplicationController {
       );
     }
   }
+
+	/** Returns package-limited deployment history, retaining provider logs locally when available. */
+	public static async deployments(request: Request, workspacePublicId: number, applicationId: string, metadata: RequestMetadata): Promise<Response> {
+		try {
+			const workspace = await access(request, workspacePublicId, metadata);
+			const [application] = await db.select({ resourceId: applicationBuilds.resourceId }).from(applicationBuilds).where(and(eq(applicationBuilds.id, applicationId), eq(applicationBuilds.workspaceId, workspace.id), isNull(applicationBuilds.deletedAt))).limit(1);
+			if (!application) return resp.failure('Application not found.', resp.codes.RESOURCE_NOT_FOUND, undefined, null, undefined, 404);
+			const [limitPolicy, retentionPolicy] = await Promise.all([effectiveEntitlement(workspace.id, 'deployments.history_limit'), effectiveEntitlement(workspace.id, 'deployments.retention_days')]);
+			const limit = limitPolicy.isUnlimited ? 100 : Math.max(1, limitPolicy.limit || 2);
+			const retentionDays = retentionPolicy.isUnlimited ? null : Math.max(1, retentionPolicy.limit || 7);
+			const retentionCutoff = retentionDays === null ? null : new Date(Date.now() - retentionDays * 86_400_000);
+			await db.update(applicationDeployments).set({ deletedAt: new Date(), deleteReason: 'Package deployment-history retention elapsed.', updatedAt: new Date() }).where(and(eq(applicationDeployments.applicationBuildId, applicationId), isNull(applicationDeployments.deletedAt), sql`${applicationDeployments.expiresAt} IS NOT NULL AND ${applicationDeployments.expiresAt} <= now()`));
+			let providerRows: readonly import('@services/hosting/HostingProvider').ProviderDeployment[] = [];
+			if (application.resourceId) {
+				const [resource] = await db.select({ providerId: workspaceResources.providerResourceId }).from(workspaceResources).where(and(eq(workspaceResources.id, application.resourceId), isNull(workspaceResources.deletedAt))).limit(1);
+				if (resource) providerRows = await (await hostingProvider()).listApplicationDeployments(resource.providerId, limit);
+			}
+			const localRows = await db.select().from(applicationDeployments).where(and(eq(applicationDeployments.applicationBuildId, applicationId), isNull(applicationDeployments.deletedAt))).orderBy(desc(applicationDeployments.createdAt)).limit(limit);
+			const retainedProviderRows = providerRows.filter((row) => !retentionCutoff || !row.createdAt || new Date(row.createdAt) >= retentionCutoff).slice(0, limit);
+			await recordAuditLog({ actorUserId: workspace.actorUserId, action: 'application.deployment_history_viewed', resourceType: 'application_build', resourceId: applicationId, metadata: { workspacePublicId, returnedCount: retainedProviderRows.length || localRows.length }, ipAddress: metadata.ipAddress, userAgent: metadata.userAgent });
+			return resp.success('Deployment history retrieved.', { items: retainedProviderRows.length ? retainedProviderRows : localRows.map((row) => ({ ...row, id: row.providerDeploymentId ?? row.id, logs: row.logsCiphertext ? decryptCredential(row.logsCiphertext) : null })), limit: limitPolicy.isUnlimited ? null : limit, retentionDays, totalRetained: localRows.length });
+		} catch (error) { return resp.failure(error instanceof Error ? error.message : 'Deployment history unavailable.', resp.codes.EXTERNAL_SERVICE_ERROR, undefined, null, undefined, 502); }
+	}
+
+	/** Applies a customer-authorized lifecycle transition to the provider resource. */
+	public static async control(request: Request, workspacePublicId: number, applicationId: string, input: ApplicationActionRequest, metadata: RequestMetadata): Promise<Response> {
+		try {
+			const workspace = await access(request, workspacePublicId, metadata);
+			const [application] = await db.select({ id: applicationBuilds.id, name: applicationBuilds.metadata, operationalStatus: applicationBuilds.operationalStatus, resourceId: workspaceResources.id, providerId: workspaceResources.providerResourceId }).from(applicationBuilds).innerJoin(workspaceResources, and(eq(workspaceResources.id, applicationBuilds.resourceId), isNull(workspaceResources.deletedAt))).where(and(eq(applicationBuilds.id, applicationId), eq(applicationBuilds.workspaceId, workspace.id), isNull(applicationBuilds.deletedAt))).limit(1);
+			if (!application) return resp.failure('Application not found.', resp.codes.RESOURCE_NOT_FOUND, undefined, null, undefined, 404);
+			if (application.operationalStatus === 'suspended') return resp.failure('This application is suspended by an administrator.', resp.codes.PERMISSION_DENIED, undefined, null, undefined, 403);
+			const manualPolicy = await effectiveEntitlement(workspace.id, 'deployments.manual_enabled');
+			if (manualPolicy.booleanValue === false) return resp.failure('Manual deployments are not included in this package.', resp.codes.ORDER_CANNOT_BE_PROCESSED, undefined, null, undefined, 422);
+			const providerAction = input.action === 'deactivate' ? 'stop' : input.action === 'reactivate' ? 'start' : input.action;
+			const result = await (await hostingProvider()).controlApplication(application.providerId, providerAction);
+			const operationalStatus = input.action === 'stop' ? 'paused' : input.action === 'deactivate' ? 'deactivated' : 'active';
+			await db.update(applicationBuilds).set({ operationalStatus, updatedAt: new Date() }).where(eq(applicationBuilds.id, application.id));
+			await db.update(workspaceResources).set({ status: providerAction === 'stop' ? 'stopped' : 'provisioning', providerDeploymentId: result.deploymentId ?? undefined, updatedAt: new Date() }).where(eq(workspaceResources.id, application.resourceId));
+			if (providerAction !== 'stop') {
+				const retention = await effectiveEntitlement(workspace.id, 'deployments.retention_days');
+				await db.insert(applicationDeployments).values({ workspaceId: workspace.id, applicationBuildId: application.id, resourceId: application.resourceId, providerDeploymentId: result.deploymentId, status: 'queued', trigger: 'manual', expiresAt: retention.isUnlimited ? null : new Date(Date.now() + Math.max(1, retention.limit || 7) * 86_400_000), metadata: { action: input.action } });
+			}
+			await recordAuditLog({ actorUserId: workspace.actorUserId, action: `application.${input.action}`, resourceType: 'application_build', resourceId: application.id, metadata: { workspacePublicId, reason: input.reason, providerDeploymentId: result.deploymentId }, ipAddress: metadata.ipAddress, userAgent: metadata.userAgent });
+			return resp.success(`Application ${input.action} requested.`, result, resp.codes.ACCEPTED, undefined, 202);
+		} catch (error) { return resp.failure(error instanceof Error ? error.message : 'Application action failed.', resp.codes.EXTERNAL_SERVICE_ERROR, undefined, null, undefined, 502); }
+	}
+
+	/** Deletes an application and optionally its exclusively connected databases. */
+	public static async destroy(request: Request, workspacePublicId: number, applicationId: string, input: DeleteApplicationRequest, metadata: RequestMetadata): Promise<Response> {
+		const workspace = await access(request, workspacePublicId, metadata);
+		const [application] = await db.select({ id: applicationBuilds.id, metadata: applicationBuilds.metadata, resourceId: workspaceResources.id, providerId: workspaceResources.providerResourceId }).from(applicationBuilds).innerJoin(workspaceResources, and(eq(workspaceResources.id, applicationBuilds.resourceId), isNull(workspaceResources.deletedAt))).where(and(eq(applicationBuilds.id, applicationId), eq(applicationBuilds.workspaceId, workspace.id), isNull(applicationBuilds.deletedAt))).limit(1);
+		if (!application) return resp.failure('Application not found.', resp.codes.RESOURCE_NOT_FOUND, undefined, null, undefined, 404);
+		const name = String(application.metadata?.name ?? 'Application');
+		if (input.confirmationName !== name) return resp.failure('Application name confirmation does not match.', resp.codes.ORDER_CANNOT_BE_PROCESSED, undefined, null, undefined, 422);
+		for (const database of input.databases) {
+			const response = await LogicalDatabaseController.destroy(request, workspacePublicId, database.id, { acceptedImpact: true, confirmationName: database.confirmationName, connectedApplicationNames: [name] }, metadata);
+			if (!response.ok) return response;
+		}
+		await db.update(applicationBuilds).set({ operationalStatus: 'deleting', updatedAt: new Date() }).where(eq(applicationBuilds.id, application.id));
+		try { await (await hostingProvider()).deleteApplication(application.providerId); } catch (error) {
+			await db.update(applicationBuilds).set({ operationalStatus: 'cleanup_failed', failureReason: error instanceof Error ? error.message : 'Provider cleanup failed.', updatedAt: new Date() }).where(eq(applicationBuilds.id, application.id));
+			return resp.failure(error instanceof Error ? error.message : 'Provider cleanup failed.', resp.codes.EXTERNAL_SERVICE_ERROR, undefined, null, undefined, 502);
+		}
+		const now = new Date();
+		await db.transaction(async (transaction) => {
+			await transaction.update(applicationDomains).set({ deletedAt: now, deleteReason: 'Application deleted.', updatedAt: now }).where(and(eq(applicationDomains.applicationBuildId, application.id), isNull(applicationDomains.deletedAt)));
+			await transaction.update(applicationDatabaseBindings).set({ deletedAt: now, deleteReason: 'Application deleted.', updatedAt: now }).where(and(eq(applicationDatabaseBindings.applicationBuildId, application.id), isNull(applicationDatabaseBindings.deletedAt)));
+			await transaction.update(applicationBuilds).set({ deletedAt: now, deleteReason: 'Deleted by workspace user.', updatedAt: now }).where(eq(applicationBuilds.id, application.id));
+			await transaction.update(workspaceResources).set({ deletedAt: now, deleteReason: 'Application deleted by workspace user.', status: 'stopped', updatedAt: now }).where(eq(workspaceResources.id, application.resourceId));
+		});
+		await recordAuditLog({ actorUserId: workspace.actorUserId, action: 'application.deleted', resourceType: 'application_build', resourceId: application.id, metadata: { workspacePublicId, deletedDatabaseIds: input.databases.map(({ id }) => id) }, ipAddress: metadata.ipAddress, userAgent: metadata.userAgent });
+		return resp.success('Application deleted.', { id: application.id }, resp.codes.UPDATED);
+	}
   public static async create(
     request: Request,
     workspacePublicId: number,
@@ -486,6 +592,10 @@ export class ApplicationController {
     let domainReservationId: string | undefined;
     try {
       const workspace = await access(request, workspacePublicId, metadata);
+	  if (input.autoDeployEnabled) {
+		const autoPolicy = await effectiveEntitlement(workspace.id, 'deployments.auto_enabled');
+		if (autoPolicy.booleanValue !== true) return resp.failure('Automatic deployments are not included in this package.', resp.codes.ORDER_CANNOT_BE_PROCESSED, undefined, null, undefined, 422);
+	  }
       const [{ used }] = await db
         .select({ used: count() })
         .from(applicationBuilds)
@@ -802,6 +912,8 @@ export class ApplicationController {
           );
         }
       }
+	  const deploymentRetention = await effectiveEntitlement(workspace.id, 'deployments.retention_days');
+	  const deploymentExpiresAt = deploymentRetention.isUnlimited ? null : new Date(Date.now() + Math.max(1, deploymentRetention.limit || 7) * 86_400_000);
       const result = await db.transaction(async (transaction) => {
         const [build] = await transaction
           .insert(applicationBuilds)
@@ -831,6 +943,7 @@ export class ApplicationController {
               githubInstallationId: githubConnection?.installationId,
               coolifyGithubAppUuid: githubConnection?.coolifyGithubAppUuid,
             },
+			autoDeployEnabled: input.autoDeployEnabled,
           })
           .returning({ id: applicationBuilds.id });
         if (!build) throw new Error("Unable to persist application.");
@@ -909,7 +1022,7 @@ export class ApplicationController {
           );
         const [deployment] = await transaction
           .insert(applicationDeployments)
-          .values({ workspaceId: workspace.id, applicationBuildId: build.id })
+          .values({ workspaceId: workspace.id, applicationBuildId: build.id, expiresAt: deploymentExpiresAt })
           .returning({ id: applicationDeployments.id });
         const [job] = await transaction
           .insert(provisioningJobs)
@@ -1019,11 +1132,19 @@ export class ApplicationController {
           undefined,
           404,
         );
-      return resp.success("Application logs retrieved.", {
-        logs: await (
-          await hostingProvider()
-        ).getApplicationLogs(record.providerResourceId, 200),
-      });
+	  const provider = await hostingProvider();
+	  try {
+		const logs = await provider.getApplicationLogs(record.providerResourceId, 200);
+		await recordAuditLog({ actorUserId: workspace.actorUserId, action: 'application.logs_viewed', resourceType: 'application_build', resourceId: applicationId, metadata: { workspacePublicId, source: 'runtime' }, ipAddress: metadata.ipAddress, userAgent: metadata.userAgent });
+		return resp.success('Runtime logs retrieved.', { logs, source: 'runtime' });
+	  } catch {
+		const [deployment] = await provider.listApplicationDeployments(record.providerResourceId, 1);
+		if (!deployment?.logs) return resp.success('No logs are available for the latest deployment.', { logs: '', source: 'deployment' });
+		const [local] = await db.select({ id: applicationDeployments.id }).from(applicationDeployments).where(and(eq(applicationDeployments.applicationBuildId, applicationId), isNull(applicationDeployments.deletedAt))).orderBy(desc(applicationDeployments.createdAt)).limit(1);
+		if (local) await db.update(applicationDeployments).set({ logsCiphertext: encryptCredential(deployment.logs), logsCapturedAt: new Date(), providerDeploymentId: deployment.id, commitSha: deployment.commitSha ?? undefined, commitMessage: deployment.commitMessage ?? undefined, trigger: deployment.trigger, updatedAt: new Date() }).where(eq(applicationDeployments.id, local.id));
+		await recordAuditLog({ actorUserId: workspace.actorUserId, action: 'application.logs_viewed', resourceType: 'application_build', resourceId: applicationId, metadata: { workspacePublicId, source: 'deployment', providerDeploymentId: deployment.id }, ipAddress: metadata.ipAddress, userAgent: metadata.userAgent });
+		return resp.success('Latest deployment logs retrieved.', { logs: deployment.logs, source: 'deployment' });
+	  }
     } catch (error) {
       return resp.failure(
         error instanceof Error

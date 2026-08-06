@@ -60,6 +60,10 @@ const CRON_ENTITLEMENTS = [
 	{ code: 'cron.jobs_per_application', name: 'Scheduled tasks per application', description: 'Maximum active scheduled tasks allowed for each application.', valueType: 'number' as const, unit: 'tasks' },
 	{ code: 'cron.minimum_interval_minutes', name: 'Minimum scheduled task interval', description: 'Shortest permitted interval between executions.', valueType: 'number' as const, unit: 'minutes' },
 	{ code: 'cron.timeout_seconds', name: 'Scheduled task timeout', description: 'Maximum execution timeout for each scheduled task.', valueType: 'number' as const, unit: 'seconds' },
+	{ code: 'deployments.manual_enabled', name: 'Manual deployments', description: 'Allows deployments requested from the application dashboard.', valueType: 'boolean' as const, unit: null },
+	{ code: 'deployments.auto_enabled', name: 'Automatic deployments', description: 'Allows GitHub push based deployments.', valueType: 'boolean' as const, unit: null },
+	{ code: 'deployments.history_limit', name: 'Deployment history entries', description: 'Maximum deployment history entries shown per application.', valueType: 'number' as const, unit: 'deployments' },
+	{ code: 'deployments.retention_days', name: 'Deployment history retention', description: 'Days deployment history and captured logs are retained.', valueType: 'number' as const, unit: 'days' },
 ] as const;
 
 const CRON_PACKAGE_LIMITS: Record<string, { enabled: boolean; jobs: number; interval: number; timeout: number }> = {
@@ -99,6 +103,12 @@ async function seedPackageCatalogue(): Promise<void> {
 		if (!packageRow) throw new Error(`Package ${seed.slug} was not seeded.`);
 		const limits = CRON_PACKAGE_LIMITS[seed.slug];
 		if (limits) for (const [code, value] of Object.entries({ 'cron.enabled': limits.enabled, 'cron.jobs_per_application': limits.jobs, 'cron.minimum_interval_minutes': limits.interval, 'cron.timeout_seconds': limits.timeout })) {
+			const entitlementId = cronDefinitions.find((item) => item.code === code)?.id;
+			if (!entitlementId) throw new Error(`Entitlement ${code} was not seeded.`);
+			await db.insert(packageEntitlements).values({ packageId: packageRow.id, entitlementId, booleanValue: typeof value === 'boolean' ? value : null, numericValue: typeof value === 'number' ? value : null }).onConflictDoUpdate({ target: [packageEntitlements.packageId, packageEntitlements.entitlementId], targetWhere: sql`${packageEntitlements.deletedAt} IS NULL`, set: { booleanValue: typeof value === 'boolean' ? value : null, numericValue: typeof value === 'number' ? value : null, updatedAt: new Date() } });
+		}
+		const deploymentLimits = seed.slug === 'launch' ? { auto: false, history: 2, retention: 7 } : seed.slug === 'growth' ? { auto: true, history: 10, retention: 30 } : { auto: true, history: 50, retention: 90 };
+		for (const [code, value] of Object.entries({ 'deployments.manual_enabled': true, 'deployments.auto_enabled': deploymentLimits.auto, 'deployments.history_limit': deploymentLimits.history, 'deployments.retention_days': deploymentLimits.retention })) {
 			const entitlementId = cronDefinitions.find((item) => item.code === code)?.id;
 			if (!entitlementId) throw new Error(`Entitlement ${code} was not seeded.`);
 			await db.insert(packageEntitlements).values({ packageId: packageRow.id, entitlementId, booleanValue: typeof value === 'boolean' ? value : null, numericValue: typeof value === 'number' ? value : null }).onConflictDoUpdate({ target: [packageEntitlements.packageId, packageEntitlements.entitlementId], targetWhere: sql`${packageEntitlements.deletedAt} IS NULL`, set: { booleanValue: typeof value === 'boolean' ? value : null, numericValue: typeof value === 'number' ? value : null, updatedAt: new Date() } });
@@ -181,6 +191,7 @@ const SPECIAL_PERMISSIONS = [
 	{ code: 'customers.impersonate', description: 'Start a separately audited customer support session.', name: 'Impersonate customers' },
 	{ code: 'applications.start', description: 'Start a customer application.', name: 'Start applications' },
 	{ code: 'applications.stop', description: 'Stop a customer application.', name: 'Stop applications' },
+	{ code: 'applications.suspend', description: 'Suspend and unsuspend a customer application with an audited reason.', name: 'Suspend applications' },
 	{ code: 'applications.restart', description: 'Restart a customer application.', name: 'Restart applications' },
 	{ code: 'user_sessions.revoke', description: 'Revoke customer sessions.', name: 'Revoke customer sessions' },
 	{ code: 'application_files.download', description: 'Download files from a customer application.', name: 'Download application files' },

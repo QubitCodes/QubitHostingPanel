@@ -1,6 +1,27 @@
-import { CheckCircle2, Database, ExternalLink, FileCode2, GitBranch, Globe2, LoaderCircle, Pencil, Plus, ScrollText, X } from 'lucide-react';
+import {
+	CheckCircle2,
+	Database,
+	ExternalLink,
+	FileCode2,
+	GitBranch,
+	Globe2,
+	LoaderCircle,
+	MoreVertical,
+	Play,
+	Plus,
+	RefreshCw,
+	Square,
+	Trash2,
+	X,
+} from 'lucide-react';
 import { type FormEvent, useCallback, useEffect, useState } from 'react';
-import { Link, useLocation, useNavigate, useOutletContext, useParams } from 'react-router';
+import {
+	Link,
+	useLocation,
+	useNavigate,
+	useOutletContext,
+	useParams,
+} from 'react-router';
 import { toast } from 'sonner';
 
 import { Offcanvas } from '@components/ui/offcanvas';
@@ -8,16 +29,114 @@ import { DeployApplicationForm } from '@root/app/components/applications/deploy-
 import { ApplicationCronJobs } from '@root/app/components/applications/application-cron-jobs';
 import { authenticatedFetch } from '@root/app/utils/authenticatedFetch';
 
-interface ApplicationDomain { hostname: string; id: string; isEnabled: boolean; isPrimary: boolean; status: string; tlsStatus: string; type: 'custom' | 'platform' }
-interface ApplicationDatabase { databaseId: string; databaseName: string; environmentPrefix: string }
-interface Application { applicationPort: number; baseDirectory: string; buildCommand?: string | null; buildPack: string; createdAt: string; databases: ApplicationDatabase[]; domains: ApplicationDomain[]; failureReason?: string | null; id: string; installCommand?: string | null; latestDeployment?: { completedAt?: string | null; createdAt: string; status: string }; name: string; publicUrl?: string | null; publishDirectory?: string | null; resourceStatus?: string | null; runtimeCode: string; runtimeLanguage: string; runtimeVersion: string; sourceRef: string; sourceRepository: string; startCommand?: string | null; status: string }
-interface Options { applicationBaseDomain?: string; applicationDomainReady?: boolean; availableDomains?: Array<{ attachedHostnames: string[]; hostname: string; id: string; rootAvailable: boolean; status: string }>; databases: Array<{ databaseName: string; id: string }>; limits?: { customDomains: { allowed: boolean; current: number; limit: number | null }; databases: { allowed: boolean; current: number; limit: number | null } }; runtimes: Array<{ code: string; defaultPort: number; isDefault: boolean; language: 'node' | 'php' | 'python' | 'static'; version: string }>; suggestedDomainSuffix?: string }
-interface ApiBody<T> { data?: T; message: string; status: boolean }
-interface DomainCheck { approvalRequired?: boolean; available: boolean; dnsReady: boolean; reason?: string | null; records: string[] }
+interface ApplicationDomain {
+	hostname: string;
+	id: string;
+	isEnabled: boolean;
+	isPrimary: boolean;
+	status: string;
+	tlsStatus: string;
+	type: 'custom' | 'platform';
+}
+interface ApplicationDatabase {
+	databaseId: string;
+	databaseName: string;
+	environmentPrefix: string;
+}
+interface Application {
+	applicationPort: number;
+	autoDeployEnabled: boolean;
+	baseDirectory: string;
+	buildCommand?: string | null;
+	buildPack: string;
+	createdAt: string;
+	databases: ApplicationDatabase[];
+	domains: ApplicationDomain[];
+	failureReason?: string | null;
+	githubConnectionId?: string | null;
+	id: string;
+	installCommand?: string | null;
+	latestDeployment?: {
+		completedAt?: string | null;
+		createdAt: string;
+		status: string;
+	};
+	name: string;
+	operationalStatus: string;
+	publicUrl?: string | null;
+	publishDirectory?: string | null;
+	resourceStatus?: string | null;
+	runtimeCode: string;
+	runtimeLanguage: string;
+	runtimeVersion: string;
+	sourceRef: string;
+	sourceRepository: string;
+	startCommand?: string | null;
+	status: string;
+	visibility: 'private' | 'public';
+}
+interface DeploymentHistory {
+	items: Array<{
+		commitMessage?: string | null;
+		commitSha?: string | null;
+		createdAt?: string | null;
+		id: string;
+		logs?: string | null;
+		status: string;
+		trigger?: string;
+	}>;
+	limit: number | null;
+	retentionDays: number | null;
+	totalRetained: number;
+}
+interface Options {
+	applicationBaseDomain?: string;
+	applicationDomainReady?: boolean;
+	availableDomains?: Array<{
+		attachedHostnames: string[];
+		hostname: string;
+		id: string;
+		rootAvailable: boolean;
+		status: string;
+	}>;
+	databases: Array<{ databaseName: string; id: string }>;
+	limits?: {
+		customDomains: { allowed: boolean; current: number; limit: number | null };
+		databases: { allowed: boolean; current: number; limit: number | null };
+		deployments?: { autoEnabled: boolean; manualEnabled: boolean };
+	};
+	runtimes: Array<{
+		code: string;
+		defaultPort: number;
+		isDefault: boolean;
+		language: 'node' | 'php' | 'python' | 'static';
+		version: string;
+	}>;
+	suggestedDomainSuffix?: string;
+}
+interface ApiBody<T> {
+	data?: T;
+	message: string;
+	status: boolean;
+}
+interface DomainCheck {
+	approvalRequired?: boolean;
+	available: boolean;
+	dnsReady: boolean;
+	reason?: string | null;
+	records: string[];
+}
 
 /** Send an authenticated application request and unwrap its response. */
-async function api<T>(path: string, init?: RequestInit): Promise<T> { const response = await authenticatedFetch(path, init); const body = await response.json() as ApiBody<T>; if (!response.ok || !body.status || body.data === undefined) throw new Error(body.message); return body.data; }
-const inputClass = 'rounded-xl border border-brand-primary/15 bg-white px-4 py-3 text-gray-900 dark:bg-gray-800 dark:text-gray-100';
+async function api<T>(path: string, init?: RequestInit): Promise<T> {
+	const response = await authenticatedFetch(path, init);
+	const body = (await response.json()) as ApiBody<T>;
+	if (!response.ok || !body.status || body.data === undefined)
+		throw new Error(body.message);
+	return body.data;
+}
+const inputClass =
+	'rounded-xl border border-brand-primary/15 bg-white px-4 py-3 text-gray-900 dark:bg-gray-800 dark:text-gray-100';
 
 export default function CustomerApplicationsPage() {
 	const { active } = useOutletContext<{ active?: { publicId: number } }>();
@@ -25,26 +144,111 @@ export default function CustomerApplicationsPage() {
 	const location = useLocation();
 	const navigate = useNavigate();
 	const creating = location.pathname.endsWith('/create');
-	const editing = Boolean(applicationId && new URLSearchParams(location.search).get('mode') === 'edit');
+	const editing = Boolean(
+		applicationId &&
+		new URLSearchParams(location.search).get('mode') === 'edit',
+	);
+	const activeTab =
+		new URLSearchParams(location.search).get('tab') ??
+		(editing ? 'edit' : 'overview');
 	const [rows, setRows] = useState<Application[]>([]);
-	const [options, setOptions] = useState<Options>({ databases: [], runtimes: [] });
+	const [options, setOptions] = useState<Options>({
+		databases: [],
+		runtimes: [],
+	});
 	const [optionsLoading, setOptionsLoading] = useState(false);
 	const [loading, setLoading] = useState(true);
 	const [submitting, setSubmitting] = useState(false);
 	const [logs, setLogs] = useState('');
+	const [history, setHistory] = useState<DeploymentHistory | null>(null);
+	const [actionPending, setActionPending] = useState(false);
+	const [deleteName, setDeleteName] = useState('');
+	const [deleteDatabaseIds, setDeleteDatabaseIds] = useState<string[]>([]);
+	const [deleteDatabaseNames, setDeleteDatabaseNames] = useState<
+		Record<string, string>
+	>({});
+	const [editDirectories, setEditDirectories] = useState<string[]>([]);
+	const [editDirectoryTarget, setEditDirectoryTarget] = useState<
+		'base' | 'publish' | null
+	>(null);
+	const [editBaseDirectory, setEditBaseDirectory] = useState<string>();
+	const [editPublishDirectory, setEditPublishDirectory] = useState<string>();
 	const [customDomains, setCustomDomains] = useState<string[]>(['']);
-	const [domainChecks, setDomainChecks] = useState<Record<number, DomainCheck | 'checking'>>({});
+	const [domainChecks, setDomainChecks] = useState<
+		Record<number, DomainCheck | 'checking'>
+	>({});
 	const record = rows.find(({ id }) => id === applicationId);
-	const load = useCallback(async () => { if (!active) return; setLoading(true); try { setRows(await api<Application[]>(`/api/v1/workspaces/${active.publicId}/applications`)); } catch (error) { toast.error(error instanceof Error ? error.message : 'Unable to load applications.'); } finally { setLoading(false); } }, [active]);
-	useEffect(() => { const timeout = window.setTimeout(() => void load(), 0); return () => window.clearTimeout(timeout); }, [load]);
-	useEffect(() => { if (!creating || !active) return; setOptionsLoading(true); void api<Options>(`/api/v1/workspaces/${active.publicId}/applications/options`).then(setOptions).catch((error) => toast.error(error instanceof Error ? error.message : 'Unable to load deployment options.')).finally(() => setOptionsLoading(false)); }, [active, creating]);
+	useEffect(() => {
+		if (!record) return;
+		setEditBaseDirectory(record.baseDirectory);
+		setEditPublishDirectory(record.publishDirectory ?? '');
+	}, [record]);
+	const load = useCallback(async () => {
+		if (!active) return;
+		setLoading(true);
+		try {
+			setRows(
+				await api<Application[]>(
+					`/api/v1/workspaces/${active.publicId}/applications`,
+				),
+			);
+		} catch (error) {
+			toast.error(
+				error instanceof Error ? error.message : 'Unable to load applications.',
+			);
+		} finally {
+			setLoading(false);
+		}
+	}, [active]);
+	useEffect(() => {
+		const timeout = window.setTimeout(() => void load(), 0);
+		return () => window.clearTimeout(timeout);
+	}, [load]);
+	useEffect(() => {
+		if ((!creating && !editing) || !active) return;
+		setOptionsLoading(true);
+		void api<Options>(
+			`/api/v1/workspaces/${active.publicId}/applications/options`,
+		)
+			.then(setOptions)
+			.catch((error) =>
+				toast.error(
+					error instanceof Error
+						? error.message
+						: 'Unable to load deployment options.',
+				),
+			)
+			.finally(() => setOptionsLoading(false));
+	}, [active, creating, editing]);
+	useEffect(() => {
+		if (!active || !applicationId || activeTab !== 'deployments') return;
+		void api<DeploymentHistory>(
+			`/api/v1/workspaces/${active.publicId}/applications/${applicationId}/deployments`,
+		)
+			.then(setHistory)
+			.catch((error) =>
+				toast.error(
+					error instanceof Error
+						? error.message
+						: 'Deployment history unavailable.',
+				),
+			);
+	}, [active, activeTab, applicationId]);
 	useEffect(() => {
 		const params = new URLSearchParams(location.search);
 		const connected = params.get('github') === 'connected';
 		const error = params.get('github_error');
 		if (!connected && !error) return;
 		if (window.opener && !window.opener.closed) {
-			window.opener.postMessage({ type: connected ? 'ghostdeploy:github-connected' : 'ghostdeploy:github-error', message: error }, window.location.origin);
+			window.opener.postMessage(
+				{
+					type: connected
+						? 'ghostdeploy:github-connected'
+						: 'ghostdeploy:github-error',
+					message: error,
+				},
+				window.location.origin,
+			);
 			window.close();
 			return;
 		}
@@ -54,45 +258,1030 @@ export default function CustomerApplicationsPage() {
 	}, [location.search, navigate]);
 	useEffect(() => {
 		if (!active) return;
-		const timers = customDomains.map((hostname, index) => window.setTimeout(() => {
-			const value = hostname.trim().toLowerCase();
-			if (!/^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/.test(value)) return;
-			setDomainChecks((current) => ({ ...current, [index]: 'checking' }));
-			void api<DomainCheck>(`/api/v1/workspaces/${active.publicId}/domains`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ hostname: value }) })
-				.then((result) => setDomainChecks((current) => ({ ...current, [index]: result })))
-				.catch((error: unknown) => setDomainChecks((current) => ({ ...current, [index]: { available: false, dnsReady: false, records: [], reason: error instanceof Error ? error.message : 'DNS check failed.' } })));
-		}, 600));
+		const timers = customDomains.map((hostname, index) =>
+			window.setTimeout(() => {
+				const value = hostname.trim().toLowerCase();
+				if (
+					!/^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/.test(
+						value,
+					)
+				)
+					return;
+				setDomainChecks((current) => ({ ...current, [index]: 'checking' }));
+				void api<DomainCheck>(`/api/v1/workspaces/${active.publicId}/domains`, {
+					method: 'POST',
+					headers: { 'content-type': 'application/json' },
+					body: JSON.stringify({ hostname: value }),
+				})
+					.then((result) =>
+						setDomainChecks((current) => ({ ...current, [index]: result })),
+					)
+					.catch((error: unknown) =>
+						setDomainChecks((current) => ({
+							...current,
+							[index]: {
+								available: false,
+								dnsReady: false,
+								records: [],
+								reason:
+									error instanceof Error ? error.message : 'DNS check failed.',
+							},
+						})),
+					);
+			}, 600),
+		);
 		return () => timers.forEach((timer) => window.clearTimeout(timer));
 	}, [active, customDomains]);
 
 	/** Create or update an application from the active offcanvas form. */
 	async function submit(event: FormEvent<HTMLFormElement>): Promise<void> {
-		event.preventDefault(); if (!active) return; setSubmitting(true);
-		const form = new FormData(event.currentTarget); const runtime = options.runtimes.find(({ code }) => code === form.get('runtimeCode')); const databaseId = String(form.get('databaseId') ?? '');
-		const common = { branch: form.get('branch'), installCommand: form.get('installCommand') || undefined, buildCommand: form.get('buildCommand') || undefined, startCommand: form.get('startCommand') || undefined, baseDirectory: form.get('baseDirectory'), publishDirectory: form.get('publishDirectory') || undefined, port: Number(form.get('port') || runtime?.defaultPort) };
+		event.preventDefault();
+		if (!active) return;
+		setSubmitting(true);
+		const form = new FormData(event.currentTarget);
+		const runtime = options.runtimes.find(
+			({ code }) => code === form.get('runtimeCode'),
+		);
+		const databaseId = String(form.get('databaseId') ?? '');
+		const common = {
+			branch: form.get('branch'),
+			installCommand: form.get('installCommand') || undefined,
+			buildCommand: form.get('buildCommand') || undefined,
+			startCommand: form.get('startCommand') || undefined,
+			baseDirectory: form.get('baseDirectory'),
+			publishDirectory: form.get('publishDirectory') || undefined,
+			port: Number(form.get('port') || runtime?.defaultPort),
+			...(editing
+				? {
+						name: form.get('name'),
+						autoDeployEnabled: form.get('autoDeployEnabled') === 'on',
+						visibility: form.get('visibility'),
+					}
+				: {}),
+		};
 		try {
-			if (editing && applicationId) await api(`/api/v1/workspaces/${active.publicId}/applications/${applicationId}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(common) });
-			else { const result = await api<{ id: string }>(`/api/v1/workspaces/${active.publicId}/applications`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ...common, databases: databaseId ? [{ databaseId, environmentPrefix: 'DATABASE' }] : [], domains: [...new Set(customDomains.map((hostname) => hostname.trim().toLowerCase()).filter(Boolean))], name: form.get('name'), subdomain: form.get('subdomain') || undefined, runtimeCode: form.get('runtimeCode'), repository: form.get('repository'), buildPack: form.get('buildPack') }) }); navigate(`/dashboard/applications/${result.id}`, { replace: true }); }
-			toast.success(editing ? 'Application updated and deployment queued.' : 'Application deployment queued.'); await load();
-			if (editing) navigate(`/dashboard/applications/${applicationId}`, { replace: true });
-		} catch (error) { toast.error(error instanceof Error ? error.message : 'Application operation failed.'); } finally { setSubmitting(false); }
+			if (editing && applicationId)
+				await api(
+					`/api/v1/workspaces/${active.publicId}/applications/${applicationId}`,
+					{
+						method: 'POST',
+						headers: { 'content-type': 'application/json' },
+						body: JSON.stringify(common),
+					},
+				);
+			else {
+				const result = await api<{ id: string }>(
+					`/api/v1/workspaces/${active.publicId}/applications`,
+					{
+						method: 'POST',
+						headers: { 'content-type': 'application/json' },
+						body: JSON.stringify({
+							...common,
+							databases: databaseId
+								? [{ databaseId, environmentPrefix: 'DATABASE' }]
+								: [],
+							domains: [
+								...new Set(
+									customDomains
+										.map((hostname) => hostname.trim().toLowerCase())
+										.filter(Boolean),
+								),
+							],
+							name: form.get('name'),
+							subdomain: form.get('subdomain') || undefined,
+							runtimeCode: form.get('runtimeCode'),
+							repository: form.get('repository'),
+							buildPack: form.get('buildPack'),
+						}),
+					},
+				);
+				navigate(`/dashboard/applications/${result.id}`, { replace: true });
+			}
+			toast.success(
+				editing
+					? 'Application updated and deployment queued.'
+					: 'Application deployment queued.',
+			);
+			await load();
+			if (editing)
+				navigate(`/dashboard/applications/${applicationId}`, { replace: true });
+		} catch (error) {
+			toast.error(
+				error instanceof Error
+					? error.message
+					: 'Application operation failed.',
+			);
+		} finally {
+			setSubmitting(false);
+		}
 	}
 
 	/** Load recent provider logs into the detail drawer. */
-	async function loadLogs(): Promise<void> { if (!active || !applicationId) return; try { setLogs((await api<{ logs: string }>(`/api/v1/workspaces/${active.publicId}/applications/${applicationId}/logs`)).logs); } catch (error) { toast.error(error instanceof Error ? error.message : 'Logs unavailable.'); } }
-	const form = (isEdit: boolean) => <form className="mt-6 grid gap-5" key={`${record?.id ?? 'new'}-${isEdit}`} onSubmit={(event) => void submit(event)}>
-		{!isEdit && <><label className="grid gap-2 font-semibold">Name<input className={inputClass} name="name" required /></label><label className="grid gap-2 font-semibold">Platform subdomain<input className={inputClass} name="subdomain" placeholder="my-app" /><span className="text-xs font-normal text-app-muted">Your platform subdomain is always added and can only be removed after the application is saved with a verified replacement domain.</span></label><label className="grid gap-2 font-semibold">Public Git repository<input className={inputClass} name="repository" placeholder="https://github.com/organisation/repository" required type="url" /></label><fieldset className="grid gap-3 rounded-2xl border border-brand-primary/10 p-4"><div className="flex items-center justify-between gap-3"><div><legend className="font-bold">Custom domains</legend><p className="mt-1 text-xs font-normal text-app-muted">DNS is checked live, but pending DNS or owner approval will not prevent deployment.</p></div><button className="inline-flex items-center gap-2 rounded-xl border border-brand-primary/15 px-3 py-2 text-sm font-bold" onClick={() => setCustomDomains((current) => [...current, ''])} type="button"><Plus className="size-4" />Add</button></div>{customDomains.map((hostname, index) => { const check = domainChecks[index]; return <div className="grid gap-2" key={index}><div className="flex gap-2"><input className={`${inputClass} min-w-0 flex-1`} onChange={(event) => { const value = event.target.value; setCustomDomains((current) => current.map((item, position) => position === index ? value : item)); setDomainChecks((current) => { const next = { ...current }; delete next[index]; return next; }); }} placeholder="app.example.com" type="text" value={hostname} />{customDomains.length > 1 && <button aria-label="Remove domain field" className="rounded-xl border border-red-500/20 p-3 text-red-600" onClick={() => { setCustomDomains((current) => current.filter((_, position) => position !== index)); setDomainChecks({}); }} type="button"><X className="size-4" /></button>}</div>{check === 'checking' ? <span className="flex items-center gap-2 text-xs text-app-muted"><LoaderCircle className="size-3 animate-spin" />Checking public DNS…</span> : check ? <span className={`flex items-center gap-2 text-xs ${check.approvalRequired ? 'text-amber-700 dark:text-amber-300' : check.available && check.dnsReady ? 'text-emerald-700 dark:text-emerald-300' : check.available ? 'text-amber-700 dark:text-amber-300' : 'text-red-600 dark:text-red-300'}`}>{check.available && check.dnsReady && !check.approvalRequired && <CheckCircle2 className="size-3" />}{check.approvalRequired ? check.reason : check.available && check.dnsReady ? `DNS visible: ${check.records.join(', ')}` : check.reason}</span> : null}</div>; })}</fieldset></>}
-		<div className="grid gap-4 sm:grid-cols-2"><label className="grid gap-2 font-semibold">Branch<input className={inputClass} defaultValue={record?.sourceRef ?? 'main'} name="branch" required /></label>{!isEdit && <label className="grid gap-2 font-semibold">Runtime<select className={inputClass} name="runtimeCode" required>{options.runtimes.map((runtime) => <option key={runtime.code} value={runtime.code}>{runtime.language} {runtime.version}</option>)}</select></label>}{!isEdit && <label className="grid gap-2 font-semibold">Build pack<select className={inputClass} name="buildPack"><option value="nixpacks">Nixpacks</option><option value="static">Static</option><option value="dockerfile">Dockerfile</option></select></label>}<label className="grid gap-2 font-semibold">Port<input className={inputClass} defaultValue={record?.applicationPort ?? options.runtimes.find(({ isDefault }) => isDefault)?.defaultPort ?? 3000} max="65535" min="1" name="port" type="number" /></label></div>
-		<div className="grid gap-4 sm:grid-cols-2"><label className="grid gap-2 font-semibold">Base directory<input className={inputClass} defaultValue={record?.baseDirectory ?? '/'} name="baseDirectory" /></label><label className="grid gap-2 font-semibold">Publish directory<input className={inputClass} defaultValue={record?.publishDirectory ?? ''} name="publishDirectory" /></label></div>
-		<details className="rounded-2xl border border-brand-primary/10 p-4" open={isEdit}><summary className="cursor-pointer font-bold">Build commands</summary><div className="mt-4 grid gap-4"><input className={inputClass} defaultValue={record?.installCommand ?? ''} name="installCommand" placeholder="Install command" /><input className={inputClass} defaultValue={record?.buildCommand ?? ''} name="buildCommand" placeholder="Build command" /><input className={inputClass} defaultValue={record?.startCommand ?? ''} name="startCommand" placeholder="Start command" /></div></details>
-		{isEdit ? <div className="rounded-2xl border border-brand-primary/10 p-4"><p className="text-sm font-bold">Connected databases</p><p className="mt-1 text-sm text-app-muted">{record?.databases.length ? record.databases.map(({ databaseName }) => databaseName).join(', ') : 'None'} · Existing bindings remain unchanged during configuration edits.</p></div> : <label className="grid gap-2 font-semibold">Connected database<select className={inputClass} name="databaseId"><option value="">No database</option>{options.databases.map((database) => <option key={database.id} value={database.id}>{database.databaseName}</option>)}</select></label>}
-		<button className="rounded-xl bg-brand-action px-5 py-3 font-bold text-brand-ink" disabled={submitting} type="submit">{isEdit ? 'Save and Deploy' : 'Queue Deployment'}</button>
-	</form>;
+	async function loadLogs(): Promise<void> {
+		if (!active || !applicationId) return;
+		try {
+			setLogs(
+				(
+					await api<{ logs: string }>(
+						`/api/v1/workspaces/${active.publicId}/applications/${applicationId}/logs`,
+					)
+				).logs,
+			);
+		} catch (error) {
+			toast.error(error instanceof Error ? error.message : 'Logs unavailable.');
+		}
+	}
+	async function control(
+		action:
+			'deactivate' | 'reactivate' | 'redeploy' | 'restart' | 'start' | 'stop',
+	): Promise<void> {
+		if (!active || !applicationId) return;
+		setActionPending(true);
+		try {
+			await api(
+				`/api/v1/workspaces/${active.publicId}/applications/${applicationId}/action`,
+				{
+					method: 'POST',
+					headers: { 'content-type': 'application/json' },
+					body: JSON.stringify({ action }),
+				},
+			);
+			toast.success(`Application ${action} requested.`);
+			await load();
+		} catch (error) {
+			toast.error(
+				error instanceof Error ? error.message : 'Application action failed.',
+			);
+		} finally {
+			setActionPending(false);
+		}
+	}
+	async function destroyApplication(): Promise<void> {
+		if (!active || !record || deleteName !== record.name) return;
+		setActionPending(true);
+		try {
+			await api(
+				`/api/v1/workspaces/${active.publicId}/applications/${record.id}`,
+				{
+					method: 'DELETE',
+					headers: { 'content-type': 'application/json' },
+					body: JSON.stringify({
+						acceptedImpact: true,
+						confirmationName: deleteName,
+						databases: record.databases
+							.filter(({ databaseId }) =>
+								deleteDatabaseIds.includes(databaseId),
+							)
+							.map(({ databaseId }) => ({
+								id: databaseId,
+								confirmationName: deleteDatabaseNames[databaseId] ?? '',
+							})),
+					}),
+				},
+			);
+			toast.success('Application deleted.');
+			navigate('/dashboard/applications', { replace: true });
+			await load();
+		} catch (error) {
+			toast.error(
+				error instanceof Error ? error.message : 'Application deletion failed.',
+			);
+		} finally {
+			setActionPending(false);
+		}
+	}
+	function selectTab(tab: string): void {
+		if (!record) return;
+		navigate(`/dashboard/applications/${record.id}?tab=${tab}`);
+	}
+	async function browseEditDirectory(
+		target: 'base' | 'publish',
+	): Promise<void> {
+		if (!active || !record) return;
+		try {
+			const result = await api<{ directories: string[] }>(
+				`/api/v1/workspaces/${active.publicId}/applications/analyze-source`,
+				{
+					method: 'POST',
+					headers: { 'content-type': 'application/json' },
+					body: JSON.stringify({
+						repository: record.sourceRepository,
+						branch: record.sourceRef,
+						githubConnectionId: record.githubConnectionId || undefined,
+					}),
+				},
+			);
+			setEditDirectories(result.directories);
+			setEditDirectoryTarget(target);
+		} catch (error) {
+			toast.error(
+				error instanceof Error
+					? error.message
+					: 'Repository folders unavailable.',
+			);
+		}
+	}
+	const form = (isEdit: boolean) => (
+		<form
+			className="mt-6 grid gap-5"
+			key={`${record?.id ?? 'new'}-${isEdit}`}
+			onSubmit={(event) => void submit(event)}
+		>
+			{isEdit && (
+				<div className="grid gap-4 sm:grid-cols-2">
+					<label className="grid gap-2 font-semibold">
+						Application name
+						<input
+							className={inputClass}
+							defaultValue={record?.name}
+							name="name"
+							required
+						/>
+					</label>
+					<label className="grid gap-2 font-semibold">
+						Visibility
+						<select
+							className={inputClass}
+							defaultValue={record?.visibility ?? 'public'}
+							name="visibility"
+						>
+							<option value="public">Public</option>
+							<option value="private">Private</option>
+						</select>
+					</label>
+					<label className="flex items-center gap-3 rounded-xl border border-brand-primary/10 p-4 sm:col-span-2">
+						<input
+							defaultChecked={record?.autoDeployEnabled}
+							disabled={!options.limits?.deployments?.autoEnabled}
+							name="autoDeployEnabled"
+							type="checkbox"
+						/>
+						<span>
+							<strong>Auto-deploy on push</strong>
+							<small className="block font-normal text-app-muted">
+								{options.limits?.deployments?.autoEnabled
+									? 'Deploy future commits pushed to the selected branch. Turning this off keeps manual deployment available.'
+									: 'Automatic deployments are not included in this package.'}
+							</small>
+						</span>
+					</label>
+				</div>
+			)}
+			{!isEdit && (
+				<>
+					<label className="grid gap-2 font-semibold">
+						Name
+						<input className={inputClass} name="name" required />
+					</label>
+					<label className="grid gap-2 font-semibold">
+						Platform subdomain
+						<input
+							className={inputClass}
+							name="subdomain"
+							placeholder="my-app"
+						/>
+						<span className="text-xs font-normal text-app-muted">
+							Your platform subdomain is always added and can only be removed
+							after the application is saved with a verified replacement domain.
+						</span>
+					</label>
+					<label className="grid gap-2 font-semibold">
+						Public Git repository
+						<input
+							className={inputClass}
+							name="repository"
+							placeholder="https://github.com/organisation/repository"
+							required
+							type="url"
+						/>
+					</label>
+					<fieldset className="grid gap-3 rounded-2xl border border-brand-primary/10 p-4">
+						<div className="flex items-center justify-between gap-3">
+							<div>
+								<legend className="font-bold">Custom domains</legend>
+								<p className="mt-1 text-xs font-normal text-app-muted">
+									DNS is checked live, but pending DNS or owner approval will
+									not prevent deployment.
+								</p>
+							</div>
+							<button
+								className="inline-flex items-center gap-2 rounded-xl border border-brand-primary/15 px-3 py-2 text-sm font-bold"
+								onClick={() => setCustomDomains((current) => [...current, ''])}
+								type="button"
+							>
+								<Plus className="size-4" />
+								Add
+							</button>
+						</div>
+						{customDomains.map((hostname, index) => {
+							const check = domainChecks[index];
+							return (
+								<div className="grid gap-2" key={index}>
+									<div className="flex gap-2">
+										<input
+											className={`${inputClass} min-w-0 flex-1`}
+											onChange={(event) => {
+												const value = event.target.value;
+												setCustomDomains((current) =>
+													current.map((item, position) =>
+														position === index ? value : item,
+													),
+												);
+												setDomainChecks((current) => {
+													const next = { ...current };
+													delete next[index];
+													return next;
+												});
+											}}
+											placeholder="app.example.com"
+											type="text"
+											value={hostname}
+										/>
+										{customDomains.length > 1 && (
+											<button
+												aria-label="Remove domain field"
+												className="rounded-xl border border-red-500/20 p-3 text-red-600"
+												onClick={() => {
+													setCustomDomains((current) =>
+														current.filter((_, position) => position !== index),
+													);
+													setDomainChecks({});
+												}}
+												type="button"
+											>
+												<X className="size-4" />
+											</button>
+										)}
+									</div>
+									{check === 'checking' ? (
+										<span className="flex items-center gap-2 text-xs text-app-muted">
+											<LoaderCircle className="size-3 animate-spin" />
+											Checking public DNS…
+										</span>
+									) : check ? (
+										<span
+											className={`flex items-center gap-2 text-xs ${check.approvalRequired ? 'text-amber-700 dark:text-amber-300' : check.available && check.dnsReady ? 'text-emerald-700 dark:text-emerald-300' : check.available ? 'text-amber-700 dark:text-amber-300' : 'text-red-600 dark:text-red-300'}`}
+										>
+											{check.available &&
+												check.dnsReady &&
+												!check.approvalRequired && (
+													<CheckCircle2 className="size-3" />
+												)}
+											{check.approvalRequired
+												? check.reason
+												: check.available && check.dnsReady
+													? `DNS visible: ${check.records.join(', ')}`
+													: check.reason}
+										</span>
+									) : null}
+								</div>
+							);
+						})}
+					</fieldset>
+				</>
+			)}
+			<div className="grid gap-4 sm:grid-cols-2">
+				<label className="grid gap-2 font-semibold">
+					Branch
+					<input
+						className={inputClass}
+						defaultValue={record?.sourceRef ?? 'main'}
+						name="branch"
+						required
+					/>
+				</label>
+				{!isEdit && (
+					<label className="grid gap-2 font-semibold">
+						Runtime
+						<select className={inputClass} name="runtimeCode" required>
+							{options.runtimes.map((runtime) => (
+								<option key={runtime.code} value={runtime.code}>
+									{runtime.language} {runtime.version}
+								</option>
+							))}
+						</select>
+					</label>
+				)}
+				{!isEdit && (
+					<label className="grid gap-2 font-semibold">
+						Build pack
+						<select className={inputClass} name="buildPack">
+							<option value="nixpacks">Nixpacks</option>
+							<option value="static">Static</option>
+							<option value="dockerfile">Dockerfile</option>
+						</select>
+					</label>
+				)}
+				<label className="grid gap-2 font-semibold">
+					Port
+					<input
+						className={inputClass}
+						defaultValue={
+							record?.applicationPort ??
+							options.runtimes.find(({ isDefault }) => isDefault)
+								?.defaultPort ??
+							3000
+						}
+						max="65535"
+						min="1"
+						name="port"
+						type="number"
+					/>
+				</label>
+			</div>
+			<div className="grid gap-4 sm:grid-cols-2">
+				<label className="grid gap-2 font-semibold">
+					Project directory
+					<div className="flex gap-2">
+						<input
+							className={`${inputClass} min-w-0 flex-1`}
+							name="baseDirectory"
+							onChange={(event) => setEditBaseDirectory(event.target.value)}
+							value={editBaseDirectory ?? '/'}
+						/>
+						<button
+							className="rounded-xl border border-brand-primary/15 px-3"
+							onClick={() => void browseEditDirectory('base')}
+							type="button"
+						>
+							Browse
+						</button>
+					</div>
+					<span className="text-xs font-normal text-app-muted">
+						Directory containing the application manifest.
+					</span>
+				</label>
+				<label className="grid gap-2 font-semibold">
+					Output directory
+					<div className="flex gap-2">
+						<input
+							className={`${inputClass} min-w-0 flex-1`}
+							name="publishDirectory"
+							onChange={(event) => setEditPublishDirectory(event.target.value)}
+							value={editPublishDirectory ?? ''}
+						/>
+						<button
+							className="rounded-xl border border-brand-primary/15 px-3"
+							onClick={() => void browseEditDirectory('publish')}
+							type="button"
+						>
+							Browse
+						</button>
+					</div>
+					<span className="text-xs font-normal text-app-muted">
+						Generated static files, when your framework produces them.
+					</span>
+				</label>
+			</div>
+			<details
+				className="rounded-2xl border border-brand-primary/10 p-4"
+				open={isEdit}
+			>
+				<summary className="cursor-pointer font-bold">Build commands</summary>
+				<div className="mt-4 grid gap-4">
+					<input
+						className={inputClass}
+						defaultValue={record?.installCommand ?? ''}
+						name="installCommand"
+						placeholder="Install command"
+					/>
+					<input
+						className={inputClass}
+						defaultValue={record?.buildCommand ?? ''}
+						name="buildCommand"
+						placeholder="Build command"
+					/>
+					<input
+						className={inputClass}
+						defaultValue={record?.startCommand ?? ''}
+						name="startCommand"
+						placeholder="Start command"
+					/>
+				</div>
+			</details>
+			{isEdit ? (
+				<div className="rounded-2xl border border-brand-primary/10 p-4">
+					<p className="text-sm font-bold">Connected databases</p>
+					<p className="mt-1 text-sm text-app-muted">
+						{record?.databases.length
+							? record.databases
+									.map(({ databaseName }) => databaseName)
+									.join(', ')
+							: 'None'}{' '}
+						· Existing bindings remain unchanged during configuration edits.
+					</p>
+				</div>
+			) : (
+				<label className="grid gap-2 font-semibold">
+					Connected database
+					<select className={inputClass} name="databaseId">
+						<option value="">No database</option>
+						{options.databases.map((database) => (
+							<option key={database.id} value={database.id}>
+								{database.databaseName}
+							</option>
+						))}
+					</select>
+				</label>
+			)}
+			<button
+				className="rounded-xl bg-brand-action px-5 py-3 font-bold text-brand-ink"
+				disabled={submitting}
+				type="submit"
+			>
+				{isEdit ? 'Save and Deploy' : 'Queue Deployment'}
+			</button>
+		</form>
+	);
 
-	return <div className="mx-auto max-w-6xl"><div className="flex items-end justify-between gap-4"><div><p className="text-sm font-semibold text-brand-primary dark:text-brand-action">Workspace compute</p><h2 className="mt-2 text-4xl font-black">Applications</h2></div><Link className="inline-flex items-center gap-2 rounded-xl bg-brand-action px-5 py-3 font-bold text-brand-ink" to="/dashboard/applications/create"><Plus className="size-4" />Deploy Application</Link></div>
-		{loading ? <LoaderCircle className="mt-8 size-6 animate-spin" /> : <div className="mt-7 grid gap-4 md:grid-cols-2 xl:grid-cols-3">{rows.map((row) => { const primary = row.domains.find((domain) => domain.isPrimary) ?? row.domains[0]; return <Link className="rounded-3xl border border-brand-primary/10 bg-app-surface p-6 transition hover:border-brand-action/60" key={row.id} to={`/dashboard/applications/${row.id}`}><div className="flex items-start justify-between"><FileCode2 className="size-6 text-brand-primary dark:text-brand-action" /><span className={`rounded-full px-2.5 py-1 text-xs font-bold capitalize ${row.resourceStatus === 'running' ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300' : 'bg-amber-500/10 text-amber-700 dark:text-amber-300'}`}>{row.resourceStatus ?? row.status}</span></div><h3 className="mt-5 truncate text-xl font-bold">{row.name}</h3><p className="mt-2 text-sm text-app-muted">{row.runtimeLanguage} {row.runtimeVersion} · {row.buildPack}</p><div className="mt-5 grid gap-2 text-sm"><span className="flex items-center gap-2"><GitBranch className="size-4 text-app-muted" />{row.sourceRef}</span><span className="flex items-center gap-2 truncate"><Database className="size-4 text-app-muted" />{row.databases.length ? row.databases.map(({ databaseName }) => databaseName).join(', ') : 'No database'}</span><span className="flex items-center gap-2 truncate"><Globe2 className="size-4 text-app-muted" />{primary?.hostname ?? 'Domain pending'}</span></div></Link>; })}{!rows.length && <p className="rounded-2xl border border-dashed border-brand-primary/20 p-8 text-center text-app-muted md:col-span-2 xl:col-span-3">No source applications yet.</p>}</div>}
-		{creating && active && <Offcanvas onClose={() => navigate('/dashboard/applications')} title="Deploy Application" width="full">{optionsLoading || !options.runtimes.length ? <div className="grid min-h-[50vh] place-items-center"><LoaderCircle className="size-7 animate-spin" /></div> : <DeployApplicationForm onCreated={(id) => navigate(`/dashboard/applications/${id}`, { replace: true })} options={options} workspaceId={active.publicId} />}</Offcanvas>}
-		{applicationId && <Offcanvas onClose={() => navigate('/dashboard/applications')} title={editing ? `Edit ${record?.name ?? 'application'}` : record?.name ?? 'Application details'} width="xl">{editing ? form(true) : <div className="mt-6 grid gap-6">{record ? <><div className="flex flex-wrap gap-3"><button className="inline-flex items-center gap-2 rounded-xl bg-brand-action px-4 py-2.5 font-bold text-brand-ink" onClick={() => navigate(`/dashboard/applications/${record.id}?mode=edit`)} type="button"><Pencil className="size-4" />Edit</button><Link className="inline-flex items-center gap-2 rounded-xl border border-brand-primary/15 px-4 py-2.5 font-bold" to={`/dashboard/applications/${record.id}/domains`}><Globe2 className="size-4" />Domains</Link>{record.publicUrl && <a className="inline-flex items-center gap-2 rounded-xl border border-brand-primary/15 px-4 py-2.5 font-bold" href={record.publicUrl} rel="noreferrer" target="_blank">Open <ExternalLink className="size-4" /></a>}<button className="inline-flex items-center gap-2 rounded-xl border border-brand-primary/15 px-4 py-2.5 font-bold" onClick={() => void loadLogs()} type="button"><ScrollText className="size-4" />Logs</button></div><dl className="grid gap-4 rounded-2xl border border-brand-primary/10 p-5 sm:grid-cols-2">{[['Stack', `${record.runtimeLanguage} ${record.runtimeVersion} · ${record.buildPack}`], ['Status', record.resourceStatus ?? record.status], ['Repository', record.sourceRepository], ['Branch', record.sourceRef], ['Port', record.applicationPort], ['Base directory', record.baseDirectory], ['Databases', record.databases.length ? record.databases.map(({ databaseName }) => databaseName).join(', ') : 'None'], ['Primary domain', record.domains.find(({ isPrimary }) => isPrimary)?.hostname ?? 'Pending'], ['Latest deployment', record.latestDeployment ? `${record.latestDeployment.status} · ${new Date(record.latestDeployment.createdAt).toLocaleString('en-IN')}` : 'None']].map(([label, value]) => <div key={String(label)}><dt className="text-xs font-bold uppercase text-app-muted">{label}</dt><dd className="mt-1 break-all">{String(value)}</dd></div>)}</dl>{record.failureReason && <p className="rounded-xl bg-red-500/10 p-4 text-red-600 dark:text-red-300">{record.failureReason}</p>}{logs && <pre className="max-h-96 overflow-auto rounded-2xl bg-gray-950 p-5 text-xs text-gray-100">{logs}</pre>}</> : <LoaderCircle className="size-6 animate-spin" />}</div>}</Offcanvas>}
-		{applicationId && record && active && !editing && <details className="fixed bottom-5 right-5 z-[70] w-[min(42rem,calc(100vw-2.5rem))] rounded-2xl border border-brand-primary/15 bg-app-surface shadow-2xl"><summary className="cursor-pointer list-none rounded-2xl bg-brand-action px-5 py-3 font-bold text-brand-ink">Scheduled tasks</summary><div className="max-h-[70vh] overflow-y-auto p-4"><ApplicationCronJobs applicationId={record.id} workspaceId={active.publicId} /></div></details>}
-	</div>;
+	return (
+		<div className="mx-auto max-w-6xl">
+			<div className="flex items-end justify-between gap-4">
+				<div>
+					<p className="text-sm font-semibold text-brand-primary dark:text-brand-action">
+						Workspace compute
+					</p>
+					<h2 className="mt-2 text-4xl font-black">Applications</h2>
+				</div>
+				<Link
+					className="inline-flex items-center gap-2 rounded-xl bg-brand-action px-5 py-3 font-bold text-brand-ink"
+					to="/dashboard/applications/create"
+				>
+					<Plus className="size-4" />
+					Deploy Application
+				</Link>
+			</div>
+			{loading ? (
+				<LoaderCircle className="mt-8 size-6 animate-spin" />
+			) : (
+				<div className="mt-7 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+					{rows.map((row) => {
+						const primary =
+							row.domains.find((domain) => domain.isPrimary) ?? row.domains[0];
+						return (
+							<Link
+								className="rounded-3xl border border-brand-primary/10 bg-app-surface p-6 transition hover:border-brand-action/60"
+								key={row.id}
+								to={`/dashboard/applications/${row.id}`}
+							>
+								<div className="flex items-start justify-between">
+									<FileCode2 className="size-6 text-brand-primary dark:text-brand-action" />
+									<span
+										className={`rounded-full px-2.5 py-1 text-xs font-bold capitalize ${row.resourceStatus === 'running' ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300' : 'bg-amber-500/10 text-amber-700 dark:text-amber-300'}`}
+									>
+										{row.resourceStatus ?? row.status}
+									</span>
+								</div>
+								<h3 className="mt-5 truncate text-xl font-bold">{row.name}</h3>
+								<p className="mt-2 text-sm text-app-muted">
+									{row.runtimeLanguage} {row.runtimeVersion}
+								</p>
+								<div className="mt-5 grid gap-2 text-sm">
+									<span className="flex items-center gap-2">
+										<GitBranch className="size-4 text-app-muted" />
+										{row.sourceRef}
+									</span>
+									<span className="flex items-center gap-2 truncate">
+										<Database className="size-4 text-app-muted" />
+										{row.databases.length
+											? row.databases
+													.map(({ databaseName }) => databaseName)
+													.join(', ')
+											: 'No database'}
+									</span>
+									<span className="flex items-center gap-2 truncate">
+										<Globe2 className="size-4 text-app-muted" />
+										{primary?.hostname ?? 'Domain pending'}
+									</span>
+								</div>
+							</Link>
+						);
+					})}
+					{!rows.length && (
+						<p className="rounded-2xl border border-dashed border-brand-primary/20 p-8 text-center text-app-muted md:col-span-2 xl:col-span-3">
+							No source applications yet.
+						</p>
+					)}
+				</div>
+			)}
+			{creating && active && (
+				<Offcanvas
+					onClose={() => navigate('/dashboard/applications')}
+					title="Deploy Application"
+					width="full"
+				>
+					{optionsLoading || !options.runtimes.length ? (
+						<div className="grid min-h-[50vh] place-items-center">
+							<LoaderCircle className="size-7 animate-spin" />
+						</div>
+					) : (
+						<DeployApplicationForm
+							onCreated={(id) =>
+								navigate(`/dashboard/applications/${id}`, { replace: true })
+							}
+							options={options}
+							workspaceId={active.publicId}
+						/>
+					)}
+				</Offcanvas>
+			)}
+			{editDirectoryTarget && (
+				<Offcanvas
+					onClose={() => setEditDirectoryTarget(null)}
+					title="Choose repository directory"
+					width="md"
+				>
+					<div className="mt-5 max-h-[70vh] overflow-y-auto rounded-2xl border border-brand-primary/10 p-2">
+						{editDirectories.map((directory) => (
+							<button
+								className="block w-full rounded-xl px-3 py-2 text-left font-mono text-sm hover:bg-brand-primary/5"
+								key={directory}
+								onClick={() => {
+									if (editDirectoryTarget === 'base')
+										setEditBaseDirectory(directory);
+									else
+										setEditPublishDirectory(directory === '/' ? '' : directory);
+									setEditDirectoryTarget(null);
+								}}
+								type="button"
+							>
+								{directory}
+							</button>
+						))}
+					</div>
+				</Offcanvas>
+			)}
+			{applicationId && (
+				<Offcanvas
+					onClose={() => navigate('/dashboard/applications')}
+					title={record?.name ?? 'Application details'}
+					width="full"
+				>
+					{record ? (
+						<div className="mt-5 grid gap-6">
+							<div className="flex flex-col gap-4 border-b border-brand-primary/10 pb-4 lg:flex-row lg:items-center">
+								<nav
+									className="flex min-w-0 flex-1 gap-1 overflow-x-auto"
+									aria-label="Application sections"
+								>
+									{[
+										'overview',
+										'edit',
+										'domains',
+										'logs',
+										'deployments',
+										'settings',
+									].map((tab) => (
+										<button
+											className={`whitespace-nowrap border-b-2 px-3 py-2 text-sm font-bold capitalize ${activeTab === tab ? 'border-brand-action text-app-foreground' : 'border-transparent text-app-muted hover:text-app-foreground'}`}
+											key={tab}
+											onClick={() => {
+												selectTab(tab);
+												if (tab === 'logs') void loadLogs();
+											}}
+											type="button"
+										>
+											{tab === 'deployments' ? 'Deployment history' : tab}
+										</button>
+									))}
+								</nav>
+								<div className="flex items-center justify-end gap-2">
+									{record.publicUrl && record.visibility === 'public' && (
+										<a
+											className="inline-flex items-center gap-2 rounded-xl bg-brand-action px-4 py-2.5 font-bold text-brand-ink"
+											href={record.publicUrl}
+											rel="noreferrer"
+											target="_blank"
+										>
+											Open <ExternalLink className="size-4" />
+										</a>
+									)}
+									<details className="relative">
+										<summary
+											className="grid size-11 cursor-pointer list-none place-items-center rounded-xl border border-brand-primary/15"
+											aria-label="Application actions"
+										>
+											<MoreVertical className="size-5" />
+										</summary>
+										<div className="absolute right-0 z-20 mt-2 grid w-56 gap-1 rounded-2xl border border-brand-primary/10 bg-app-surface p-2 shadow-xl">
+											{record.operationalStatus === 'paused' ||
+											record.operationalStatus === 'deactivated' ? (
+												<button
+													className="flex items-center gap-2 rounded-xl px-3 py-2 text-left hover:bg-brand-primary/5"
+													disabled={actionPending}
+													onClick={() =>
+														void control(
+															record.operationalStatus === 'deactivated'
+																? 'reactivate'
+																: 'start',
+														)
+													}
+													type="button"
+												>
+													<Play className="size-4" />
+													Resume
+												</button>
+											) : (
+												<button
+													className="flex items-center gap-2 rounded-xl px-3 py-2 text-left hover:bg-brand-primary/5"
+													disabled={actionPending}
+													onClick={() => void control('stop')}
+													type="button"
+												>
+													<Square className="size-4" />
+													Pause
+												</button>
+											)}
+											<button
+												className="flex items-center gap-2 rounded-xl px-3 py-2 text-left hover:bg-brand-primary/5"
+												disabled={actionPending}
+												onClick={() => void control('restart')}
+												type="button"
+											>
+												<RefreshCw className="size-4" />
+												Restart
+											</button>
+											<button
+												className="flex items-center gap-2 rounded-xl px-3 py-2 text-left hover:bg-brand-primary/5"
+												disabled={actionPending}
+												onClick={() => void control('redeploy')}
+												type="button"
+											>
+												<RefreshCw className="size-4" />
+												Redeploy
+											</button>
+											<button
+												className="flex items-center gap-2 rounded-xl px-3 py-2 text-left hover:bg-brand-primary/5"
+												disabled={actionPending}
+												onClick={() => void control('deactivate')}
+												type="button"
+											>
+												Deactivate
+											</button>
+											<button
+												className="flex items-center gap-2 rounded-xl px-3 py-2 text-left text-red-600 hover:bg-red-500/10"
+												onClick={() => selectTab('settings')}
+												type="button"
+											>
+												<Trash2 className="size-4" />
+												Delete application
+											</button>
+										</div>
+									</details>
+								</div>
+							</div>
+							{activeTab === 'overview' && (
+								<div className="grid gap-6">
+									<dl className="grid gap-5 rounded-2xl border border-brand-primary/10 p-5 sm:grid-cols-2 lg:grid-cols-3">
+										{[
+											[
+												'Stack',
+												`${record.runtimeLanguage} ${record.runtimeVersion}`,
+											],
+											[
+												'Status',
+												record.operationalStatus === 'active'
+													? (record.resourceStatus ?? record.status)
+													: record.operationalStatus,
+											],
+											['Repository', record.sourceRepository],
+											['Branch', record.sourceRef],
+											['Port', record.applicationPort],
+											['Project directory', record.baseDirectory],
+											[
+												'Databases',
+												record.databases.length
+													? record.databases
+															.map(({ databaseName }) => databaseName)
+															.join(', ')
+													: 'None',
+											],
+											[
+												'Primary domain',
+												record.domains.find(({ isPrimary }) => isPrimary)
+													?.hostname ?? 'Pending',
+											],
+											[
+												'Latest deployment',
+												record.latestDeployment
+													? `${record.latestDeployment.status} · ${new Date(record.latestDeployment.createdAt).toLocaleString('en-IN')}`
+													: 'None',
+											],
+										].map(([label, value]) => (
+											<div key={String(label)}>
+												<dt className="text-xs font-bold uppercase text-app-muted">
+													{label}
+												</dt>
+												<dd className="mt-1 break-all">{String(value)}</dd>
+											</div>
+										))}
+									</dl>
+									{record.failureReason && (
+										<p className="rounded-xl bg-red-500/10 p-4 text-red-600 dark:text-red-300">
+											{record.failureReason}
+										</p>
+									)}
+								</div>
+							)}
+							{activeTab === 'edit' && form(true)}
+							{activeTab === 'domains' && (
+								<div className="rounded-2xl border border-brand-primary/10 p-6">
+									<h3 className="text-xl font-bold">Connected domains</h3>
+									<div className="mt-4 grid gap-2">
+										{record.domains.map((domain) => (
+											<div
+												className="flex items-center justify-between rounded-xl bg-brand-primary/5 px-4 py-3"
+												key={domain.id}
+											>
+												<span>{domain.hostname}</span>
+												<span className="text-xs font-bold capitalize text-app-muted">
+													{domain.status} · SSL {domain.tlsStatus}
+												</span>
+											</div>
+										))}
+									</div>
+									<Link
+										className="mt-5 inline-flex rounded-xl bg-brand-action px-4 py-2.5 font-bold text-brand-ink"
+										to={`/dashboard/applications/${record.id}/domains`}
+									>
+										Manage domains
+									</Link>
+								</div>
+							)}
+							{activeTab === 'logs' && (
+								<div className="grid gap-3">
+									<div className="flex items-center justify-between">
+										<p className="text-sm text-app-muted">
+											Runtime logs are shown while running; otherwise the latest
+											deployment logs are used.
+										</p>
+										<button
+											className="rounded-xl border border-brand-primary/15 px-3 py-2 text-sm font-bold"
+											onClick={() => void loadLogs()}
+											type="button"
+										>
+											Refresh
+										</button>
+									</div>
+									<pre className="min-h-72 max-h-[65vh] overflow-auto rounded-2xl bg-gray-950 p-5 text-xs text-gray-100">
+										{logs || 'No logs available.'}
+									</pre>
+								</div>
+							)}
+							{activeTab === 'deployments' && (
+								<div className="grid gap-4">
+									<p className="text-sm text-app-muted">
+										Showing {history?.limit ?? 'unlimited'} entries · retained
+										for {history?.retentionDays ?? 'unlimited'} days by your
+										package.
+									</p>
+									{history ? (
+										history.items.map((deployment) => (
+											<details
+												className="rounded-2xl border border-brand-primary/10 p-4"
+												key={deployment.id}
+											>
+												<summary className="flex cursor-pointer list-none items-center justify-between gap-3">
+													<span>
+														<strong className="capitalize">
+															{deployment.status}
+														</strong>
+														<small className="ml-3 text-app-muted">
+															{deployment.trigger ?? 'manual'} ·{' '}
+															{deployment.createdAt
+																? new Date(deployment.createdAt).toLocaleString(
+																		'en-IN',
+																	)
+																: 'Time unavailable'}
+														</small>
+													</span>
+													<code className="text-xs">
+														{deployment.commitSha?.slice(0, 8) ??
+															deployment.id.slice(0, 8)}
+													</code>
+												</summary>
+												{deployment.commitMessage && (
+													<p className="mt-3 text-sm">
+														{deployment.commitMessage}
+													</p>
+												)}
+												{deployment.logs && (
+													<pre className="mt-4 max-h-96 overflow-auto rounded-xl bg-gray-950 p-4 text-xs text-gray-100">
+														{deployment.logs}
+													</pre>
+												)}
+											</details>
+										))
+									) : (
+										<LoaderCircle className="size-6 animate-spin" />
+									)}
+								</div>
+							)}
+							{activeTab === 'settings' && (
+								<div className="grid gap-6">
+									<div className="rounded-2xl border border-brand-primary/10 p-5">
+										<h3 className="font-bold">Scheduled tasks</h3>
+										<div className="mt-4">
+											<ApplicationCronJobs
+												applicationId={record.id}
+												workspaceId={active!.publicId}
+											/>
+										</div>
+									</div>
+									<div className="rounded-2xl border border-red-500/30 bg-red-500/5 p-5">
+										<h3 className="text-lg font-bold text-red-600">
+											Delete application
+										</h3>
+										<p className="mt-2 text-sm text-app-muted">
+											This deletes the deployed application, its managed domains
+											and scheduled tasks. Databases are kept unless selected
+											below.
+										</p>
+										{record.databases.length > 0 && (
+											<fieldset className="mt-4 grid gap-3">
+												<legend className="font-bold">
+													Also delete databases
+												</legend>
+												{record.databases.map((database) => (
+													<div className="grid gap-2" key={database.databaseId}>
+														<label className="flex items-center gap-3">
+															<input
+																checked={deleteDatabaseIds.includes(
+																	database.databaseId,
+																)}
+																onChange={(event) =>
+																	setDeleteDatabaseIds((current) =>
+																		event.target.checked
+																			? [...current, database.databaseId]
+																			: current.filter(
+																					(id) => id !== database.databaseId,
+																				),
+																	)
+																}
+																type="checkbox"
+															/>
+															Delete {database.databaseName}
+														</label>
+														{deleteDatabaseIds.includes(
+															database.databaseId,
+														) && (
+															<label className="grid gap-1 text-sm">
+																Type the database name
+																<input
+																	className={inputClass}
+																	onChange={(event) =>
+																		setDeleteDatabaseNames((current) => ({
+																			...current,
+																			[database.databaseId]: event.target.value,
+																		}))
+																	}
+																	value={
+																		deleteDatabaseNames[database.databaseId] ??
+																		''
+																	}
+																/>
+															</label>
+														)}
+													</div>
+												))}
+											</fieldset>
+										)}
+										<label className="mt-4 grid gap-2 font-semibold">
+											Type <code>{record.name}</code> to confirm
+											<input
+												className={inputClass}
+												onChange={(event) => setDeleteName(event.target.value)}
+												value={deleteName}
+											/>
+										</label>
+										<button
+											className="mt-4 inline-flex items-center gap-2 rounded-xl bg-red-600 px-4 py-3 font-bold text-white disabled:opacity-50"
+											disabled={
+												deleteName !== record.name ||
+												deleteDatabaseIds.some(
+													(id) =>
+														deleteDatabaseNames[id] !==
+														record.databases.find(
+															(database) => database.databaseId === id,
+														)?.databaseName,
+												) ||
+												actionPending
+											}
+											onClick={() => void destroyApplication()}
+											type="button"
+										>
+											<Trash2 className="size-4" />
+											Delete application
+										</button>
+									</div>
+								</div>
+							)}
+						</div>
+					) : (
+						<LoaderCircle className="mt-8 size-6 animate-spin" />
+					)}
+				</Offcanvas>
+			)}
+		</div>
+	);
 }

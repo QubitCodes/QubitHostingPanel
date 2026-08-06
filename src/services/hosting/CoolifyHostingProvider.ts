@@ -2,6 +2,7 @@ import { getEnvironment } from "@config/env";
 import type {
   HostingProvider,
   ProviderConnectionResult,
+  ProviderDeployment,
   ProviderJob,
   ProviderJobStatus,
   ProviderResource,
@@ -140,6 +141,33 @@ export class CoolifyHostingProvider implements HostingProvider {
 		const endpoint = action === 'redeploy' ? 'start?force=true' : action;
 		const result = await this.request<{ deployment_uuid?: string }>(`/applications/${encodeURIComponent(applicationId)}/${endpoint}`, { method: 'POST' });
 		return { deploymentId: result.deployment_uuid };
+	}
+
+	public async deleteApplication(applicationId: string): Promise<void> {
+		await this.request(`/applications/${encodeURIComponent(applicationId)}?delete_configurations=true&delete_volumes=true&docker_cleanup=true&delete_connected_networks=true`, { method: 'DELETE' });
+	}
+
+	public async updateApplicationSettings(applicationId: string, input: { autoDeployEnabled?: boolean; visibility?: 'private' | 'public' }): Promise<void> {
+		await this.request(`/applications/${encodeURIComponent(applicationId)}`, { method: 'PATCH', body: JSON.stringify({
+			is_auto_deploy_enabled: input.autoDeployEnabled,
+		}) });
+	}
+
+	public async listApplicationDeployments(applicationId: string, take = 20): Promise<readonly ProviderDeployment[]> {
+		const result = await this.request<unknown>(`/deployments/applications/${encodeURIComponent(applicationId)}?skip=0&take=${Math.max(1, Math.min(100, Math.trunc(take)))}`);
+		const rows = Array.isArray(result) ? result : (result as { deployments?: unknown; data?: unknown } | null)?.deployments ?? (result as { data?: unknown } | null)?.data;
+		return Array.isArray(rows) ? rows.map((row) => {
+			const item = row as Record<string, unknown>;
+			return {
+				id: String(item.deployment_uuid ?? item.uuid ?? item.id ?? ''),
+				status: String(item.status ?? 'unknown'),
+				commitSha: typeof item.commit === 'string' ? item.commit : typeof item.git_commit_sha === 'string' ? item.git_commit_sha : null,
+				commitMessage: typeof item.commit_message === 'string' ? item.commit_message : null,
+				createdAt: typeof item.created_at === 'string' ? item.created_at : null,
+				logs: typeof item.logs === 'string' ? item.logs : null,
+				trigger: item.is_webhook === true ? 'webhook' : item.is_api === true ? 'api' : 'manual',
+			};
+		}) : [];
 	}
 
   public async listResources(): Promise<readonly ProviderResource[]> {
@@ -306,6 +334,7 @@ export class CoolifyHostingProvider implements HostingProvider {
       autogenerate_domain: !domains,
       domains,
       health_check_enabled: true,
+	  is_auto_deploy_enabled: input.source ? (input.autoDeployEnabled ?? false) : false,
       health_check_path: "/",
       health_check_port: runtimePort,
       instant_deploy: !input.persistentStorages?.length,

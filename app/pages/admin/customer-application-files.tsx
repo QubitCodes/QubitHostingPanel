@@ -7,10 +7,10 @@ import { authenticatedFetch } from '@root/app/utils/authenticatedFetch';
 interface TreeItem { path: string; size?: number; type: 'blob' | 'tree' }
 interface Tree { branch: string; files: TreeItem[]; repository: string }
 interface Preview { content: string; path: string; sensitive: boolean; size: number }
-type LifecycleAction = 'redeploy' | 'restart' | 'start' | 'stop';
+type LifecycleAction = 'redeploy' | 'restart' | 'start' | 'stop' | 'suspend' | 'unsuspend';
 
 const SENSITIVE = /(^|\/)(?:\.env(?:\..*)?|\.npmrc|\.pypirc|id_rsa|id_ed25519|.*\.(?:pem|key|p12|pfx)|credentials(?:\.json)?|secrets?\.(?:json|ya?ml))$/i;
-const CONTROLS = [{ action: 'start', icon: Play, label: 'Start' }, { action: 'stop', icon: Square, label: 'Stop' }, { action: 'restart', icon: RotateCw, label: 'Restart' }, { action: 'redeploy', icon: RefreshCw, label: 'Redeploy' }] as const;
+const CONTROLS = [{ action: 'start', icon: Play, label: 'Start' }, { action: 'stop', icon: Square, label: 'Stop' }, { action: 'restart', icon: RotateCw, label: 'Restart' }, { action: 'redeploy', icon: RefreshCw, label: 'Redeploy' }, { action: 'suspend', icon: Square, label: 'Suspend' }, { action: 'unsuspend', icon: Play, label: 'Unsuspend' }] as const;
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
 	const response = await authenticatedFetch(path, init);

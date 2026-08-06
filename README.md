@@ -157,7 +157,9 @@ Initial publication policy: Launch, Growth, and Business may be public after the
 - `/api/v1/workspaces/:workspaceId/applications/analyze-source` - inspect approved manifests and environment templates to suggest stack, framework, branch, directories, and variables.
 - `/api/v1/workspaces/:workspaceId/applications/github-connections` - connect and list workspace-owned GitHub App installations.
 - `/api/v1/workspaces/:workspaceId/applications/github-connections/:connectionId/repositories` - list repositories explicitly granted to that installation.
-- `/api/v1/workspaces/:workspaceId/applications/:applicationId` - update deployable configuration and queue a fresh deployment.
+- `/api/v1/workspaces/:workspaceId/applications/:applicationId` - update deployable configuration or perform confirmed application/database cleanup.
+- `/api/v1/workspaces/:workspaceId/applications/:applicationId/action` - package-authorized start, pause, restart, redeploy, deactivate, and reactivate actions.
+- `/api/v1/workspaces/:workspaceId/applications/:applicationId/deployments` - package-limited deployment history and retained build logs.
 - `/api/v1/workspaces/:workspaceId/applications/options` - workspace-authorized runtime, database, entitlement, and reusable-domain choices loaded only when deployment starts.
 - `/api/v1/workspaces/:workspaceId/domain-ownership` - list or register audited root-domain ownership claims.
 - `/api/v1/workspaces/:workspaceId/applications/:applicationId/logs` - workspace-authorized provider logs.
@@ -184,6 +186,8 @@ Initial publication policy: Launch, Growth, and Business may be public after the
 Create one public GitHub App with repository `Contents: Read-only` and `Metadata: Read-only` permissions. Set its setup URL to `/api/v1/github/callback`, enable installation on user and organisation accounts, and configure the `GITHUB_APP_*` values plus `COOLIFY_GITHUB_PRIVATE_KEY_UUID`. Each workspace installation is reconciled idempotently to its own Coolify GitHub Source; no Source UUID is shared globally. PKCS#1 keys downloaded by GitHub are normalized internally. Repository access remains selectable and reviewable in GitHub. Real `.env` files are never fetched; only environment templates such as `.env.example` are inspected.
 
 Dockerfile deployments are intentionally disabled until package entitlements and workload isolation policies are enabled.
+
+GitHub App deployments expose a per-application auto-deploy switch. Packages independently control manual deployment availability, automatic deployment availability, history count, and retention duration. Private application visibility removes public provider routes without deleting the provider resource.
 
 - `/api/v1/auth/sessions/:sessionId` - inspect, label, or revoke one owned session.
 - `/api/v1/auth/sessions/others` - revoke every other active session.

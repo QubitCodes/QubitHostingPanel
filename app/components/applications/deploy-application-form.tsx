@@ -7,6 +7,7 @@ import {
   Database,
   FileCode2,
   FileUp,
+  FolderTree,
   Github,
   Globe2,
   Info,
@@ -59,12 +60,14 @@ interface Options {
   limits?: {
     customDomains: { allowed: boolean; current: number; limit: number | null };
     databases: { allowed: boolean; current: number; limit: number | null };
+	deployments?: { autoEnabled: boolean; manualEnabled: boolean };
   };
   runtimes: RuntimeOption[];
   suggestedDomainSuffix?: string;
 }
 interface SourceAnalysis {
   branches: string[];
+  directories: string[];
   candidates: Array<{
 	commands?: { build?: string; install?: string; start?: string };
     framework?: string;
@@ -351,6 +354,8 @@ export function DeployApplicationForm({
   const [framework, setFramework] = useState<string>("");
   const [projectDirectory, setProjectDirectory] = useState("/");
   const [outputDirectory, setOutputDirectory] = useState("");
+	const [directoryTarget, setDirectoryTarget] = useState<'output' | 'project' | null>(null);
+	const [directorySearch, setDirectorySearch] = useState('');
 	const [installCommand, setInstallCommand] = useState("");
 	const [buildCommand, setBuildCommand] = useState("");
 	const [startCommand, setStartCommand] = useState("");
@@ -822,6 +827,7 @@ export function DeployApplicationForm({
             runtimeCode: selectedRuntime.code,
             framework: framework || null,
             deploymentEnvironment: data.get("deploymentEnvironment"),
+			autoDeployEnabled: data.get('autoDeployEnabled') === 'on' && options.limits?.deployments?.autoEnabled === true,
             buildPack: stack === "static" ? "static" : "nixpacks",
             port: Number(data.get("port") || selectedRuntime.defaultPort),
             baseDirectory: projectDirectory,
@@ -1183,13 +1189,7 @@ export function DeployApplicationForm({
           </fieldset>
           <label className="grid gap-2 font-semibold">
             Project directory
-            <input
-              className={inputClass}
-              onChange={(event) => setProjectDirectory(event.target.value)}
-              placeholder="/ or apps/api"
-              required
-              value={projectDirectory}
-            />
+			<div className="flex gap-2"><input className={`${inputClass} min-w-0 flex-1`} onChange={(event) => setProjectDirectory(event.target.value)} placeholder="/ or apps/api" required value={projectDirectory} /><button className="inline-flex items-center gap-2 rounded-xl border border-brand-primary/15 px-4 font-bold" disabled={!analysis} onClick={() => setDirectoryTarget('project')} type="button"><FolderTree className="size-4" />Browse</button></div>
             <Hint>
               The repository folder containing this application. It is detected
               from package.json, composer.json, or Python configuration when
@@ -1199,12 +1199,7 @@ export function DeployApplicationForm({
           {stack === "static" && (
             <label className="grid gap-2 font-semibold">
               Output directory
-              <input
-                className={inputClass}
-                onChange={(event) => setOutputDirectory(event.target.value)}
-                placeholder="dist"
-                value={outputDirectory}
-              />
+			  <div className="flex gap-2"><input className={`${inputClass} min-w-0 flex-1`} onChange={(event) => setOutputDirectory(event.target.value)} placeholder="dist" value={outputDirectory} /><button className="inline-flex items-center gap-2 rounded-xl border border-brand-primary/15 px-4 font-bold" disabled={!analysis} onClick={() => setDirectoryTarget('output')} type="button"><FolderTree className="size-4" />Browse</button></div>
               <Hint>
                 The folder containing built static files, such as dist for Vite
                 or build for Create React App.
@@ -1227,6 +1222,10 @@ export function DeployApplicationForm({
               stack version provides the recommended default.
             </Hint>
           </label>
+		  <label className="flex items-start gap-3 rounded-xl border border-brand-primary/10 p-4">
+			<input className="mt-1" defaultChecked={options.limits?.deployments?.autoEnabled === true} disabled={!options.limits?.deployments?.autoEnabled} name="autoDeployEnabled" type="checkbox" />
+			<span><strong>Auto-deploy on push</strong><Hint>{options.limits?.deployments?.autoEnabled ? 'Deploy new commits pushed to the selected branch. You can disable this later in application settings.' : 'Automatic deployments are not included in this package. Manual deployment remains available.'}</Hint></span>
+		  </label>
           <details className="rounded-xl border border-brand-primary/10 p-4">
             <summary className="cursor-pointer font-bold">
               Advanced build settings{" "}
@@ -1880,6 +1879,11 @@ export function DeployApplicationForm({
           </div>
         </Offcanvas>
       )}
+	  {directoryTarget && analysis && (
+		<Offcanvas onClose={() => { setDirectoryTarget(null); setDirectorySearch(''); }} title={`Choose ${directoryTarget === 'project' ? 'project' : 'output'} directory`} width="md">
+		  <div className="mt-5 grid gap-3"><input autoFocus className={inputClass} onChange={(event) => setDirectorySearch(event.target.value)} placeholder="Search repository folders" value={directorySearch} /><div className="max-h-[65vh] overflow-y-auto rounded-2xl border border-brand-primary/10 p-2">{analysis.directories.filter((directory) => directory.toLowerCase().includes(directorySearch.toLowerCase())).map((directory) => <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left font-mono text-sm hover:bg-brand-primary/5" key={directory} onClick={() => { if (directoryTarget === 'project') setProjectDirectory(directory); else setOutputDirectory(directory === '/' ? '' : directory); setDirectoryTarget(null); setDirectorySearch(''); }} type="button"><FolderTree className="size-4 shrink-0 text-app-muted" />{directory}</button>)}</div></div>
+		</Offcanvas>
+	  )}
       <div className="fixed bottom-0 left-0 right-0 z-10 flex justify-end border-t border-brand-primary/10 bg-app-surface/95 px-5 py-4 backdrop-blur lg:left-[var(--app-sidebar-width,16rem)]">
         <button
           className="inline-flex items-center gap-2 rounded-xl bg-brand-action px-6 py-3 font-black text-brand-ink disabled:opacity-60"

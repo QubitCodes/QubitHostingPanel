@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { getTableConfig } from 'drizzle-orm/pg-core';
 
 import { applicationDatabaseBindings, applicationDeployments } from '@db/schema';
-import { createApplicationSchema } from '@schemas/application';
+import { applicationActionSchema, createApplicationSchema, deleteApplicationSchema, updateApplicationSchema } from '@schemas/application';
 
 describe('customer application deployment', () => {
 	it('accepts a public source, runtime, port, and workspace database binding', () => {
@@ -15,5 +15,11 @@ describe('customer application deployment', () => {
 	it('defines durable binding and deployment relationships', () => {
 		expect(getTableConfig(applicationDatabaseBindings).foreignKeys).toHaveLength(2);
 		expect(getTableConfig(applicationDeployments).foreignKeys).toHaveLength(3);
+	});
+	it('validates lifecycle, auto-deploy, visibility, and destructive confirmations', () => {
+		expect(applicationActionSchema.parse({ action: 'deactivate' }).action).toBe('deactivate');
+		expect(updateApplicationSchema.parse({ branch: 'main', baseDirectory: '/', port: 3000, autoDeployEnabled: false, visibility: 'private' }).visibility).toBe('private');
+		expect(deleteApplicationSchema.safeParse({ acceptedImpact: false, confirmationName: 'API', databases: [] }).success).toBe(false);
+		expect(deleteApplicationSchema.parse({ acceptedImpact: true, confirmationName: 'API', databases: [{ id: '00000000-0000-4000-8000-000000000001', confirmationName: 'api_db' }] }).databases).toHaveLength(1);
 	});
 });

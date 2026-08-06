@@ -38,6 +38,7 @@ export interface SourceCandidate {
 }
 export interface SourceAnalysis {
   branches: string[];
+  directories: string[];
   candidates: SourceCandidate[];
   environmentKeys: Array<{ isSecret: boolean; key: string; required: boolean }>;
   evidence: string[];
@@ -234,6 +235,7 @@ export async function analyzeApplicationSource(
   const paths = (tree.tree ?? [])
     .filter((item) => item.type === "blob" && item.path)
     .map((item) => item.path!);
+	const directories = [...new Set(['/'].concat((tree.tree ?? []).filter((item) => item.type === 'tree' && item.path).map((item) => item.path!)))].sort((left, right) => left.localeCompare(right));
   const candidates: SourceCandidate[] = [];
   const evidence: string[] = [];
   const wordpressMarker = paths.find((path) => /(^|\/)wp-includes\/version\.php$/.test(path));
@@ -384,6 +386,7 @@ export async function analyzeApplicationSource(
   const selected = unique[0];
   return {
     repository: `${repository.owner}/${repository.repository}`,
+	directories,
     branches: branchRows.map(({ name }) => name),
     candidates: unique.length
       ? unique

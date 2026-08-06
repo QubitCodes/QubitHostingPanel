@@ -9,6 +9,8 @@ export const runtimeImageStatusEnum = pgEnum('runtime_image_status', ['active', 
 export const applicationBuildStatusEnum = pgEnum('application_build_status', ['queued', 'building', 'succeeded', 'failed', 'cancelled']);
 export const applicationEnvironmentEnum = pgEnum('application_environment', ['development', 'testing', 'staging', 'production']);
 export const applicationDeploymentStatusEnum = pgEnum('application_deployment_status', ['queued', 'deploying', 'running', 'failed', 'stopped']);
+export const applicationOperationalStatusEnum = pgEnum('application_operational_status', ['active', 'paused', 'deactivated', 'suspended', 'deleting', 'cleanup_failed']);
+export const applicationVisibilityEnum = pgEnum('application_visibility', ['public', 'private']);
 export const applicationDomainTypeEnum = pgEnum('application_domain_type', ['platform', 'custom']);
 export const applicationDomainStatusEnum = pgEnum('application_domain_status', ['pending', 'verified', 'failed']);
 export const applicationDomainTlsStatusEnum = pgEnum('application_domain_tls_status', ['pending', 'provisioning', 'active', 'failed']);
@@ -72,6 +74,11 @@ export const applicationBuilds = pgTable('application_builds', {
 	completedAt: timestamp('completed_at', { withTimezone: true }),
 	failureReason: text('failure_reason'),
 	metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default({}),
+	operationalStatus: applicationOperationalStatusEnum('operational_status').notNull().default('active'),
+	visibility: applicationVisibilityEnum('visibility').notNull().default('public'),
+	autoDeployEnabled: boolean('auto_deploy_enabled').notNull().default(false),
+	suspendedAt: timestamp('suspended_at', { withTimezone: true }),
+	suspensionReason: text('suspension_reason'),
 	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 	updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 	deletedAt: timestamp('deleted_at', { withTimezone: true }),
@@ -133,6 +140,12 @@ export const applicationDeployments = pgTable('application_deployments', {
 	providerDeploymentId: varchar('provider_deployment_id', { length: 255 }),
 	publicUrl: varchar('public_url', { length: 500 }),
 	failureReason: text('failure_reason'),
+	trigger: varchar('trigger', { length: 40 }).notNull().default('manual'),
+	commitSha: varchar('commit_sha', { length: 64 }),
+	commitMessage: text('commit_message'),
+	logsCiphertext: text('logs_ciphertext'),
+	logsCapturedAt: timestamp('logs_captured_at', { withTimezone: true }),
+	expiresAt: timestamp('expires_at', { withTimezone: true }),
 	startedAt: timestamp('started_at', { withTimezone: true }),
 	completedAt: timestamp('completed_at', { withTimezone: true }),
 	metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default({}),
@@ -140,7 +153,7 @@ export const applicationDeployments = pgTable('application_deployments', {
 	updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 	deletedAt: timestamp('deleted_at', { withTimezone: true }),
 	deleteReason: varchar('delete_reason', { length: 500 }),
-}, (table) => [index('application_deployments_workspace_status_idx').on(table.workspaceId, table.status, table.createdAt), index('application_deployments_build_created_idx').on(table.applicationBuildId, table.createdAt)]);
+}, (table) => [index('application_deployments_workspace_status_idx').on(table.workspaceId, table.status, table.createdAt), index('application_deployments_build_created_idx').on(table.applicationBuildId, table.createdAt), index('application_deployments_expiry_idx').on(table.expiresAt).where(sql`${table.deletedAt} IS NULL`)]);
 
 /** One shared database engine instance capable of hosting many isolated logical databases. */
 export const databaseClusters = pgTable('database_clusters', {

@@ -1,6 +1,7 @@
 import type {
 	HostingProvider,
 	ProviderConnectionResult,
+	ProviderDeployment,
 	ProviderJob,
 	ProviderJobStatus,
 	ProviderResource,
@@ -36,6 +37,9 @@ export class MockHostingProvider implements HostingProvider {
 	}
 
 	public async getApplicationLogs(): Promise<string> { return 'Mock application is running.'; }
+	public async deleteApplication(): Promise<void> {}
+	public async listApplicationDeployments(): Promise<readonly ProviderDeployment[]> { return []; }
+	public async updateApplicationSettings(): Promise<void> {}
 
 	public async updateApplicationDomains(): Promise<void> { return Promise.resolve(); }
 	public async createApplicationScheduledTask(_applicationId: string, input: ProviderScheduledTaskInput): Promise<ProviderScheduledTask> { return { ...input, uuid: crypto.randomUUID() }; }

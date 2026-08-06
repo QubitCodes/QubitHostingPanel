@@ -265,6 +265,14 @@ export default [
       "api/v1/workspaces/applications/logs.ts",
     ),
     route(
+      "workspaces/:workspaceId/applications/:applicationId/action",
+      "api/v1/workspaces/applications/action.ts",
+    ),
+    route(
+      "workspaces/:workspaceId/applications/:applicationId/deployments",
+      "api/v1/workspaces/applications/deployments.ts",
+    ),
+    route(
       "workspaces/:workspaceId/applications/:applicationId/cron-jobs",
       "api/v1/workspaces/applications/cron-jobs.ts",
     ),

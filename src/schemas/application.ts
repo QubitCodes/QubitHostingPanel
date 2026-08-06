@@ -11,6 +11,7 @@ export const createApplicationSchema = z.object({
 	branch: z.string().trim().min(1).max(255).regex(/^[a-zA-Z0-9._/-]+$/).default('main'),
 	buildPack: z.enum(['nixpacks', 'static']).default('nixpacks'),
 	deploymentEnvironment: z.enum(['development', 'testing', 'staging', 'production']).default('production'),
+	autoDeployEnabled: z.boolean().default(false),
 	framework: z.string().trim().toLowerCase().max(80).nullable().optional(),
 	environmentVariables: z.array(z.object({ key: z.string().trim().toUpperCase().regex(/^[A-Z_][A-Z0-9_]*$/).max(120), value: z.string().max(16384), isSecret: z.boolean().default(true), scope: z.enum(['runtime', 'build', 'both']).default('runtime') })).max(200).default([]),
 	installCommand: command,
@@ -27,7 +28,12 @@ export const createApplicationSchema = z.object({
 });
 export type CreateApplicationRequest = z.infer<typeof createApplicationSchema>;
 export const updateApplicationSchema = z.object({
+	name: z.string().trim().min(2).max(80).regex(/^[a-zA-Z0-9][a-zA-Z0-9 _-]*$/).optional(),
 	branch: z.string().trim().min(1).max(255).regex(/^[a-zA-Z0-9._/-]+$/),
+	deploymentEnvironment: z.enum(['development', 'testing', 'staging', 'production']).optional(),
+	framework: z.string().trim().toLowerCase().max(80).nullable().optional(),
+	autoDeployEnabled: z.boolean().optional(),
+	visibility: z.enum(['public', 'private']).optional(),
 	installCommand: command,
 	buildCommand: command,
 	startCommand: command,
@@ -36,6 +42,10 @@ export const updateApplicationSchema = z.object({
 	port: z.number().int().min(1).max(65535),
 }).strict();
 export type UpdateApplicationRequest = z.infer<typeof updateApplicationSchema>;
+export const applicationActionSchema = z.object({ action: z.enum(['start', 'stop', 'restart', 'redeploy', 'deactivate', 'reactivate']), reason: z.string().trim().max(500).optional() }).strict();
+export const deleteApplicationSchema = z.object({ acceptedImpact: z.literal(true), confirmationName: z.string().trim().min(1).max(80), databases: z.array(z.object({ id: z.uuid(), confirmationName: z.string().trim().min(1).max(120) }).strict()).max(5).default([]) }).strict();
+export type ApplicationActionRequest = z.infer<typeof applicationActionSchema>;
+export type DeleteApplicationRequest = z.infer<typeof deleteApplicationSchema>;
 export const analyzeApplicationSourceSchema = z.object({ repository: z.url({ protocol: /^https$/ }).refine((value) => new URL(value).hostname === 'github.com', 'Automatic source analysis currently supports GitHub repositories.'), branch: z.string().trim().min(1).max(255).regex(/^[a-zA-Z0-9._/-]+$/).default('main'), githubConnectionId: z.uuid().optional() }).strict();
 export type AnalyzeApplicationSourceRequest = z.infer<typeof analyzeApplicationSourceSchema>;
 export const createApplicationDomainSchema = z.object({ hostname }).strict();

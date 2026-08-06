@@ -1545,6 +1545,17 @@ export const OPENAPI_DOCUMENT = {
 					'422': { description: 'Application configuration is invalid.' },
 				},
 			},
+			delete: {
+				summary: 'Delete an application and optionally selected exclusive databases', operationId: 'deleteWorkspaceApplication', security: [{ bearerAuth: [] }],
+				parameters: [{ $ref: '#/components/parameters/WorkspaceId' }, { $ref: '#/components/parameters/ApplicationId' }],
+				responses: { '200': { description: 'Provider resource removed and local records soft-deleted.' }, '422': { description: 'Typed confirmations or database dependencies do not match.' }, '502': { description: 'Provider cleanup failed; application is marked cleanup_failed.' } },
+			},
+		},
+		'/workspaces/{workspaceId}/applications/{applicationId}/action': {
+			post: { summary: 'Start, pause, restart, redeploy, deactivate, or reactivate an application', operationId: 'controlWorkspaceApplication', security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/WorkspaceId' }, { $ref: '#/components/parameters/ApplicationId' }], responses: { '202': { description: 'Provider lifecycle action accepted and audited.' }, '403': { description: 'Application is administrator-suspended.' }, '422': { description: 'Manual deployments are not included in the package.' } } },
+		},
+		'/workspaces/{workspaceId}/applications/{applicationId}/deployments': {
+			get: { summary: 'List package-limited deployment history and captured logs', operationId: 'listWorkspaceApplicationDeployments', security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/WorkspaceId' }, { $ref: '#/components/parameters/ApplicationId' }], responses: { '200': { description: 'History includes effective entry and retention limits.' }, '404': { description: 'Application not found.' } } },
 		},
 		'/workspaces/{workspaceId}/applications/options': {
 			get: {
@@ -1567,7 +1578,7 @@ export const OPENAPI_DOCUMENT = {
 					{ $ref: '#/components/parameters/ApplicationId' },
 				],
 				responses: {
-					'200': { description: 'Latest provider application logs.' },
+					'200': { description: 'Runtime logs, falling back to latest deployment logs when the application is not running.' },
 					'404': { description: 'Application not found in workspace.' },
 				},
 			},

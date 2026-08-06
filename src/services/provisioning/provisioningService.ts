@@ -286,6 +286,7 @@ export async function processProvisioningJobs(
             }>)
           : [];
         return {
+		  autoDeployEnabled: configuredApplication?.build.autoDeployEnabled,
           name: resourceName,
           persistentStorages: frameworkDefinition(
             configuredApplication?.build.framework,

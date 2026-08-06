@@ -1,17 +1,13 @@
 import { resp } from '@qubitcodes/qcresp';
 import { ApplicationController } from '@controllers/ApplicationController';
-import { deleteApplicationSchema, updateApplicationSchema } from '@schemas/application';
+import { applicationActionSchema } from '@schemas/application';
 import { workspacePublicIdSchema } from '@schemas/workspace';
 import { getRequestMetadata, parseJson } from '@utils/request';
 
-/** Update one workspace-owned application configuration. */
+/** Applies one validated customer application lifecycle action. */
 export async function action({ params, request }: { params: { applicationId?: string; workspaceId?: string }; request: Request }): Promise<Response> {
 	const workspaceId = workspacePublicIdSchema.safeParse(Number(params.workspaceId));
 	if (!workspaceId.success || !params.applicationId) return resp.failure('Application not found.', resp.codes.RESOURCE_NOT_FOUND, undefined, null, undefined, 404);
-	if (request.method === 'DELETE') {
-		const input = await parseJson(request, deleteApplicationSchema);
-		return input instanceof Response ? input : ApplicationController.destroy(request, workspaceId.data, params.applicationId, input, getRequestMetadata(request));
-	}
-	const input = await parseJson(request, updateApplicationSchema);
-	return input instanceof Response ? input : ApplicationController.update(request, workspaceId.data, params.applicationId, input, getRequestMetadata(request));
+	const input = await parseJson(request, applicationActionSchema);
+	return input instanceof Response ? input : ApplicationController.control(request, workspaceId.data, params.applicationId, input, getRequestMetadata(request));
 }
