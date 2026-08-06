@@ -164,6 +164,99 @@ function Hint({ children }: { children: string }) {
   );
 }
 
+/** Splits repository scan evidence into a file path and a readable result. */
+function evidenceParts(evidence: string): { detail: string; path: string } {
+  for (const separator of [" identifies ", " provides "]) {
+    const separatorIndex = evidence.indexOf(separator);
+    if (separatorIndex >= 0) {
+      return {
+        path: evidence.slice(0, separatorIndex),
+        detail: `${separator.trim()} ${evidence.slice(separatorIndex + separator.length)}`,
+      };
+    }
+  }
+  return { detail: evidence, path: "Repository scan" };
+}
+
+/** Presents detected source metadata without overwhelming the deployment form. */
+function DetectionSummary({ analysis }: { analysis: SourceAnalysis }) {
+  const candidate = analysis.candidates[0];
+  const stackLabel = STACKS.find(({ code }) => code === candidate?.stack)?.label;
+  const detectedFramework = frameworkDefinition(candidate?.framework)?.label;
+  const evidence = analysis.evidence.map(evidenceParts);
+
+  return (
+    <div className="overflow-hidden rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.06]">
+      <div className="flex items-start gap-3 p-4">
+        <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">
+          <Check className="size-5" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="font-bold text-emerald-800 dark:text-emerald-200">
+            Source detection complete
+          </p>
+          <p className="mt-1 text-xs leading-5 text-app-muted">
+            We inspected repository manifests and suggested the configuration below.
+          </p>
+        </div>
+      </div>
+
+      <dl className="grid gap-px border-y border-emerald-500/15 bg-emerald-500/15 sm:grid-cols-2">
+        {[
+          ["Stack", stackLabel ?? "Not detected"],
+          ["Framework", detectedFramework ?? "Not detected"],
+          ["Project directory", candidate?.projectDirectory || "Repository root"],
+          [
+            "Environment variables",
+            analysis.environmentKeys.length
+              ? `${analysis.environmentKeys.length} keys found`
+              : "None found",
+          ],
+        ].map(([label, value]) => (
+          <div className="min-w-0 bg-app-surface/95 px-4 py-3" key={label}>
+            <dt className="text-[0.68rem] font-bold uppercase tracking-wide text-app-muted">
+              {label}
+            </dt>
+            <dd className="mt-1 truncate text-sm font-semibold" title={value}>
+              {value}
+            </dd>
+          </div>
+        ))}
+      </dl>
+
+      <details className="group">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-bold text-emerald-800 marker:content-none dark:text-emerald-200">
+          <span>
+            View detection details{evidence.length ? ` (${evidence.length})` : ""}
+          </span>
+          <ChevronDown className="size-4 shrink-0 transition-transform group-open:rotate-180" />
+        </summary>
+        <div className="max-h-64 overflow-y-auto border-t border-emerald-500/15 px-4 py-2">
+          {evidence.length ? (
+            <ul className="divide-y divide-brand-primary/10">
+              {evidence.map((item, index) => (
+                <li className="flex min-w-0 items-start gap-3 py-3" key={`${item.path}-${index}`}>
+                  <FileCode2 className="mt-0.5 size-4 shrink-0 text-emerald-700 dark:text-emerald-300" />
+                  <div className="min-w-0">
+                    <p className="truncate text-xs font-semibold" title={item.path}>
+                      {item.path}
+                    </p>
+                    <p className="mt-0.5 text-xs text-app-muted">{item.detail}</p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="py-3 text-xs text-app-muted">
+              Repository inspected; no specific framework evidence was found.
+            </p>
+          )}
+        </div>
+      </details>
+    </div>
+  );
+}
+
 /** Opens a centered GitHub setup window while keeping the deployment form mounted. */
 function openGithubPopup(url: string, name: string): Window | null {
   const width = Math.min(960, window.screen.availWidth - 40);
@@ -831,13 +924,7 @@ export function DeployApplicationForm({
               appear after repository detection.
             </Hint>
           </label>}
-          {analysis && (
-            <div className="rounded-xl bg-emerald-500/10 p-3 text-xs text-emerald-700 dark:text-emerald-300">
-              <Check className="mr-1 inline size-4" />
-              {analysis.evidence.join(" · ") ||
-                "Repository inspected; no specific framework was detected."}
-            </div>
-          )}
+          {analysis && <DetectionSummary analysis={analysis} />}
         </Section>
         <Section
           description="Detected values are suggestions. You remain in control of the deployment configuration."
