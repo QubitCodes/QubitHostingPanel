@@ -9,6 +9,14 @@ interface InstallationAccount {
   name?: string | null;
   type: string;
 }
+
+/** Typed GitHub API failure used to distinguish a removed installation from a transient provider error. */
+export class GithubApiError extends Error {
+  public constructor(public readonly status: number) {
+    super(`GitHub returned HTTP ${status}.`);
+    this.name = "GithubApiError";
+  }
+}
 export interface GitHubInstallation {
   account: InstallationAccount;
   html_url?: string;
@@ -82,7 +90,7 @@ async function github<T>(
     },
     signal: AbortSignal.timeout(15_000),
   });
-  if (!response.ok) throw new Error(`GitHub returned HTTP ${response.status}.`);
+  if (!response.ok) throw new GithubApiError(response.status);
   return response.json() as Promise<T>;
 }
 
@@ -153,7 +161,10 @@ export async function githubInstallationToken(
 export async function githubInstallationRepositories(
   installationId: string,
 ): Promise<GitHubRepositoryOption[]> {
-  const result = await github<{
+  const token = await githubInstallationToken(installationId);
+  const repositories: GitHubRepositoryOption[] = [];
+  for (let page = 1; page <= 100; page += 1) {
+    const result = await github<{
     repositories: Array<{
       default_branch: string;
       full_name: string;
@@ -163,19 +174,22 @@ export async function githubInstallationRepositories(
       owner: { login: string };
       private: boolean;
     }>;
-  }>(
-    "/installation/repositories?per_page=100",
-    await githubInstallationToken(installationId),
-  );
-  return result.repositories.map((repository) => ({
-    id: repository.id,
-    name: repository.name,
-    fullName: repository.full_name,
-    owner: repository.owner.login,
-    url: repository.html_url,
-    defaultBranch: repository.default_branch,
-    isPrivate: repository.private,
-  }));
+    }>(
+      `/installation/repositories?per_page=100&page=${page}`,
+      token,
+    );
+    repositories.push(...result.repositories.map((repository) => ({
+      id: repository.id,
+      name: repository.name,
+      fullName: repository.full_name,
+      owner: repository.owner.login,
+      url: repository.html_url,
+      defaultBranch: repository.default_branch,
+      isPrivate: repository.private,
+    })));
+    if (result.repositories.length < 100) break;
+  }
+  return [...new Map(repositories.map((repository) => [repository.id, repository])).values()];
 }
 export async function githubRepositoryBranches(
   installationId: string,

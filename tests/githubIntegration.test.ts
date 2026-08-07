@@ -3,11 +3,17 @@ import { describe, expect, it } from "vitest";
 
 import { matchingCoolifyGithubSource } from "@services/github/coolifyGithubSourceService";
 import {
+  GithubApiError,
   githubInstallationReviewUrl,
   normalizeGithubPrivateKey,
 } from "@services/github/githubAppService";
 
 describe("GitHub deployment integration", () => {
+  it("preserves provider status for installation reconciliation", () => {
+    const error = new GithubApiError(404);
+    expect(error.status).toBe(404);
+    expect(error.message).toBe("GitHub returned HTTP 404.");
+  });
   it("normalizes GitHub PKCS1 private keys to PKCS8", () => {
     const { privateKey } = generateKeyPairSync("rsa", {
       modulusLength: 2048,

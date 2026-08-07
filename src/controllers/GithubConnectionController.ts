@@ -9,6 +9,7 @@ import {
   githubInstallationRepositories,
   githubInstallationReviewUrl,
   githubInstallationUrl,
+  GithubApiError,
   createGithubInstallationState,
   verifyGithubInstallationState,
 } from "@services/github/githubAppService";
@@ -30,7 +31,73 @@ const publicFields = {
   updatedAt: workspaceGithubConnections.updatedAt,
 };
 
+/** Restricts reconciled installation rows to the same public contract as the list endpoint. */
+function publicFieldsFromRow(row: typeof workspaceGithubConnections.$inferSelect) {
+	return {
+		id: row.id,
+		accountLogin: row.accountLogin,
+		accountName: row.accountName,
+		accountType: row.accountType,
+		avatarUrl: row.avatarUrl,
+		installationId: row.installationId,
+		status: row.status,
+		providerSyncStatus: row.providerSyncStatus,
+		providerSyncError: row.providerSyncError,
+		updatedAt: row.updatedAt,
+	};
+}
+
 export class GithubConnectionController {
+	/** Reconciles workspace installations against GitHub after permission or installation changes. */
+	public static async reconcile(
+		request: Request,
+		workspacePublicId: number,
+		metadata: RequestMetadata,
+	): Promise<Response> {
+		try {
+			const workspace = await applicationWorkspaceAccess(request, workspacePublicId, metadata);
+			const connections = await db.select().from(workspaceGithubConnections).where(and(
+				eq(workspaceGithubConnections.workspaceId, workspace.id),
+				eq(workspaceGithubConnections.status, "active"),
+				isNull(workspaceGithubConnections.deletedAt),
+			));
+			const active: Array<typeof workspaceGithubConnections.$inferSelect> = [];
+			const removedConnectionIds: string[] = [];
+			for (const connection of connections) {
+				try {
+					const installation = await githubInstallation(connection.installationId);
+					const values = {
+						accountLogin: installation.account.login,
+						accountName: installation.account.name ?? installation.account.login,
+						accountType: installation.account.type,
+						avatarUrl: installation.account.avatar_url ?? null,
+						updatedAt: new Date(),
+					};
+					await db.update(workspaceGithubConnections).set(values).where(eq(workspaceGithubConnections.id, connection.id));
+					active.push({ ...connection, ...values });
+				} catch (error) {
+					if (!(error instanceof GithubApiError) || error.status !== 404) throw error;
+					await db.update(workspaceGithubConnections).set({ status: "inactive", providerSyncStatus: "inactive", providerSyncError: "GitHub installation was removed.", updatedAt: new Date() }).where(eq(workspaceGithubConnections.id, connection.id));
+					removedConnectionIds.push(connection.id);
+				}
+			}
+			await recordAuditLog({
+				action: "github_connection.access_reconciled",
+				actorUserId: workspace.actorUserId,
+				resourceType: "workspace",
+				resourceId: workspace.id,
+				metadata: { workspacePublicId, activeConnectionIds: active.map(({ id }) => id), removedConnectionIds },
+				ipAddress: metadata.ipAddress,
+				userAgent: metadata.userAgent,
+			});
+			return resp.success("GitHub access refreshed.", active.map((row) => ({
+				...publicFieldsFromRow(row),
+				reviewUrl: githubInstallationReviewUrl({ accountLogin: row.accountLogin, accountType: row.accountType, installationId: row.installationId }),
+			})), resp.codes.UPDATED);
+		} catch (error) {
+			return resp.failure(error instanceof Error ? error.message : "Unable to refresh GitHub access.", resp.codes.EXTERNAL_SERVICE_ERROR, undefined, null, undefined, 502);
+		}
+	}
 	public static async deactivate(
 		request: Request,
 		workspacePublicId: number,

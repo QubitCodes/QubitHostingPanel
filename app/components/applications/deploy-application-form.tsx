@@ -459,6 +459,7 @@ export function DeployApplicationForm({
 	const [githubConnecting, setGithubConnecting] = useState(false);
 	const githubPopupRef = useRef<Window | null>(null);
 	const githubPollRef = useRef<number | undefined>(undefined);
+	const repositoryRef = useRef(repository);
 	const [branch, setBranch] = useState('main');
 	const [availableBranches, setAvailableBranches] = useState<string[]>([]);
 	const [analysis, setAnalysis] = useState<SourceAnalysis>();
@@ -631,6 +632,41 @@ export function DeployApplicationForm({
 		return connections;
 	}, [workspaceId]);
 
+	const loadGithubRepositories = useCallback(async (connectionId: string): Promise<GithubRepository[]> => {
+		if (!connectionId) {
+			setGithubRepositories([]);
+			return [];
+		}
+		const repositories = await request<GithubRepository[]>(
+			`/api/v1/workspaces/${workspaceId}/applications/github-connections/${connectionId}/repositories`,
+		);
+		setGithubRepositories(repositories);
+		if (repositoryRef.current && !repositories.some(({ url }) => url === repositoryRef.current)) {
+			repositoryRef.current = '';
+			setRepository('');
+			setBranch('main');
+			setAvailableBranches([]);
+			setAnalysis(undefined);
+		}
+		return repositories;
+	}, [workspaceId]);
+
+	const refreshGithubAccess = useCallback(async (notify = false): Promise<void> => {
+		const connections = await request<GithubConnection[]>(
+			`/api/v1/workspaces/${workspaceId}/applications/github-connections/reconcile`,
+			{ method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' },
+		);
+		setGithubConnections(connections);
+		const selectedConnectionId = connections.some(({ id }) => id === githubConnectionId)
+			? githubConnectionId
+			: (connections[0]?.id ?? '');
+		setGithubConnectionId(selectedConnectionId);
+		await loadGithubRepositories(selectedConnectionId);
+		if (notify) toast.success('GitHub accounts and repository access refreshed.');
+	}, [githubConnectionId, loadGithubRepositories, workspaceId]);
+
+	useEffect(() => { repositoryRef.current = repository; }, [repository]);
+
 	useEffect(() => {
 		const timeout = window.setTimeout(
 			() => void loadGithubConnections().catch(() => undefined),
@@ -642,7 +678,7 @@ export function DeployApplicationForm({
 	useEffect(() => {
 		const refresh = (): void => {
 			if (sourceMode !== 'github') return;
-			void loadGithubConnections().catch(() => undefined);
+			void refreshGithubAccess().catch(() => undefined);
 		};
 		const message = (event: MessageEvent): void => {
 			if (event.origin !== window.location.origin) return;
@@ -660,6 +696,7 @@ export function DeployApplicationForm({
 				if (githubPollRef.current !== undefined) window.clearInterval(githubPollRef.current);
 				githubPollRef.current = undefined;
 				setGithubConnecting(false);
+				void refreshGithubAccess().catch(() => undefined);
 				toast.info('That GitHub account is already connected. Choose a different account or installation.');
 			}
 			if (event.data?.type === 'ghostdeploy:github-error') {
@@ -680,7 +717,7 @@ export function DeployApplicationForm({
 			window.removeEventListener('focus', refresh);
 			window.removeEventListener('message', message);
 		};
-	}, [loadGithubConnections, sourceMode]);
+	}, [loadGithubConnections, refreshGithubAccess, sourceMode]);
 
 	useEffect(
 		() => () => {
@@ -694,18 +731,16 @@ export function DeployApplicationForm({
 
 	useEffect(() => {
 		if (!githubConnectionId) return;
-		void request<GithubRepository[]>(
-			`/api/v1/workspaces/${workspaceId}/applications/github-connections/${githubConnectionId}/repositories`,
-		)
-			.then(setGithubRepositories)
+		const timeout = window.setTimeout(() => void loadGithubRepositories(githubConnectionId)
 			.catch((error) =>
 				toast.error(
 					error instanceof Error
 						? error.message
 						: 'Unable to load GitHub repositories.',
 				),
-			);
-	}, [githubConnectionId, workspaceId]);
+			), 0);
+		return () => window.clearTimeout(timeout);
+	}, [githubConnectionId, loadGithubRepositories]);
 
 	useEffect(() => {
 		const timers = customDomains.map((hostname, index) =>
@@ -817,7 +852,20 @@ export function DeployApplicationForm({
 			toast.error(
 				'Allow popups for Ghost Deploy, then try configuring GitHub again.',
 			);
-		else githubPopupRef.current = popup;
+		else {
+			githubPopupRef.current = popup;
+			if (githubPollRef.current !== undefined) window.clearInterval(githubPollRef.current);
+			const deadline = Date.now() + 10 * 60_000;
+			githubPollRef.current = window.setInterval(() => {
+				if (!popup.closed && Date.now() < deadline) return;
+				if (githubPollRef.current !== undefined) window.clearInterval(githubPollRef.current);
+				githubPollRef.current = undefined;
+				githubPopupRef.current = null;
+				void refreshGithubAccess(true).catch((error: unknown) =>
+					toast.error(error instanceof Error ? error.message : 'Unable to refresh GitHub access.'),
+				);
+			}, 1_000);
+		}
 	}
 
 	async function syncGithubProvider(): Promise<void> {

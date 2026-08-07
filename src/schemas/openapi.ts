@@ -1931,6 +1931,18 @@ export const OPENAPI_DOCUMENT = {
 				responses: { '200': { description: 'Signed GitHub installation URL generated.' } },
 			},
 		},
+		'/workspaces/{workspaceId}/applications/github-connections/reconcile': {
+			post: {
+				summary: 'Reconcile installed GitHub accounts after access changes',
+				operationId: 'reconcileWorkspaceGithubConnections',
+				security: [{ bearerAuth: [] }],
+				parameters: [{ $ref: '#/components/parameters/WorkspaceId' }],
+				responses: {
+					'200': { description: 'Active installations refreshed; removed installations deactivated and audit logged.' },
+					'502': { description: 'GitHub installation state could not be verified.' },
+				},
+			},
+		},
 		'/workspaces/{workspaceId}/applications/github-connections/{connectionId}': {
 			delete: {
 				summary: 'Deactivate one workspace GitHub installation',
@@ -1939,6 +1951,19 @@ export const OPENAPI_DOCUMENT = {
 				parameters: [{ $ref: '#/components/parameters/WorkspaceId' }, { in: 'path', name: 'connectionId', required: true, schema: { type: 'string', format: 'uuid' } }],
 				requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', additionalProperties: false, required: ['acceptedImpact'], properties: { acceptedImpact: { type: 'boolean', enum: [true] } } } } } },
 				responses: { '200': { description: 'Connection deactivated and audit logged.' }, '404': { description: 'Active connection not found in the workspace.' } },
+			},
+		},
+		'/workspaces/{workspaceId}/applications/github-connections/{connectionId}/repositories': {
+			get: {
+				summary: 'List every repository granted to a GitHub installation',
+				operationId: 'listWorkspaceGithubRepositories',
+				security: [{ bearerAuth: [] }],
+				parameters: [{ $ref: '#/components/parameters/WorkspaceId' }, { in: 'path', name: 'connectionId', required: true, schema: { type: 'string', format: 'uuid' } }],
+				responses: {
+					'200': { description: 'All accessible repositories returned using GitHub pagination.' },
+					'404': { description: 'Active connection not found in the workspace.' },
+					'502': { description: 'GitHub repository access could not be loaded.' },
+				},
 			},
 		},
 		'/workspaces/{workspaceId}/applications/{applicationId}/logs': {
