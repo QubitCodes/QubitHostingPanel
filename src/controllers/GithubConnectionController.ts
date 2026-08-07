@@ -14,6 +14,7 @@ import {
 import { recordAuditLog } from "@services/auditLogService";
 import { syncCoolifyGithubSource } from "@services/github/coolifyGithubSourceService";
 import type { RequestMetadata } from "@utils/request";
+import type { DeactivateGithubConnectionInput } from "@schemas/githubConnection";
 
 const publicFields = {
   id: workspaceGithubConnections.id,
@@ -29,6 +30,41 @@ const publicFields = {
 };
 
 export class GithubConnectionController {
+	public static async deactivate(
+		request: Request,
+		workspacePublicId: number,
+		connectionId: string,
+		_input: DeactivateGithubConnectionInput,
+		metadata: RequestMetadata,
+	): Promise<Response> {
+		try {
+			const workspace = await applicationWorkspaceAccess(request, workspacePublicId, metadata);
+			const [connection] = await db
+				.update(workspaceGithubConnections)
+				.set({ status: "inactive", providerSyncStatus: "inactive", updatedAt: new Date() })
+				.where(and(
+					eq(workspaceGithubConnections.id, connectionId),
+					eq(workspaceGithubConnections.workspaceId, workspace.id),
+					eq(workspaceGithubConnections.status, "active"),
+					isNull(workspaceGithubConnections.deletedAt),
+				))
+				.returning({ id: workspaceGithubConnections.id, accountLogin: workspaceGithubConnections.accountLogin });
+			if (!connection) return resp.failure("GitHub connection not found.", resp.codes.RESOURCE_NOT_FOUND, undefined, null, undefined, 404);
+			await recordAuditLog({
+				action: "github_connection.deactivated",
+				actorUserId: workspace.actorUserId,
+				resourceType: "workspace_github_connection",
+				resourceId: connection.id,
+				metadata: { workspacePublicId, accountLogin: connection.accountLogin },
+				ipAddress: metadata.ipAddress,
+				userAgent: metadata.userAgent,
+			});
+			return resp.success("GitHub connection deactivated.", { id: connection.id }, resp.codes.UPDATED);
+		} catch (error) {
+			return resp.failure(error instanceof Error ? error.message : "Unable to deactivate GitHub connection.", resp.codes.GENERAL_BUSINESS_LOGIC_ERROR, undefined, null, undefined, 422);
+		}
+	}
+
   public static async index(
     request: Request,
     workspacePublicId: number,
@@ -123,7 +159,7 @@ export class GithubConnectionController {
           "This GitHub installation is already connected to another workspace.",
         );
       const [existing] = await db
-        .select({ id: workspaceGithubConnections.id })
+        .select({ id: workspaceGithubConnections.id, status: workspaceGithubConnections.status })
         .from(workspaceGithubConnections)
         .where(
           and(
@@ -203,7 +239,8 @@ export class GithubConnectionController {
         },
       });
       const target = new URL(`/dashboard/applications/create`, url.origin);
-      target.searchParams.set("github", "connected");
+      target.searchParams.set("github", existing?.status === "active" ? "existing" : "connected");
+      target.searchParams.set("connection_id", connectionId);
       target.searchParams.set("provider", providerSyncStatus);
       return Response.redirect(target, 302);
     } catch (error) {

@@ -1879,6 +1879,32 @@ export const OPENAPI_DOCUMENT = {
 				},
 			},
 		},
+		'/workspaces/{workspaceId}/applications/github-connections': {
+			get: {
+				summary: 'List active workspace GitHub installations',
+				operationId: 'listWorkspaceGithubConnections',
+				security: [{ bearerAuth: [] }],
+				parameters: [{ $ref: '#/components/parameters/WorkspaceId' }],
+				responses: { '200': { description: 'Independent active GitHub installations available to this workspace.' } },
+			},
+			post: {
+				summary: 'Start another GitHub installation flow',
+				operationId: 'connectWorkspaceGithubAccount',
+				security: [{ bearerAuth: [] }],
+				parameters: [{ $ref: '#/components/parameters/WorkspaceId' }],
+				responses: { '200': { description: 'Signed GitHub installation URL generated.' } },
+			},
+		},
+		'/workspaces/{workspaceId}/applications/github-connections/{connectionId}': {
+			delete: {
+				summary: 'Deactivate one workspace GitHub installation',
+				operationId: 'deactivateWorkspaceGithubConnection',
+				security: [{ bearerAuth: [] }],
+				parameters: [{ $ref: '#/components/parameters/WorkspaceId' }, { in: 'path', name: 'connectionId', required: true, schema: { type: 'string', format: 'uuid' } }],
+				requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', additionalProperties: false, required: ['acceptedImpact'], properties: { acceptedImpact: { type: 'boolean', enum: [true] } } } } } },
+				responses: { '200': { description: 'Connection deactivated and audit logged.' }, '404': { description: 'Active connection not found in the workspace.' } },
+			},
+		},
 		'/workspaces/{workspaceId}/applications/{applicationId}/logs': {
 			get: {
 				summary: 'Read live runtime stdout and stderr',

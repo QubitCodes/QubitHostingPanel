@@ -425,12 +425,22 @@ export class ApplicationController {
 				: [[], [], [], new Map<string, string>()];
 			return resp.success(
 				'Applications retrieved.',
-				rows.map(({ providerResourceId, ...row }) => ({
-					...row,
-					resourceStatus:
+				rows.map(({ providerResourceId, ...row }) => {
+					const latestDeployment = deployments.find(
+						(deployment) => deployment.applicationBuildId === row.id,
+					);
+					const providerStatus =
 						(providerResourceId
 							? providerStatuses.get(providerResourceId)
-							: undefined) ?? row.resourceStatus,
+							: undefined) ?? row.resourceStatus;
+					const deploymentInProgress = /queued|pending|building|starting|progress|deploying|provision/i.test(
+						`${row.status} ${latestDeployment?.status ?? ''}`,
+					);
+					return {
+					...row,
+					resourceStatus: deploymentInProgress
+						? (latestDeployment?.status ?? row.status ?? 'provisioning')
+						: providerStatus,
 					name: String(
 						row.metadata?.name ??
 							row.sourceRepository.split('/').pop() ??
@@ -447,10 +457,9 @@ export class ApplicationController {
 					databases: bindings.filter(
 						(binding) => binding.applicationBuildId === row.id,
 					),
-					latestDeployment: deployments.find(
-						(deployment) => deployment.applicationBuildId === row.id,
-					),
-				})),
+					latestDeployment,
+				};
+				}),
 			);
 		} catch {
 			return resp.failure(

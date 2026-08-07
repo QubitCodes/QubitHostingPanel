@@ -268,7 +268,7 @@ function DetectionSummary({ analysis }: { analysis: SourceAnalysis }) {
 					['Framework', detectedFramework ?? 'Not detected'],
 					[
 						'Project directory',
-						candidate?.projectDirectory || 'Repository root',
+						!candidate?.projectDirectory || candidate.projectDirectory === '/' ? 'Repository root' : candidate.projectDirectory,
 					],
 					['Package manager', candidate?.packageManager ?? 'Automatic'],
 					[
@@ -580,7 +580,22 @@ export function DeployApplicationForm({
 		};
 		const message = (event: MessageEvent): void => {
 			if (event.origin !== window.location.origin) return;
-			if (event.data?.type === 'ghostdeploy:github-connected') refresh();
+			if (event.data?.type === 'ghostdeploy:github-connected') {
+				if (githubPollRef.current !== undefined) window.clearInterval(githubPollRef.current);
+				githubPollRef.current = undefined;
+				void loadGithubConnections().then((connections) => {
+					const connectionId = typeof event.data.connectionId === 'string' ? event.data.connectionId : undefined;
+					if (connectionId && connections.some(({ id }) => id === connectionId)) setGithubConnectionId(connectionId);
+					setGithubConnecting(false);
+					toast.success('GitHub account connected to this workspace.');
+				}).catch(() => undefined);
+			}
+			if (event.data?.type === 'ghostdeploy:github-existing') {
+				if (githubPollRef.current !== undefined) window.clearInterval(githubPollRef.current);
+				githubPollRef.current = undefined;
+				setGithubConnecting(false);
+				toast.info('That GitHub account is already connected. Choose a different account or installation.');
+			}
 			if (event.data?.type === 'ghostdeploy:github-error') {
 				if (githubPollRef.current !== undefined)
 					window.clearInterval(githubPollRef.current);
@@ -675,6 +690,7 @@ export function DeployApplicationForm({
 	}
 
 	async function connectGithub(): Promise<void> {
+		const existingConnectionIds = new Set(githubConnections.map(({ id }) => id));
 		const popup = openGithubPopup('about:blank', 'ghostdeploy-github-install');
 		if (!popup) {
 			toast.error(
@@ -707,11 +723,13 @@ export function DeployApplicationForm({
 				}
 				void loadGithubConnections()
 					.then((connections) => {
-						if (!connections.length) return;
+						const addedConnection = connections.find(({ id }) => !existingConnectionIds.has(id));
+						if (!addedConnection) return;
 						if (githubPollRef.current !== undefined)
 							window.clearInterval(githubPollRef.current);
 						githubPollRef.current = undefined;
 						setGithubConnecting(false);
+						setGithubConnectionId(addedConnection.id);
 						if (!popup.closed) popup.close();
 						toast.success('GitHub connected to this workspace.');
 					})

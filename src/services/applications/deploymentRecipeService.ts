@@ -116,7 +116,7 @@ export function resolveDeploymentContract(
 		},
 		{
 			code: 'project-directory',
-			message: `Project directory is ${input.projectDirectory}.`,
+			message: input.projectDirectory === '/' ? 'Repository root selected.' : `Project directory is ${input.projectDirectory}.`,
 			status: input.projectDirectory ? 'pass' : 'error',
 		},
 	];

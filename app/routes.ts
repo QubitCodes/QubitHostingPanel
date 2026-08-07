@@ -288,6 +288,10 @@ export default [
 			'api/v1/workspaces/applications/github-connections.ts',
 		),
 		route(
+			'workspaces/:workspaceId/applications/github-connections/:connectionId',
+			'api/v1/workspaces/applications/github-connection.ts',
+		),
+		route(
 			'workspaces/:workspaceId/applications/github-connections/:connectionId/repositories',
 			'api/v1/workspaces/applications/github-repositories.ts',
 		),

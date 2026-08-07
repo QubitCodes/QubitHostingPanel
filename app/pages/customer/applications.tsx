@@ -14,7 +14,7 @@ import {
 	Trash2,
 	X,
 } from 'lucide-react';
-import { type FormEvent, useCallback, useEffect, useState } from 'react';
+import { type FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import {
 	Link,
 	useLocation,
@@ -182,6 +182,11 @@ function statusClass(value?: string | null): string {
 	return 'bg-gray-500/10 text-gray-700 dark:text-gray-300';
 }
 
+/** Replaces the technical root path with a customer-facing directory label. */
+function projectDirectoryLabel(value: string): string {
+	return value === '/' ? 'Repository root' : value;
+}
+
 interface RealtimeEvent {
 	applicationId: string;
 	deploymentStatus?: string;
@@ -245,7 +250,14 @@ function ApplicationLogChannels({
 			: channel === 'deployment'
 				? latest?.logSections?.deployment
 				: runtimeLogs;
-	const running = /queued|provision|building|starting|progress/i.test(status);
+	const running = /queued|pending|provision|deploying|building|starting|progress/i.test(`${status} ${latest?.status ?? ''}`);
+	const logArea = useRef<HTMLPreElement>(null);
+	useEffect(() => {
+		const frame = window.requestAnimationFrame(() => {
+			if (logArea.current) logArea.current.scrollTop = logArea.current.scrollHeight;
+		});
+		return () => window.cancelAnimationFrame(frame);
+	}, [channel, channelLogs, running]);
 	const ownerLabel =
 		diagnostic?.owner === 'project'
 			? 'Your project needs a change'
@@ -310,7 +322,8 @@ function ApplicationLogChannels({
 						</p>
 						<button className="rounded-xl border border-brand-primary/15 px-3 py-2 text-sm font-bold" onClick={onRefresh} type="button">Refresh</button>
 					</div>
-					<pre className="min-h-72 max-h-[65vh] overflow-auto rounded-2xl bg-gray-950 p-5 text-xs text-gray-100">
+					{running && <div className="flex items-center gap-2 text-sm font-semibold text-blue-700 dark:text-blue-300"><LoaderCircle className="size-4 animate-spin" />Deployment is active. Logs are still arriving.</div>}
+					<pre className="min-h-72 max-h-[65vh] overflow-x-hidden overflow-y-auto whitespace-pre-wrap break-words rounded-2xl bg-gray-950 p-5 text-xs text-gray-100" ref={logArea}>
 						{channelLogs || (running ? `Waiting for ${channel} logs…` : `No ${channel} logs are available.`)}
 					</pre>
 				</>
@@ -410,6 +423,7 @@ export default function CustomerApplicationsPage() {
 			!['deployments', 'logs'].includes(activeTab)
 		)
 			return;
+		setHistory(null);
 		void api<DeploymentHistory>(
 			`/api/v1/workspaces/${active.publicId}/applications/${applicationId}/deployments`,
 		)
@@ -425,22 +439,29 @@ export default function CustomerApplicationsPage() {
 	useEffect(() => {
 		const params = new URLSearchParams(location.search);
 		const connected = params.get('github') === 'connected';
+		const existing = params.get('github') === 'existing';
+		const connectionId = params.get('connection_id');
 		const error = params.get('github_error');
-		if (!connected && !error) return;
+		if (!connected && !existing && !error) return;
 		if (window.opener && !window.opener.closed) {
 			window.opener.postMessage(
 				{
 					type: connected
 						? 'ghostdeploy:github-connected'
-						: 'ghostdeploy:github-error',
+						: existing
+							? 'ghostdeploy:github-existing'
+							: 'ghostdeploy:github-error',
+					connectionId,
 					message: error,
 				},
 				window.location.origin,
 			);
-			window.close();
+			if (connected || error) window.close();
+			if (existing) toast.info('That GitHub account is already connected to this workspace. Choose a different account or installation.');
 			return;
 		}
 		if (connected) toast.success('GitHub connected to this workspace.');
+		if (existing) toast.info('That GitHub account is already connected to this workspace.');
 		if (error) toast.error(error);
 		navigate('/dashboard/applications/create', { replace: true });
 	}, [location.search, navigate]);
@@ -593,11 +614,14 @@ export default function CustomerApplicationsPage() {
 						},
 					);
 					await consumeEventStream(response, controller.signal, (event) => {
-						if (event.providerStatus)
+						const effectiveStatus = /queued|pending|provision|deploying|building|starting|progress/i.test(event.deploymentStatus ?? '')
+							? event.deploymentStatus
+							: event.providerStatus;
+						if (effectiveStatus)
 							setRows((current) =>
 								current.map((row) =>
 									row.id === applicationId
-										? { ...row, resourceStatus: event.providerStatus }
+										? { ...row, resourceStatus: effectiveStatus }
 										: row,
 								),
 							);
@@ -1277,7 +1301,7 @@ export default function CustomerApplicationsPage() {
 											],
 											['Repository', record.sourceRepository],
 											['Branch', record.sourceRef],
-											['Project directory', record.baseDirectory],
+												['Project directory', projectDirectoryLabel(record.baseDirectory)],
 											[
 												'Databases',
 												record.databases.length
