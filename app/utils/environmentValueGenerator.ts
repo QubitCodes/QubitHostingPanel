@@ -31,6 +31,19 @@ export interface EnvironmentConfigurationValue {
 	value: string;
 }
 
+export interface AutofillEnvironmentVariable {
+	isSecret: boolean;
+	key: string;
+	value: string;
+}
+
+export interface AutofillEnvironmentResult<T extends AutofillEnvironmentVariable> {
+	filled: number;
+	preserved: number;
+	skipped: number;
+	variables: T[];
+}
+
 const CONFIGURATION_MATCHERS: Array<[RegExp, string]> = [
 	[/^(?:APP_NAME|APPLICATION_NAME|PROJECT_NAME)$/, 'Application name'],
 	[/^(?:APP_URL|APPLICATION_URL|BASE_URL|SITE_URL)$/, 'Application URL'],
@@ -65,6 +78,8 @@ export function bestEnvironmentConfigurationLabel(key: string, values: Environme
 }
 
 const CURRENCY_BY_COUNTRY: Record<string, string> = { AU: 'AUD', CA: 'CAD', CH: 'CHF', DE: 'EUR', FR: 'EUR', GB: 'GBP', IN: 'INR', JP: 'JPY', SG: 'SGD', US: 'USD' };
+const UNAVAILABLE_CONFIGURATION_VALUE = /Assigned|Completed|Not set|Not selected|Generated after/i;
+const GENERATED_SECRET_KEY = /^(?:APP_SECRET|AUTH_SECRET|COOKIE_SECRET|CSRF_SECRET|ENCRYPTION_KEY|JWT_SECRET|SESSION_SECRET|SIGNING_SECRET)$/;
 
 /** Normalizes browser regional preferences into common environment formats. */
 export function regionalEnvironmentConfiguration(locale: string, timezone: string): EnvironmentConfigurationValue[] {
@@ -79,6 +94,52 @@ export function regionalEnvironmentConfiguration(locale: string, timezone: strin
 		{ label: 'Country', value: country },
 		{ label: 'Currency', value: CURRENCY_BY_COUNTRY[country] ?? '' },
 	];
+}
+
+/** Fills only empty environment entries whose intended value can be determined safely. */
+export function autofillKnownEnvironmentValues<T extends AutofillEnvironmentVariable>(input: {
+	configurationValues: EnvironmentConfigurationValue[];
+	deploymentEnvironment: 'development' | 'testing' | 'staging' | 'production';
+	framework?: string;
+	variables: T[];
+}): AutofillEnvironmentResult<T> {
+	let filled = 0;
+	let preserved = 0;
+	let skipped = 0;
+	const variables = input.variables.map((variable) => {
+		if (variable.value.trim()) {
+			preserved += 1;
+			return variable;
+		}
+		const normalized = variable.key.trim().toUpperCase();
+		const configurationLabel = CONFIGURATION_MATCHERS.find(([pattern]) => pattern.test(normalized))?.[1];
+		const configuration = configurationLabel
+			? input.configurationValues.find(({ label }) => label === configurationLabel)
+			: undefined;
+		if (configuration?.value && !UNAVAILABLE_CONFIGURATION_VALUE.test(configuration.value)) {
+			filled += 1;
+			return { ...variable, value: configuration.value, isSecret: variable.isSecret || configuration.secret === true };
+		}
+		if (/^(?:APP_DEBUG|DEBUG)$/.test(normalized)) {
+			filled += 1;
+			return { ...variable, value: String(input.deploymentEnvironment === 'development') };
+		}
+		if (/(?:PASSWORD|PASSWD|PASS)$/.test(normalized)) {
+			filled += 1;
+			return { ...variable, value: generateEnvironmentValue({ kind: 'password', length: 32 }), isSecret: true };
+		}
+		const frameworkSecret =
+			(input.framework === 'laravel' && normalized === 'APP_KEY') ||
+			(input.framework === 'rails' && normalized === 'SECRET_KEY_BASE') ||
+			(input.framework === 'django' && normalized === 'SECRET_KEY');
+		if (frameworkSecret || GENERATED_SECRET_KEY.test(normalized)) {
+			filled += 1;
+			return { ...variable, value: generateEnvironmentValue({ framework: input.framework, kind: frameworkSecret ? 'framework' : 'secret', length: 64 }), isSecret: true };
+		}
+		skipped += 1;
+		return variable;
+	});
+	return { filled, preserved, skipped, variables };
 }
 
 /** Returns unbiased random characters using the browser cryptography provider. */

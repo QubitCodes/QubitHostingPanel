@@ -46,6 +46,7 @@ import {
 	parseEnvFile,
 } from '@root/app/utils/envFileParser';
 import {
+	autofillKnownEnvironmentValues,
 	regionalEnvironmentConfiguration,
 	type EnvironmentConfigurationValue,
 } from '@root/app/utils/environmentValueGenerator';
@@ -221,13 +222,6 @@ function databaseIdentifier(value: string): string {
 		.replace(/^_+|_+$/g, '')
 		.replace(/_+/g, '_')
 		.slice(0, 70);
-}
-
-/** Creates a Laravel-compatible 32-byte application key in the browser. */
-function generatedEnvironmentValue(framework: string | undefined, key: string): string {
-	if (framework !== 'laravel' || key !== 'APP_KEY') return '';
-	const bytes = crypto.getRandomValues(new Uint8Array(32));
-	return `base64:${btoa(String.fromCharCode(...bytes))}`;
 }
 
 /** Generates a strong URL-safe password that works with PostgreSQL, MySQL and connection URLs. */
@@ -1053,18 +1047,47 @@ export function DeployApplicationForm({
 		setBuildCommand(candidate.commands?.build ?? '');
 		setStartCommand(candidate.commands?.start ?? '');
 		setOutputDirectory(candidate.deploymentContract?.publishDirectory ?? '');
-		setVariables(
-			(candidate.environmentKeys ?? fallbackEnvironmentKeys).map((item) => ({
+		const detectedVariables = (candidate.environmentKeys ?? fallbackEnvironmentKeys).map((item) => ({
 				key: item.key,
-				value: generatedEnvironmentValue(candidate.framework, item.key),
+				value: '',
 				isSecret: item.isSecret,
 				required: item.required,
 				scope: /^(?:NEXT_PUBLIC_|VITE_|PUBLIC_)/.test(item.key)
 					? 'both'
 					: 'runtime',
-			})),
-		);
+			} satisfies EnvironmentVariable));
+		const detectedConfiguration = new Map<string, string | undefined>([
+				['Stack', candidate.stack],
+				['Framework', candidate.framework ? frameworkDefinition(candidate.framework)?.label : 'None'],
+				['Project directory', candidate.projectDirectory],
+				['Output directory', candidate.deploymentContract?.publishDirectory],
+				['Application port', candidate.deploymentContract?.port ? String(candidate.deploymentContract.port) : undefined],
+				['Database type', candidate.databaseEngine],
+				['Database port', candidate.databaseEngine === 'postgresql' ? '5432' : candidate.databaseEngine === 'mysql' ? '3306' : undefined],
+		]);
+		const detectedConfigurationValues = configurationValues.map((item) => {
+			const detectedValue = detectedConfiguration.get(item.label);
+			return detectedValue ? { ...item, value: detectedValue } : item;
+		});
+		setVariables(autofillKnownEnvironmentValues({
+			configurationValues: detectedConfigurationValues,
+			deploymentEnvironment,
+			framework: candidate.framework,
+			variables: detectedVariables,
+		}).variables);
 		setSelectedEnvironmentIndex(undefined);
+	}
+
+	function autofillEnvironmentVariables(): void {
+		const result = autofillKnownEnvironmentValues({
+			configurationValues,
+			deploymentEnvironment,
+			framework,
+			variables,
+		});
+		setVariables(result.variables);
+		if (result.filled) toast.success(`${result.filled} environment value${result.filled === 1 ? '' : 's'} filled. ${result.preserved} preserved · ${result.skipped} need review.`);
+		else toast.info(`No empty known values to fill. ${result.preserved} preserved · ${result.skipped} need review.`);
 	}
 	async function inspectSource(source?: {
 		branch: string;
@@ -2387,13 +2410,16 @@ export function DeployApplicationForm({
 								Use uppercase keys. Secret values are encrypted when the
 								application is saved.
 							</p>
-							<button
-								className="inline-flex items-center gap-2 rounded-xl border border-brand-primary/15 px-4 py-2.5 text-sm font-bold"
-								onClick={() => setEnvironmentImportOpen((current) => !current)}
-								type="button"
-							>
-								<FileUp className="size-4" /> Import .env
-							</button>
+							<div className="flex flex-wrap gap-2">
+								<button className="inline-flex items-center gap-2 rounded-xl bg-brand-action px-4 py-2.5 text-sm font-bold text-brand-ink disabled:opacity-50" disabled={!variables.some(({ key, value }) => key.trim() && !value.trim())} onClick={autofillEnvironmentVariables} type="button"><Sparkles className="size-4" /> Autofill Known Values</button>
+								<button
+									className="inline-flex items-center gap-2 rounded-xl border border-brand-primary/15 px-4 py-2.5 text-sm font-bold"
+									onClick={() => setEnvironmentImportOpen((current) => !current)}
+									type="button"
+								>
+									<FileUp className="size-4" /> Import .env
+								</button>
+							</div>
 						</div>
 						{environmentImportOpen && (
 							<section className="grid gap-4 rounded-2xl border border-brand-action/30 bg-brand-action/[0.04] p-4">

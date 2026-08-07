@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+	autofillKnownEnvironmentValues,
 	bestEnvironmentConfigurationLabel,
 	generateEnvironmentValue,
 	hashEnvironmentValue,
@@ -39,6 +40,38 @@ describe('environment value generator', () => {
 			{ label: 'Country', value: 'IN' },
 			{ label: 'Currency', value: 'INR' },
 		]);
+	});
+
+	it('autofills only empty values with reliable mappings and preserves supplied values', () => {
+		const result = autofillKnownEnvironmentValues({
+			configurationValues: [
+				{ label: 'Application URL', value: 'https://demo.ghostdeploy.com' },
+				{ label: 'Database password', value: 'database-secret', secret: true },
+				{ label: 'Timezone', value: 'Asia/Calcutta' },
+			],
+			deploymentEnvironment: 'production',
+			framework: 'laravel',
+			variables: [
+				{ key: 'APP_URL', value: '', isSecret: false },
+				{ key: 'APP_DEBUG', value: '', isSecret: false },
+				{ key: 'DB_PASSWORD', value: '', isSecret: false },
+				{ key: 'APP_KEY', value: '', isSecret: true },
+				{ key: 'EXTERNAL_API_KEY', value: '', isSecret: true },
+				{ key: 'EXISTING', value: 'keep-me', isSecret: false },
+			],
+		});
+		expect(result.filled).toBe(4);
+		expect(result.preserved).toBe(1);
+		expect(result.skipped).toBe(1);
+		expect(result.variables.map(({ value }) => value)).toEqual([
+			'https://demo.ghostdeploy.com',
+			'false',
+			'database-secret',
+			expect.stringMatching(/^base64:/),
+			'',
+			'keep-me',
+		]);
+		expect(result.variables[2]?.isSecret).toBe(true);
 	});
 
 	it('creates strong passwords and framework secrets', () => {
