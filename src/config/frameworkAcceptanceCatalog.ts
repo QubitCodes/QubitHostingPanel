@@ -73,7 +73,8 @@ export const FRAMEWORK_ACCEPTANCE_CASES: readonly FrameworkAcceptanceCase[] = [
 		fixtureDirectory: 'fixtures/frameworks/laravel',
 		buildPack: 'nixpacks',
 		installCommand:
-			'composer install --no-interaction --prefer-dist --optimize-autoloader',
+			'composer install --no-interaction --prefer-dist --optimize-autoloader && npm install --include=dev',
+		buildCommand: 'npm run build',
 		startCommand: 'php artisan serve --host=0.0.0.0 --port=$PORT',
 		port: 80,
 		healthPath: '/healthz',

@@ -360,6 +360,10 @@ async function waitForAcceptance(
 							)
 							.orderBy(desc(applicationDeployments.createdAt))
 							.limit(1);
+						if (localDeployment?.status !== 'running') {
+							await delay(5_000);
+							continue;
+						}
 						return {
 							applicationId: application.id,
 							providerId: state.providerId,

@@ -5,6 +5,7 @@ SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'acceptance-only-secret')
 DEBUG = False
 ALLOWED_HOSTS = ['*']
 ROOT_URLCONF = 'fixture.urls'
+WSGI_APPLICATION = 'fixture.wsgi.application'
 MIDDLEWARE = []
 INSTALLED_APPS = []
 

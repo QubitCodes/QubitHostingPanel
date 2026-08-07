@@ -474,6 +474,36 @@ export async function analyzeApplicationSource(
       `${path}${framework ? ` identifies ${framework}` : " identifies Python"}`,
     );
   }
+	for (const phpCandidate of candidates.filter(
+		(candidate) => candidate.stack === 'php',
+	)) {
+		const frontendCandidate = candidates.find(
+			(candidate) =>
+				(candidate.stack === 'node' || candidate.stack === 'static') &&
+				candidate.projectDirectory === phpCandidate.projectDirectory,
+		);
+		if (!frontendCandidate?.commands?.install) continue;
+		const frontendInstall =
+			frontendCandidate.commands.build &&
+			frontendCandidate.commands.install === 'npm ci'
+				? 'npm ci --include=dev'
+				: frontendCandidate.commands.build &&
+					  frontendCandidate.commands.install === 'npm install'
+					? 'npm install --include=dev'
+					: frontendCandidate.commands.install;
+		phpCandidate.commands = {
+			...phpCandidate.commands,
+			...(frontendCandidate.commands.build
+				? { build: frontendCandidate.commands.build }
+				: {}),
+			install: [phpCandidate.commands?.install, frontendInstall]
+				.filter(Boolean)
+				.join(' && '),
+		};
+		evidence.push(
+			`${phpCandidate.projectDirectory} combines PHP and Node dependency installation`,
+		);
+	}
   const unique = candidates.filter(
     (candidate, index) =>
       candidates.findIndex(

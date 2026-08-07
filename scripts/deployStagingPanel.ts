@@ -107,7 +107,7 @@ function runtimeEnvironment(): Record<string, string> {
 		DATABASE_CLUSTER_CONNECTION_MODE: 'internal',
 		ENABLE_DEV_AUTH_BYPASS: 'false',
 		NODE_ENV: 'production',
-		NIXPACKS_NODE_VERSION: '22',
+		NIXPACKS_NODE_VERSION: '24',
 		PORT: '3000',
 	};
 }

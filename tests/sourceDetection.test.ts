@@ -72,6 +72,40 @@ describe('application source detection', () => {
 		});
 	});
 
+	it('combines Composer and Node tooling for a Laravel frontend build', async () => {
+		const files = {
+			'composer.json': JSON.stringify({
+				require: { 'laravel/framework': '^12.0' },
+			}),
+			'composer.lock': '{}',
+			'package.json': JSON.stringify({
+				devDependencies: { vite: '^6.0.0' },
+				scripts: { build: 'vite build' },
+			}),
+			'package-lock.json': JSON.stringify({ lockfileVersion: 3 }),
+		};
+		vi.stubGlobal(
+			'fetch',
+			vi.fn((input: string | URL | Request) =>
+				Promise.resolve(githubResponse(String(input), files)),
+			),
+		);
+
+		const result = await analyzeApplicationSource(
+			'https://github.com/ghostdeploy/laravel-vite-example',
+			'main',
+		);
+		const laravel = result.candidates.find(
+			(candidate) => candidate.framework === 'laravel',
+		);
+
+		expect(laravel?.commands).toMatchObject({
+			build: 'npm run build',
+			install:
+				'composer install --no-interaction --prefer-dist --optimize-autoloader && npm install --include=dev',
+		});
+	});
+
 	it('detects Rails from a nested Gemfile', async () => {
 		const files = {
 			'app/Gemfile': "source 'https://rubygems.org'\ngem 'rails', '~> 8.0'\n",

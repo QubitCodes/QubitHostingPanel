@@ -97,6 +97,14 @@ export function normalizeCoolifyRepositoryDirectory(
 	return `/${normalized.replace(/^\.?\/+/, '').replace(/\/+$/, '')}`;
 }
 
+/** Replaces the portable platform port placeholder with Coolify's assigned port. */
+export function normalizeCoolifyCommand(
+	command: string | undefined,
+	runtimePort: string,
+): string | undefined {
+	return command?.replace(/\$\{PORT\}|\$PORT\b/g, runtimePort);
+}
+
 /** Finds an exact-name provider application created before a panel retry could persist it. */
 export function reusableCoolifyApplication(
 	applications: CoolifyApplication[],
@@ -482,9 +490,18 @@ export class CoolifyHostingProvider implements HostingProvider {
 					git_repository: input.source.repository,
 					git_branch: input.source.branch,
 					build_pack: input.buildPack ?? 'nixpacks',
-					install_command: input.installCommand,
-					build_command: input.buildCommand,
-					start_command: input.startCommand,
+					install_command: normalizeCoolifyCommand(
+						input.installCommand,
+						runtimePort,
+					),
+					build_command: normalizeCoolifyCommand(
+						input.buildCommand,
+						runtimePort,
+					),
+					start_command: normalizeCoolifyCommand(
+						input.startCommand,
+						runtimePort,
+					),
 					base_directory:
 						normalizeCoolifyRepositoryDirectory(input.baseDirectory) ?? '/',
 					publish_directory: normalizeCoolifyRepositoryDirectory(
@@ -528,9 +545,12 @@ export class CoolifyHostingProvider implements HostingProvider {
 				method: 'PATCH',
 				body: JSON.stringify({
 					build_pack: input.buildPack ?? 'nixpacks',
-					install_command: input.installCommand ?? '',
-					build_command: input.buildCommand ?? '',
-					start_command: input.startCommand ?? '',
+					install_command:
+						normalizeCoolifyCommand(input.installCommand, runtimePort) ?? '',
+					build_command:
+						normalizeCoolifyCommand(input.buildCommand, runtimePort) ?? '',
+					start_command:
+						normalizeCoolifyCommand(input.startCommand, runtimePort) ?? '',
 					base_directory:
 						normalizeCoolifyRepositoryDirectory(input.baseDirectory) ?? '/',
 					publish_directory:

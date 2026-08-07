@@ -5,6 +5,7 @@ import {
 	CoolifyHostingProvider,
 	coolifyJobStatus,
 	isCoolifyEnvironmentConflict,
+	normalizeCoolifyCommand,
 	normalizeCoolifyDeploymentLogs,
 	normalizeCoolifyRepositoryDirectory,
 	normalizeCoolifyWildcardDomain,
@@ -38,6 +39,20 @@ describe('normalizeCoolifyRepositoryDirectory', () => {
 		expect(normalizeCoolifyRepositoryDirectory('./apps/web/')).toBe('/apps/web');
 		expect(normalizeCoolifyRepositoryDirectory('/')).toBe('/');
 		expect(normalizeCoolifyRepositoryDirectory(undefined)).toBeUndefined();
+	});
+});
+
+describe('normalizeCoolifyCommand', () => {
+	it('resolves portable PORT placeholders to the provider-assigned port', () => {
+		expect(
+			normalizeCoolifyCommand(
+				'php artisan serve --host=0.0.0.0 --port=$PORT',
+				'8080',
+			),
+		).toBe('php artisan serve --host=0.0.0.0 --port=8080');
+		expect(normalizeCoolifyCommand('server --bind :${PORT}', '3000')).toBe(
+			'server --bind :3000',
+		);
 	});
 });
 

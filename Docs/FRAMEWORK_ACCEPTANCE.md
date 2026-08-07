@@ -8,9 +8,9 @@ Framework detection is not production evidence. Ghost Deploy keeps small, locked
 | --- | --- | --- | --- | --- | --- |
 | Express | `fixtures/frameworks/express` | None | None | Passed | HTTPS/runtime/history/logs passed 2026-08-07 |
 | Next.js | `fixtures/frameworks/nextjs` | None | None | Passed | HTTPS/runtime/history/logs passed 2026-08-07 |
-| Laravel | `fixtures/frameworks/laravel` | PostgreSQL | `storage/app/public` | Passed with SQLite smoke | Pending PostgreSQL deployment |
-| WordPress | `fixtures/frameworks/wordpress` | MySQL | `wp-content` | Passed without configured DB | Pending MySQL deployment |
-| Django | `fixtures/frameworks/django` | PostgreSQL | `media` | Passed with SQLite smoke | Pending PostgreSQL deployment |
+| Laravel | `fixtures/frameworks/laravel` | PostgreSQL | `storage/app/public` | Passed with SQLite smoke | PostgreSQL/HTTPS/runtime/history/logs passed 2026-08-07 |
+| WordPress | `fixtures/frameworks/wordpress` | MySQL | `wp-content` | Passed without configured DB | MySQL/HTTPS/runtime/history/logs passed 2026-08-07 |
+| Django | `fixtures/frameworks/django` | PostgreSQL | `media` | Passed with SQLite smoke | Pending retry after WSGI fixture correction |
 | Vite | `fixtures/frameworks/vite` | None | None | Production build passed | HTTPS/static/history/logs passed 2026-08-07 |
 
 Local checks prove dependency resolution, build output, runtime startup and HTTP health. They do not replace Coolify networking, generated-domain, shared-database, volume, replacement-deployment or TLS evidence.

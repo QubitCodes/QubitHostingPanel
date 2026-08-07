@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, isNull, lt, lte } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
 
 import { getEnvironment } from "@config/env";
 import { frameworkDefinition } from "@config/frameworkCatalog";
@@ -31,6 +31,26 @@ import {
 
 /** Marks provider states that cannot improve without a new explicit deployment. */
 class TerminalProvisioningError extends Error {}
+
+/** Returns true once the provider has accepted the resource for asynchronous reconciliation. */
+export function isProviderReconciliationPoll(
+  result: Record<string, unknown>,
+): boolean {
+  return (
+    typeof result.providerResourceId === "string" &&
+    result.providerResourceId.trim().length > 0
+  );
+}
+
+/** Provider polling is not a new provisioning attempt and must not exhaust retry limits. */
+export function nextProvisioningAttemptCount(
+  attemptCount: number,
+  result: Record<string, unknown>,
+): number {
+  return isProviderReconciliationPoll(result)
+    ? attemptCount
+    : attemptCount + 1;
+}
 
 /** Queues exactly one initial application provision per subscription. */
 export async function queueInitialProvisioning(
@@ -83,7 +103,10 @@ export async function processProvisioningJobs(
       .where(
         and(
           inArray(provisioningJobs.status, ["queued", "failed"]),
-          lt(provisioningJobs.attemptCount, provisioningJobs.maximumAttempts),
+          or(
+            lt(provisioningJobs.attemptCount, provisioningJobs.maximumAttempts),
+            sql`${provisioningJobs.result}->>'providerResourceId' IS NOT NULL`,
+          ),
           lte(provisioningJobs.nextAttemptAt, now),
           isNull(provisioningJobs.deletedAt),
         ),
@@ -96,7 +119,10 @@ export async function processProvisioningJobs(
       .set({
         status: "processing",
         lockedAt: now,
-        attemptCount: candidate.attemptCount + 1,
+        attemptCount: nextProvisioningAttemptCount(
+          candidate.attemptCount,
+          candidate.result,
+        ),
         updatedAt: now,
       })
       .where(

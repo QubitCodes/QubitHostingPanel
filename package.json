@@ -24,7 +24,7 @@
 		"acceptance:frameworks:prepare": "node --import tsx scripts/prepareFrameworkFixtures.ts",
 		"acceptance:frameworks:smoke": "node --import tsx scripts/smokeFrameworkFixtures.ts",
 		"acceptance:frameworks:source": "node --env-file=.env --import tsx scripts/verifyFrameworkAcceptanceSource.ts",
-		"acceptance:frameworks:live": "node --env-file=.env --import tsx scripts/runLiveFrameworkAcceptance.ts",
+		"acceptance:frameworks:live": "node --env-file-if-exists=.env --import tsx scripts/runLiveFrameworkAcceptanceBootstrap.ts",
 		"staging:deploy:panel": "node --env-file=.env --import tsx scripts/deployStagingPanel.ts",
 		"staging:queue:proofs": "node --env-file=.env --import tsx scripts/queueStagingDeploymentProofs.ts",
 		"db:generate": "node --env-file=.env node_modules/drizzle-kit/bin.cjs generate",
