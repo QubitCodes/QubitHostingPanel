@@ -46,6 +46,10 @@ import {
 	parseEnvFile,
 } from '@root/app/utils/envFileParser';
 import {
+	regionalEnvironmentConfiguration,
+	type EnvironmentConfigurationValue,
+} from '@root/app/utils/environmentValueGenerator';
+import {
 	frameworkDefinition,
 	frameworksForLanguage,
 	type RuntimeLanguage,
@@ -491,6 +495,7 @@ export function DeployApplicationForm({
 	const [githubRepositories, setGithubRepositories] = useState<
 		GithubRepository[]
 	>([]);
+	const [githubRepositoriesLoading, setGithubRepositoriesLoading] = useState(false);
 	const [githubConnecting, setGithubConnecting] = useState(false);
 	const githubPopupRef = useRef<Window | null>(null);
 	const githubPollRef = useRef<number | undefined>(undefined);
@@ -500,6 +505,7 @@ export function DeployApplicationForm({
 	const [analysis, setAnalysis] = useState<SourceAnalysis>();
 	const [selectedCandidateIndex, setSelectedCandidateIndex] = useState(0);
 	const [analyzing, setAnalyzing] = useState(false);
+	const sourceBusy = analyzing || githubRepositoriesLoading;
 	const [stack, setStack] = useState<RuntimeOption['language']>('node');
 	const [runtimeCode, setRuntimeCode] = useState('');
 	const [framework, setFramework] = useState<string>('');
@@ -513,6 +519,7 @@ export function DeployApplicationForm({
 	const [startCommand, setStartCommand] = useState('');
 	const [variables, setVariables] = useState<EnvironmentVariable[]>([]);
 	const [selectedEnvironmentIndex, setSelectedEnvironmentIndex] = useState<number>();
+	const [regionalConfiguration, setRegionalConfiguration] = useState<EnvironmentConfigurationValue[]>(() => regionalEnvironmentConfiguration('en', 'UTC'));
 	const [deploymentEnvironment, setDeploymentEnvironment] = useState<'development' | 'testing' | 'staging' | 'production'>('production');
 	const [environmentEditorOpen, setEnvironmentEditorOpen] = useState(false);
 	const [environmentImportOpen, setEnvironmentImportOpen] = useState(false);
@@ -582,7 +589,7 @@ export function DeployApplicationForm({
 		? `${domainLabel}-${databaseSuffix}.${options.applicationBaseDomain}`
 		: '';
 	const configurationValues = useMemo(() => {
-		const values: Array<{ label: string; value: string; secret?: boolean }> = [
+		const values: EnvironmentConfigurationValue[] = [
 			{ label: 'Application name', value: name || 'Not set' },
 			{ label: 'Environment', value: deploymentEnvironment },
 			{ label: 'Application URL', value: platformHostname ? `https://${platformHostname}` : 'Generated after naming the application' },
@@ -606,9 +613,17 @@ export function DeployApplicationForm({
 			{ label: 'Database URL', value: 'Completed during provisioning', secret: true },
 		);
 		else if (databaseMode === 'existing') values.push({ label: 'Database', value: options.databases.find(({ id }) => id === existingDatabaseId)?.databaseName ?? 'Not selected' });
+		values.push(...regionalConfiguration);
 		return values;
-	}, [applicationPort, branch, combinedDatabaseName, databaseEngine, databaseMode, databasePassword, databaseUserMode, deploymentEnvironment, effectiveDatabaseUsername, existingDatabaseId, framework, name, options.databases, outputDirectory, platformHostname, projectDirectory, repository, selectedRuntime?.version, stack]);
+	}, [applicationPort, branch, combinedDatabaseName, databaseEngine, databaseMode, databasePassword, databaseUserMode, deploymentEnvironment, effectiveDatabaseUsername, existingDatabaseId, framework, name, options.databases, outputDirectory, platformHostname, projectDirectory, regionalConfiguration, repository, selectedRuntime?.version, stack]);
 	const environmentPreview = useMemo(() => variables.filter(({ key }) => key.trim()).map(({ key, value }) => `${key.trim().toUpperCase()}=${value}`).join('\n'), [variables]);
+
+	useEffect(() => {
+		const timeout = window.setTimeout(() => {
+			setRegionalConfiguration(regionalEnvironmentConfiguration(navigator.language, Intl.DateTimeFormat().resolvedOptions().timeZone));
+		}, 0);
+		return () => window.clearTimeout(timeout);
+	}, []);
 
 	useEffect(() => {
 		if (databaseMode !== 'new') return;
@@ -707,18 +722,23 @@ export function DeployApplicationForm({
 			setGithubRepositories([]);
 			return [];
 		}
-		const repositories = await request<GithubRepository[]>(
-			`/api/v1/workspaces/${workspaceId}/applications/github-connections/${connectionId}/repositories`,
-		);
-		setGithubRepositories(repositories);
-		if (repositoryRef.current && !repositories.some(({ url }) => url === repositoryRef.current)) {
-			repositoryRef.current = '';
-			setRepository('');
-			setBranch('main');
-			setAvailableBranches([]);
-			setAnalysis(undefined);
+		setGithubRepositoriesLoading(true);
+		try {
+			const repositories = await request<GithubRepository[]>(
+				`/api/v1/workspaces/${workspaceId}/applications/github-connections/${connectionId}/repositories`,
+			);
+			setGithubRepositories(repositories);
+			if (repositoryRef.current && !repositories.some(({ url }) => url === repositoryRef.current)) {
+				repositoryRef.current = '';
+				setRepository('');
+				setBranch('main');
+				setAvailableBranches([]);
+				setAnalysis(undefined);
+			}
+			return repositories;
+		} finally {
+			setGithubRepositoriesLoading(false);
 		}
-		return repositories;
 	}, [workspaceId]);
 
 	const refreshGithubAccess = useCallback(async (notify = false): Promise<void> => {
@@ -1333,6 +1353,7 @@ export function DeployApplicationForm({
 					icon={Github}
 					title="Source repository"
 				>
+					{sourceBusy && <div aria-live="polite" className="flex items-center gap-3 rounded-xl border border-brand-action/25 bg-brand-action/[0.06] px-4 py-3 text-sm font-bold"><LoaderCircle className="size-4 animate-spin" />{githubRepositoriesLoading ? 'Loading permitted repositories…' : 'Inspecting repository and updating detected configuration…'}</div>}
 					<fieldset>
 						<legend className="font-semibold">Repository access</legend>
 						<div className="mt-2 grid grid-cols-2 gap-2">
@@ -1428,8 +1449,9 @@ export function DeployApplicationForm({
 										<div className="flex items-stretch gap-2">
 											<div className="min-w-0 flex-1">
 												<SearchableSelect
-											ariaLabel="Choose a permitted GitHub repository"
-											emptyMessage="No permitted repositories found. Use the gear button to review access."
+													ariaLabel="Choose a permitted GitHub repository"
+													disabled={sourceBusy}
+													emptyMessage="No permitted repositories found. Use the gear button to review access."
 											onChange={(value) => {
 												const selected = githubRepositories.find(
 													(item) => item.url === value,
@@ -1438,7 +1460,6 @@ export function DeployApplicationForm({
 												setRepository(value);
 												setBranch(defaultBranch);
 												setAvailableBranches([defaultBranch]);
-												setAnalysis(undefined);
 												if (value)
 													void inspectSource({
 														repository: value,
@@ -1499,6 +1520,7 @@ export function DeployApplicationForm({
 							<div className="flex gap-2">
 								<input
 									className={`${inputClass} min-w-0 flex-1`}
+									readOnly={sourceBusy}
 									onChange={(event) => {
 										setRepository(event.target.value);
 										setAnalysis(undefined);
@@ -1534,10 +1556,10 @@ export function DeployApplicationForm({
 							<SearchableSelect
 								allowCreate
 								ariaLabel="Choose repository branch"
+								disabled={sourceBusy}
 								emptyMessage="No matching branches found. Enter the exact branch name to add it."
 								onChange={(value) => {
 									setBranch(value);
-									setAnalysis(undefined);
 									if (sourceMode === 'github')
 										void inspectSource({ repository, branch: value });
 								}}
@@ -1560,6 +1582,7 @@ export function DeployApplicationForm({
 									Detected application
 									<SearchableSelect
 										ariaLabel="Choose detected application"
+										disabled={sourceBusy}
 										onChange={(value) => {
 											const index = Number(value);
 											const candidate = analysis.candidates[index];
@@ -1603,6 +1626,7 @@ export function DeployApplicationForm({
 								<button
 									className={`rounded-2xl border p-4 text-left ${stack === item.code ? 'border-brand-action bg-brand-action/10' : 'border-brand-primary/10'}`}
 									key={item.code}
+									disabled={sourceBusy}
 									onClick={() => selectStack(item.code)}
 									type="button"
 								>
@@ -1627,6 +1651,7 @@ export function DeployApplicationForm({
 								<button
 									className={`rounded-xl border px-4 py-2 font-bold ${selectedRuntime?.code === runtime.code ? 'border-brand-action bg-brand-action/10' : 'border-brand-primary/10'}`}
 									key={runtime.code}
+									disabled={sourceBusy}
 								onClick={() => {
 									setRuntimeCode(runtime.code);
 									setApplicationPort(runtime.defaultPort);
@@ -1651,6 +1676,7 @@ export function DeployApplicationForm({
 						<div className="mt-3 flex flex-wrap gap-2">
 							<button
 								className={`rounded-xl border px-3 py-2 text-sm font-bold ${!framework ? 'border-brand-action bg-brand-action/10' : 'border-brand-primary/10'}`}
+								disabled={sourceBusy}
 								onClick={() => setFramework('')}
 								type="button"
 							>
@@ -1660,6 +1686,7 @@ export function DeployApplicationForm({
 								<button
 									className={`rounded-xl border px-3 py-2 text-sm font-bold ${framework === item.code ? 'border-brand-action bg-brand-action/10' : 'border-brand-primary/10'}`}
 									key={item.code}
+									disabled={sourceBusy}
 									onClick={() => selectFramework(item.code)}
 									type="button"
 								>
@@ -1681,6 +1708,7 @@ export function DeployApplicationForm({
 						<div className="flex gap-2">
 							<input
 								className={`${inputClass} min-w-0 flex-1`}
+								readOnly={sourceBusy}
 								onChange={(event) => setProjectDirectory(event.target.value)}
 								onBlur={() => {
 									const candidate = analysis?.candidates.find(
@@ -1695,7 +1723,7 @@ export function DeployApplicationForm({
 							/>
 							<button
 								className="inline-flex items-center gap-2 rounded-xl border border-brand-primary/15 px-4 font-bold"
-								disabled={!analysis}
+								disabled={sourceBusy || !analysis}
 								onClick={() => setDirectoryTarget('project')}
 								type="button"
 							>
@@ -1715,13 +1743,14 @@ export function DeployApplicationForm({
 							<div className="flex gap-2">
 								<input
 									className={`${inputClass} min-w-0 flex-1`}
+									readOnly={sourceBusy}
 									onChange={(event) => setOutputDirectory(event.target.value)}
 									placeholder="dist"
 									value={outputDirectory}
 								/>
 								<button
 									className="inline-flex items-center gap-2 rounded-xl border border-brand-primary/15 px-4 font-bold"
-									disabled={!analysis}
+									disabled={sourceBusy || !analysis}
 									onClick={() => setDirectoryTarget('output')}
 									type="button"
 								>
@@ -1739,6 +1768,7 @@ export function DeployApplicationForm({
 						Application port
 						<input
 							className={inputClass}
+							readOnly={sourceBusy}
 							max="65535"
 							min="1"
 							name="port"
@@ -1795,6 +1825,7 @@ export function DeployApplicationForm({
 								Install command
 								<input
 									className={inputClass}
+									readOnly={sourceBusy}
 									name="installCommand"
 									onChange={(event) => setInstallCommand(event.target.value)}
 									placeholder="Detected automatically"
@@ -1809,6 +1840,7 @@ export function DeployApplicationForm({
 								Build command
 								<input
 									className={inputClass}
+									readOnly={sourceBusy}
 									name="buildCommand"
 									onChange={(event) => setBuildCommand(event.target.value)}
 									placeholder="Detected automatically"
@@ -1823,6 +1855,7 @@ export function DeployApplicationForm({
 								Start command
 								<input
 									className={inputClass}
+									readOnly={sourceBusy}
 									name="startCommand"
 									onChange={(event) => setStartCommand(event.target.value)}
 									placeholder="Detected automatically"
@@ -2067,8 +2100,9 @@ export function DeployApplicationForm({
 										className={`rounded-2xl border p-4 text-left ${databaseEngine === 'postgresql' ? 'border-brand-action bg-brand-action/10' : 'border-brand-primary/10'}`}
 										onClick={() => setDatabaseEngine('postgresql')}
 										disabled={
-											selectedFramework !== undefined &&
-											!selectedFramework.databaseEngines.includes('postgresql')
+											sourceBusy ||
+											(selectedFramework !== undefined &&
+												!selectedFramework.databaseEngines.includes('postgresql'))
 										}
 										type="button"
 									>
@@ -2084,8 +2118,9 @@ export function DeployApplicationForm({
 										className={`rounded-2xl border p-4 text-left ${databaseEngine === 'mysql' ? 'border-brand-action bg-brand-action/10' : 'border-brand-primary/10'}`}
 										onClick={() => setDatabaseEngine('mysql')}
 										disabled={
-											selectedFramework !== undefined &&
-											!selectedFramework.databaseEngines.includes('mysql')
+											sourceBusy ||
+											(selectedFramework !== undefined &&
+												!selectedFramework.databaseEngines.includes('mysql'))
 										}
 										type="button"
 									>
@@ -2225,6 +2260,7 @@ export function DeployApplicationForm({
 						<button
 							aria-label="Edit environment variables"
 							className="rounded-lg border border-brand-primary/15 p-2 transition hover:bg-brand-primary/5"
+							disabled={sourceBusy}
 							onClick={() => setEnvironmentEditorOpen(true)}
 							title="Edit environment variables"
 							type="button"
@@ -2660,7 +2696,7 @@ export function DeployApplicationForm({
 			<div className="fixed bottom-0 left-0 right-0 z-10 flex justify-end border-t border-brand-primary/10 bg-app-surface/95 px-5 py-4 backdrop-blur lg:left-[var(--app-sidebar-width,16rem)]">
 				<button
 					className="inline-flex items-center gap-2 rounded-xl bg-brand-action px-6 py-3 font-black text-brand-ink disabled:opacity-60"
-					disabled={submitting}
+					disabled={submitting || sourceBusy}
 				>
 					{submitting ? (
 						<LoaderCircle className="size-4 animate-spin" />

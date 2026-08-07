@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { generateEnvironmentValue, hashEnvironmentValue, inferEnvironmentValueKind } from '@root/app/utils/environmentValueGenerator';
+import {
+	bestEnvironmentConfigurationLabel,
+	generateEnvironmentValue,
+	hashEnvironmentValue,
+	inferEnvironmentValueKind,
+	regionalEnvironmentConfiguration,
+} from '@root/app/utils/environmentValueGenerator';
 
 describe('environment value generator', () => {
 	it('infers conventional field helpers', () => {
@@ -8,6 +14,31 @@ describe('environment value generator', () => {
 		expect(inferEnvironmentValueKind('DB_PASSWORD')).toBe('password');
 		expect(inferEnvironmentValueKind('DATABASE_URL')).toBe('configuration');
 		expect(inferEnvironmentValueKind('JWT_SECRET')).toBe('framework');
+		expect(inferEnvironmentValueKind('TZ')).toBe('configuration');
+		expect(inferEnvironmentValueKind('APP_LOCALE')).toBe('configuration');
+	});
+
+	it('selects the closest application configuration value for an environment key', () => {
+		const values = [
+			{ label: 'Application URL', value: 'https://demo.ghostdeploy.com' },
+			{ label: 'Database password', value: 'secret', secret: true },
+			{ label: 'Timezone', value: 'Asia/Calcutta' },
+		];
+		expect(bestEnvironmentConfigurationLabel('APP_URL', values)).toBe('Application URL');
+		expect(bestEnvironmentConfigurationLabel('DB_PASSWORD', values)).toBe('Database password');
+		expect(bestEnvironmentConfigurationLabel('TZ', values)).toBe('Timezone');
+		expect(bestEnvironmentConfigurationLabel('UNRELATED_KEY', values)).toBe('');
+	});
+
+	it('derives regional configuration from the browser locale and timezone', () => {
+		expect(regionalEnvironmentConfiguration('en-IN', 'Asia/Calcutta')).toEqual([
+			{ label: 'Timezone', value: 'Asia/Calcutta' },
+			{ label: 'UTC timezone', value: 'UTC' },
+			{ label: 'Locale', value: 'en-IN' },
+			{ label: 'POSIX locale', value: 'en_IN.UTF-8' },
+			{ label: 'Country', value: 'IN' },
+			{ label: 'Currency', value: 'INR' },
+		]);
 	});
 
 	it('creates strong passwords and framework secrets', () => {
