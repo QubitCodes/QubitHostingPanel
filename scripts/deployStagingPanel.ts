@@ -107,7 +107,7 @@ function runtimeEnvironment(): Record<string, string> {
 		DATABASE_CLUSTER_CONNECTION_MODE: 'internal',
 		ENABLE_DEV_AUTH_BYPASS: 'false',
 		NODE_ENV: 'production',
-		NIXPACKS_NODE_VERSION: '24',
+		NIXPACKS_NODE_VERSION: '22',
 		PORT: '3000',
 	};
 }
@@ -149,7 +149,8 @@ async function main(): Promise<void> {
 					health_check_enabled: true,
 					health_check_path: '/api/v1/health',
 					health_check_port: '3000',
-					install_command: 'npm ci',
+					install_command:
+						'npm ci --include=dev || npm install --include=dev',
 					instant_deploy: false,
 					is_auto_deploy_enabled: true,
 					name: APPLICATION_NAME,
@@ -170,6 +171,8 @@ async function main(): Promise<void> {
 				body: JSON.stringify({
 					domains: APPLICATION_DOMAINS,
 					force_domain_override: false,
+					install_command:
+						'npm ci --include=dev || npm install --include=dev',
 					health_check_enabled: true,
 					health_check_path: '/api/v1/health',
 					health_check_port: '3000',
