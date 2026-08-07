@@ -320,6 +320,7 @@ export class CoolifyHostingProvider implements HostingProvider {
 				id: item.uuid!,
 				kind: 'application' as const,
 				name: item.name ?? item.uuid!,
+				status: item.status,
 			}));
 	}
 

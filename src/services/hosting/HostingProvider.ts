@@ -7,6 +7,7 @@ export interface ProviderResource {
 	id: string;
 	kind: 'application' | 'database' | 'server' | 'service';
 	name: string;
+	status?: string;
 }
 
 export interface ProviderUsage {

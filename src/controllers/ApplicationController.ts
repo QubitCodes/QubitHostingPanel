@@ -37,6 +37,7 @@ import { analyzeApplicationSource } from '@services/applications/sourceDetection
 import { resolveDeploymentContract } from '@services/applications/deploymentRecipeService';
 import { diagnoseDeploymentLogs } from '@services/applications/deploymentDiagnosticService';
 import { parseDeploymentLogs } from '@services/applications/deploymentLogParserService';
+import { currentApplicationProviderStatuses } from '@services/applications/applicationProviderStatusService';
 import {
 	ensureApplicationTracker,
 	publishApplicationEvent,
@@ -131,6 +132,7 @@ const fields = {
 	runtimeLanguage: runtimeImages.language,
 	runtimeVersion: runtimeImages.version,
 	resourceStatus: workspaceResources.status,
+	providerResourceId: workspaceResources.providerResourceId,
 	publicUrl: workspaceResources.publicUrl,
 };
 
@@ -370,7 +372,7 @@ export class ApplicationController {
 				)
 				.orderBy(desc(applicationBuilds.createdAt));
 			const ids = rows.map(({ id }) => id);
-			const [domains, bindings, deployments] = ids.length
+			const [domains, bindings, deployments, providerStatuses] = ids.length
 				? await Promise.all([
 						db
 							.select()
@@ -416,12 +418,19 @@ export class ApplicationController {
 								),
 							)
 							.orderBy(desc(applicationDeployments.createdAt)),
+						currentApplicationProviderStatuses().catch(
+							() => new Map<string, string>(),
+						),
 					])
-				: [[], [], []];
+				: [[], [], [], new Map<string, string>()];
 			return resp.success(
 				'Applications retrieved.',
-				rows.map((row) => ({
+				rows.map(({ providerResourceId, ...row }) => ({
 					...row,
+					resourceStatus:
+						(providerResourceId
+							? providerStatuses.get(providerResourceId)
+							: undefined) ?? row.resourceStatus,
 					name: String(
 						row.metadata?.name ??
 							row.sourceRepository.split('/').pop() ??
