@@ -283,10 +283,67 @@ function phpFramework(manifest: ComposerManifest): string | undefined {
   if (packages["laravel/framework"]) return "laravel";
   if (packages["cakephp/cakephp"]) return "cakephp";
   if (packages["symfony/framework-bundle"]) return "symfony";
-  if (packages["codeigniter4/framework"]) return "codeigniter";
+  if (
+    packages["codeigniter4/framework"] ||
+    packages["codeigniter/framework"] ||
+    packages["bcit-ci/codeigniter"]
+  )
+    return "codeigniter";
   if (packages["yiisoft/yii2"]) return "yii";
   if (packages["slim/slim"]) return "slim";
   return undefined;
+}
+
+/** Returns a repository-relative path inside one detected application root. */
+function candidatePath(directory: string, path: string): string {
+  return directory === "/" ? path : `${directory}/${path}`;
+}
+
+/** Identifies CodeIgniter projects even when legacy applications have no Composer metadata. */
+function codeIgniterDirectories(paths: string[]): string[] {
+  const directories = new Set<string>();
+  for (const path of paths) {
+    for (const marker of [
+      "app/Config/App.php",
+      "application/config/config.php",
+      "system/core/CodeIgniter.php",
+    ]) {
+      if (path !== marker && !path.endsWith(`/${marker}`)) continue;
+      const directory = path.slice(0, -marker.length).replace(/\/$/, "") || "/";
+      const hasEntryPoint =
+        paths.includes(candidatePath(directory, "public/index.php")) ||
+        paths.includes(candidatePath(directory, "index.php"));
+      if (hasEntryPoint) directories.add(directory);
+    }
+  }
+  return [...directories];
+}
+
+/**
+ * Orders deployable applications without hiding alternatives. Repository-root
+ * applications win over nested examples, while a proven backend framework wins
+ * over same-directory frontend build tooling.
+ */
+function sourceCandidateDepth(candidate: SourceCandidate): number {
+  return candidate.projectDirectory === "/"
+    ? 0
+    : candidate.projectDirectory.split("/").length;
+}
+
+/** Scores evidence only after repository depth has identified the likely application root. */
+function sourceCandidatePriority(candidate: SourceCandidate, paths: string[]): number {
+  const frameworkBonus = candidate.framework ? 100 : 0;
+  const backendBonus = candidate.stack === "php" && candidate.framework ? 80 : 0;
+  const codeIgniterMarkerBonus =
+    candidate.framework === "codeigniter" &&
+    [
+      "app/Config/App.php",
+      "application/config/config.php",
+      "system/core/CodeIgniter.php",
+    ].some((path) => paths.includes(candidatePath(candidate.projectDirectory, path)))
+      ? 120
+      : 0;
+  return frameworkBonus + backendBonus + codeIgniterMarkerBonus;
 }
 
 function pythonFramework(requirements: string): string | undefined {
@@ -375,6 +432,25 @@ export async function analyzeApplicationSource(
       /* Ignore malformed manifests. */
     }
   }
+  for (const directory of codeIgniterDirectories(paths)) {
+    if (
+      candidates.some(
+        (candidate) =>
+          candidate.projectDirectory === directory &&
+          candidate.stack === "php" &&
+          candidate.framework === "codeigniter",
+      )
+    )
+      continue;
+    candidates.push({
+      projectDirectory: directory,
+      stack: "php",
+      framework: "codeigniter",
+    });
+    evidence.push(
+      `${candidatePath(directory, paths.includes(candidatePath(directory, "spark")) ? "spark" : "index.php")} identifies codeigniter`,
+    );
+  }
   for (const path of paths
     .filter((item) => item.endsWith("composer.json"))
     .slice(0, 20)) {
@@ -382,17 +458,26 @@ export async function analyzeApplicationSource(
     if (!raw) continue;
     try {
       const framework = phpFramework(JSON.parse(raw) as ComposerManifest);
-      candidates.push({
+      const directory = projectDirectory(path);
+      const composerCandidate = {
         commands: {
           install: paths.includes(siblingPath(path, "composer.lock"))
             ? "composer install --no-interaction --prefer-dist --optimize-autoloader"
             : "composer install --no-interaction --prefer-dist",
         },
-        projectDirectory: projectDirectory(path),
+        projectDirectory: directory,
         packageManager: "composer",
-        stack: "php",
+        stack: "php" as const,
         framework,
+      };
+      const structuralCandidate = candidates.find(
+        (candidate) =>
+          candidate.projectDirectory === directory && candidate.stack === "php",
+      );
+      if (structuralCandidate) Object.assign(structuralCandidate, composerCandidate, {
+        framework: framework ?? structuralCandidate.framework,
       });
+      else candidates.push(composerCandidate);
       evidence.push(
         `${path}${framework ? ` identifies ${framework}` : " identifies PHP"}`,
       );
@@ -502,6 +587,13 @@ export async function analyzeApplicationSource(
           item.projectDirectory === candidate.projectDirectory &&
           item.stack === candidate.stack,
       ) === index,
+  ).sort(
+    (left, right) =>
+      sourceCandidateDepth(left) - sourceCandidateDepth(right) ||
+      sourceCandidatePriority(right, paths) -
+        sourceCandidatePriority(left, paths) ||
+      left.projectDirectory.localeCompare(right.projectDirectory) ||
+      left.stack.localeCompare(right.stack),
   );
   const templated: SourceCandidate[] = [];
   for (const candidate of unique) {

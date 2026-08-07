@@ -120,6 +120,18 @@ export async function verifyGithubInstallationState(state: string): Promise<{
 export function githubInstallationUrl(state: string): string {
   return `https://github.com/apps/${encodeURIComponent(configuration().appSlug)}/installations/new?state=${encodeURIComponent(state)}`;
 }
+
+/** Builds the correct GitHub settings URL for personal and organization installations. */
+export function githubInstallationReviewUrl(input: {
+  accountLogin: string;
+  accountType: string;
+  installationId: string | number;
+}): string {
+  const installationId = encodeURIComponent(String(input.installationId));
+  if (input.accountType.toLowerCase() === "organization")
+    return `https://github.com/organizations/${encodeURIComponent(input.accountLogin)}/settings/installations/${installationId}`;
+  return `https://github.com/settings/installations/${installationId}`;
+}
 export async function githubInstallation(
   installationId: string,
 ): Promise<GitHubInstallation> {

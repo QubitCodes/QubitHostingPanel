@@ -106,6 +106,73 @@ describe('application source detection', () => {
 		});
 	});
 
+	it('prefers a proven CodeIgniter 4 application over same-directory Node tooling', async () => {
+		const files = {
+			'app/Config/App.php': '<?php namespace Config;',
+			'public/index.php': '<?php',
+			'spark': '#!/usr/bin/env php',
+			'composer.json': JSON.stringify({
+				require: { 'codeigniter4/framework': '^4.6' },
+			}),
+			'composer.lock': '{}',
+			'package.json': JSON.stringify({
+				dependencies: { next: '^16.0.0' },
+				scripts: { build: 'next build' },
+			}),
+		};
+		vi.stubGlobal(
+			'fetch',
+			vi.fn((input: string | URL | Request) =>
+				Promise.resolve(githubResponse(String(input), files)),
+			),
+		);
+
+		const result = await analyzeApplicationSource(
+			'https://github.com/ghostdeploy/codeigniter-example',
+			'main',
+		);
+
+		expect(result.candidates[0]).toMatchObject({
+			framework: 'codeigniter',
+			packageManager: 'composer',
+			projectDirectory: '/',
+			stack: 'php',
+		});
+		expect(result.candidates[0]?.commands).toMatchObject({
+			build: 'npm run build',
+			install:
+				'composer install --no-interaction --prefer-dist --optimize-autoloader && npm install --include=dev',
+		});
+		expect(result.candidates).toContainEqual(
+			expect.objectContaining({ framework: 'nextjs', stack: 'node' }),
+		);
+	});
+
+	it('detects a legacy CodeIgniter 3 project without Composer metadata', async () => {
+		const files = {
+			'application/config/config.php': '<?php',
+			'index.php': '<?php',
+			'system/core/CodeIgniter.php': '<?php',
+		};
+		vi.stubGlobal(
+			'fetch',
+			vi.fn((input: string | URL | Request) =>
+				Promise.resolve(githubResponse(String(input), files)),
+			),
+		);
+
+		const result = await analyzeApplicationSource(
+			'https://github.com/ghostdeploy/codeigniter-legacy-example',
+			'main',
+		);
+
+		expect(result.candidates[0]).toMatchObject({
+			framework: 'codeigniter',
+			projectDirectory: '/',
+			stack: 'php',
+		});
+	});
+
 	it('detects Rails from a nested Gemfile', async () => {
 		const files = {
 			'app/Gemfile': "source 'https://rubygems.org'\ngem 'rails', '~> 8.0'\n",

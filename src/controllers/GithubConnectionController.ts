@@ -7,6 +7,7 @@ import { applicationWorkspaceAccess } from "@controllers/ApplicationController";
 import {
   githubInstallation,
   githubInstallationRepositories,
+  githubInstallationReviewUrl,
   githubInstallationUrl,
   createGithubInstallationState,
   verifyGithubInstallationState,
@@ -90,7 +91,11 @@ export class GithubConnectionController {
         "GitHub connections retrieved.",
         rows.map((row) => ({
           ...row,
-          reviewUrl: `https://github.com/settings/installations/${row.installationId}`,
+          reviewUrl: githubInstallationReviewUrl({
+            accountLogin: row.accountLogin,
+            accountType: row.accountType,
+            installationId: row.installationId,
+          }),
         })),
       );
     } catch {

@@ -17,12 +17,12 @@ Generic Node.js, PHP, Python, Ruby, and static repositories remain deployable wi
 ## Detection
 
 - Node and static frameworks are detected from `package.json` dependencies.
-- PHP frameworks are detected from `composer.json` dependencies.
+- PHP frameworks are detected from `composer.json` dependencies. CodeIgniter 3 and 4 are also detected from their conventional entry points and application directories, including legacy CodeIgniter 3 repositories without Composer metadata.
 - WordPress is detected from `wp-includes/version.php`, including repositories without Composer metadata.
 - Python frameworks are detected from `requirements.txt` or `pyproject.toml`.
 - Python dependency discovery also accepts named requirements files and Pipenv projects. Conventional Django WSGI, FastAPI, Flask and Litestar entry points produce reviewable start commands only when the required server package can be proven.
 - Rails is detected from a `Gemfile` containing the `rails` gem.
-- Monorepo project directories are retained for every detected candidate.
+- Monorepo project directories are retained for every detected candidate. When several applications are found, the deployment form exposes a searchable application selector instead of silently choosing an unrelated manifest. Proven backend markers take priority over same-directory frontend build tooling.
 - Environment templates are inspected for keys only; real `.env` files are never read.
 
 Every source candidate receives a versioned deployment contract. A selected server framework cannot be queued until a start command is either detected or supplied. The contract also validates the project directory, static output directory and container-local port. The contract is provider-independent and is saved with the application so a future recipe revision does not silently reinterpret an existing deployment.
@@ -34,6 +34,7 @@ For npm projects, Ghost Deploy installs development dependencies during the buil
 - WordPress permits MySQL only and identifies `wp-content` as persistent data.
 - Laravel identifies public storage and its queue/scheduler conventions.
 - CakePHP, Symfony, CodeIgniter, Yii, Django, and Rails expose their conventional writable directories as persistence hints.
+- CodeIgniter 4 is served from `public`; legacy CodeIgniter 3 is served from the repository root after its core and front-controller markers are verified.
 - Symfony Messenger, Laravel queues, Celery, and Rails queues are background-worker concerns rather than web-process commands.
 - Static builds do not require a database or project cron runtime.
 

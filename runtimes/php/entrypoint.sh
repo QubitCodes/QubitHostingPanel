@@ -12,6 +12,8 @@ elif [ -f /app/bin/cake ] && [ -f /app/webroot/index.php ]; then
 	web_root=/app/webroot
 elif [ -f /app/yii ] && [ -f /app/web/index.php ]; then
 	web_root=/app/web
+elif [ -f /app/system/core/CodeIgniter.php ] && [ -f /app/index.php ]; then
+	web_root=/app
 fi
 sed -i "s#root /app/public;#root ${web_root};#" /etc/nginx/nginx.conf
 

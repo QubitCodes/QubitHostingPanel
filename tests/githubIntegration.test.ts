@@ -2,7 +2,10 @@ import { generateKeyPairSync } from "node:crypto";
 import { describe, expect, it } from "vitest";
 
 import { matchingCoolifyGithubSource } from "@services/github/coolifyGithubSourceService";
-import { normalizeGithubPrivateKey } from "@services/github/githubAppService";
+import {
+  githubInstallationReviewUrl,
+  normalizeGithubPrivateKey,
+} from "@services/github/githubAppService";
 
 describe("GitHub deployment integration", () => {
   it("normalizes GitHub PKCS1 private keys to PKCS8", () => {
@@ -24,5 +27,24 @@ describe("GitHub deployment integration", () => {
     ];
     expect(matchingCoolifyGithubSource(sources, 10, 21)?.uuid).toBe("source-b");
     expect(matchingCoolifyGithubSource(sources, 11, 21)).toBeUndefined();
+  });
+
+  it("uses the owning account settings page for GitHub App configuration", () => {
+    expect(
+      githubInstallationReviewUrl({
+        accountLogin: "mashuptechin",
+        accountType: "Organization",
+        installationId: 151946853,
+      }),
+    ).toBe(
+      "https://github.com/organizations/mashuptechin/settings/installations/151946853",
+    );
+    expect(
+      githubInstallationReviewUrl({
+        accountLogin: "jayak",
+        accountType: "User",
+        installationId: 42,
+      }),
+    ).toBe("https://github.com/settings/installations/42");
   });
 });

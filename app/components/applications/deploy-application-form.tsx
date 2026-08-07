@@ -240,8 +240,13 @@ function evidenceParts(evidence: string): { detail: string; path: string } {
 }
 
 /** Presents detected source metadata without overwhelming the deployment form. */
-function DetectionSummary({ analysis }: { analysis: SourceAnalysis }) {
-	const candidate = analysis.candidates[0];
+function DetectionSummary({
+	analysis,
+	candidate,
+}: {
+	analysis: SourceAnalysis;
+	candidate: SourceAnalysis['candidates'][number];
+}) {
 	const stackLabel = STACKS.find(
 		({ code }) => code === candidate?.stack,
 	)?.label;
@@ -285,8 +290,8 @@ function DetectionSummary({ analysis }: { analysis: SourceAnalysis }) {
 					],
 					[
 						'Environment variables',
-						analysis.environmentKeys.length
-							? `${analysis.environmentKeys.length} keys found`
+						(candidate.environmentKeys ?? analysis.environmentKeys).length
+							? `${(candidate.environmentKeys ?? analysis.environmentKeys).length} keys found`
 							: 'None found',
 					],
 				].map(([label, value]) => (
@@ -425,6 +430,7 @@ export function DeployApplicationForm({
 	const [branch, setBranch] = useState('main');
 	const [availableBranches, setAvailableBranches] = useState<string[]>([]);
 	const [analysis, setAnalysis] = useState<SourceAnalysis>();
+	const [selectedCandidateIndex, setSelectedCandidateIndex] = useState(0);
 	const [analyzing, setAnalyzing] = useState(false);
 	const [stack, setStack] = useState<RuntimeOption['language']>('node');
 	const [runtimeCode, setRuntimeCode] = useState('');
@@ -853,6 +859,7 @@ export function DeployApplicationForm({
 		setBranch('main');
 		setAvailableBranches([]);
 		setAnalysis(undefined);
+		setSelectedCandidateIndex(0);
 	}
 	function selectGithubConnection(connectionId: string): void {
 		setGithubConnectionId(connectionId);
@@ -860,6 +867,7 @@ export function DeployApplicationForm({
 		setBranch('main');
 		setAvailableBranches([]);
 		setAnalysis(undefined);
+		setSelectedCandidateIndex(0);
 		setGithubRepositories([]);
 	}
 	function applyDetectedCandidate(
@@ -907,6 +915,7 @@ export function DeployApplicationForm({
 				},
 			);
 			setAnalysis(result);
+			setSelectedCandidateIndex(0);
 			setAvailableBranches(result.branches);
 			const candidate = result.candidates[0];
 			if (candidate) applyDetectedCandidate(candidate, result.environmentKeys);
@@ -1365,7 +1374,39 @@ export function DeployApplicationForm({
 							</Hint>
 						</label>
 					)}
-					{analysis && <DetectionSummary analysis={analysis} />}
+					{analysis && analysis.candidates[selectedCandidateIndex] && (
+						<div className="grid gap-3">
+							{analysis.candidates.length > 1 && (
+								<label className="grid gap-2 font-semibold">
+									Detected application
+									<SearchableSelect
+										ariaLabel="Choose detected application"
+										onChange={(value) => {
+											const index = Number(value);
+											const candidate = analysis.candidates[index];
+											if (!candidate) return;
+											setSelectedCandidateIndex(index);
+											applyDetectedCandidate(candidate, analysis.environmentKeys);
+										}}
+										options={analysis.candidates.map((candidate, index) => ({
+											label: `${frameworkDefinition(candidate.framework)?.label ?? STACKS.find(({ code }) => code === candidate.stack)?.label ?? candidate.stack} — ${candidate.projectDirectory === '/' ? 'Repository root' : candidate.projectDirectory}`,
+											value: String(index),
+										}))}
+										placeholder="Choose detected application"
+										searchPlaceholder="Search detected applications"
+										value={String(selectedCandidateIndex)}
+									/>
+									<Hint>
+										Multiple deployable applications were found. Choose the one this deployment should use.
+									</Hint>
+								</label>
+							)}
+							<DetectionSummary
+								analysis={analysis}
+								candidate={analysis.candidates[selectedCandidateIndex]}
+							/>
+						</div>
+					)}
 				</Section>
 				<Section
 					description="Detected values are suggestions. You remain in control of the deployment configuration."
