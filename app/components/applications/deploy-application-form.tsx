@@ -34,6 +34,7 @@ import { toast } from 'sonner';
 
 import { authenticatedFetch } from '@root/app/utils/authenticatedFetch';
 import { RepositoryDirectoryBrowser } from '@root/app/components/applications/repository-directory-browser';
+import { EnvironmentValueAssistant } from '@root/app/components/applications/environment-value-assistant';
 import { SearchableSelect } from '@root/app/components/forms/searchable-select';
 import {
 	TechnologyLogo,
@@ -511,6 +512,7 @@ export function DeployApplicationForm({
 	const [buildCommand, setBuildCommand] = useState('');
 	const [startCommand, setStartCommand] = useState('');
 	const [variables, setVariables] = useState<EnvironmentVariable[]>([]);
+	const [selectedEnvironmentIndex, setSelectedEnvironmentIndex] = useState<number>();
 	const [deploymentEnvironment, setDeploymentEnvironment] = useState<'development' | 'testing' | 'staging' | 'production'>('production');
 	const [environmentEditorOpen, setEnvironmentEditorOpen] = useState(false);
 	const [environmentImportOpen, setEnvironmentImportOpen] = useState(false);
@@ -1042,6 +1044,7 @@ export function DeployApplicationForm({
 					: 'runtime',
 			})),
 		);
+		setSelectedEnvironmentIndex(undefined);
 	}
 	async function inspectSource(source?: {
 		branch: string;
@@ -2479,7 +2482,7 @@ export function DeployApplicationForm({
 						)}
 						{variables.map((variable, index) => (
 							<div
-								className="grid gap-3 rounded-2xl border border-brand-primary/10 p-4"
+								className={`grid gap-3 rounded-2xl border p-4 ${selectedEnvironmentIndex === index ? 'border-brand-action bg-brand-action/[0.04]' : 'border-brand-primary/10'}`}
 								key={`${variable.key}-${index}`}
 							>
 								<div className="flex items-start gap-3">
@@ -2491,18 +2494,19 @@ export function DeployApplicationForm({
 												key: event.target.value.toUpperCase(),
 											})
 										}
+										onFocus={() => setSelectedEnvironmentIndex(index)}
 										placeholder="VARIABLE_NAME"
 										value={variable.key}
 									/>
+									<button aria-label={`Open value assistant for ${variable.key || 'variable'}`} className="rounded-xl border border-brand-primary/15 p-3 transition hover:bg-brand-primary/5" onClick={() => setSelectedEnvironmentIndex(index)} title="Open value assistant" type="button"><Sparkles className="size-4" /></button>
 									<button
 										aria-label="Remove variable"
 										className="rounded-xl border border-red-500/20 p-3 text-red-600 disabled:cursor-not-allowed disabled:opacity-40 dark:text-red-300"
 										disabled={variable.required}
-										onClick={() =>
-											setVariables((current) =>
-												current.filter((_, position) => position !== index),
-											)
-										}
+										onClick={() => {
+											setVariables((current) => current.filter((_, position) => position !== index));
+											setSelectedEnvironmentIndex((current) => current === index ? undefined : current !== undefined && current > index ? current - 1 : current);
+										}}
 										type="button"
 										title={
 											variable.required
@@ -2521,8 +2525,9 @@ export function DeployApplicationForm({
 									}
 									placeholder={variable.isSecret ? 'Secret value' : 'Value'}
 									type={variable.isSecret ? 'password' : 'text'}
-									value={variable.value}
-								/>
+										value={variable.value}
+										onFocus={() => setSelectedEnvironmentIndex(index)}
+									/>
 								<div className="grid gap-3 sm:grid-cols-2">
 									<label className="flex items-center gap-2 rounded-xl border border-brand-primary/10 px-3 py-2 text-sm">
 										<input
@@ -2558,9 +2563,10 @@ export function DeployApplicationForm({
 						))}
 						<button
 							className="inline-flex w-fit items-center gap-2 rounded-xl border border-brand-primary/15 px-4 py-2.5 text-sm font-bold"
-							onClick={() =>
-								setVariables((current) => [
-									...current,
+								onClick={() => {
+									setSelectedEnvironmentIndex(variables.length);
+									setVariables((current) => [
+										...current,
 									{
 										key: '',
 										value: '',
@@ -2568,8 +2574,8 @@ export function DeployApplicationForm({
 										required: false,
 										scope: 'runtime',
 									},
-								])
-							}
+									]);
+								}}
 							type="button"
 						>
 							<Plus className="size-4" /> Add Variable
@@ -2590,6 +2596,18 @@ export function DeployApplicationForm({
 									<p className="mt-1 text-sm leading-6 text-app-muted">Live preview of values that may help configure this application's environment.</p>
 								</div>
 								<button className="inline-flex items-center gap-2 rounded-xl border border-brand-primary/15 px-3 py-2 text-sm font-bold disabled:opacity-50" disabled={!environmentPreview} onClick={() => void copyConfigurationValue(environmentPreview, '.env block')} type="button"><Copy className="size-4" /> Copy .env</button>
+							</div>
+							<div className="mt-5">
+								<EnvironmentValueAssistant
+									configurationValues={configurationValues}
+									framework={framework}
+									key={`${selectedEnvironmentIndex ?? 'none'}-${variables[selectedEnvironmentIndex ?? -1]?.key ?? ''}`}
+									onApply={(value, secret) => {
+										if (selectedEnvironmentIndex === undefined) return;
+										updateVariable(selectedEnvironmentIndex, { value, isSecret: secret });
+									}}
+									variable={selectedEnvironmentIndex === undefined ? undefined : variables[selectedEnvironmentIndex]}
+								/>
 							</div>
 							<dl className="mt-5 grid gap-3">
 								{configurationValues.map(({ label, value, secret }) => (
