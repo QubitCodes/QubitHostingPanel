@@ -376,12 +376,22 @@ export function githubPopupFeatures(viewport: PopupViewport): string {
 	const height = Math.max(520, Math.min(760, viewport.availableHeight - 32));
 	const left = Math.max(0, Math.round(viewport.screenX + (viewport.outerWidth - width) / 2));
 	const top = Math.max(0, Math.round(viewport.screenY + (viewport.outerHeight - height) / 2));
-	return `popup=yes,width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes`;
+	return `popup=yes,width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes,toolbar=no,location=no,menubar=no,status=no`;
 }
 
-/** Opens or reuses a centered GitHub setup popup while keeping the deployment form mounted. */
-function openGithubPopup(url: string, name: string): Window | null {
-	const popup = window.open(url, name, githubPopupFeatures({
+/** Creates a collision-free browser-context name for a fresh GitHub setup popup. */
+export function githubPopupName(prefix: string, uniqueId: string): string {
+	return `${prefix}-${uniqueId}`;
+}
+
+/** Opens or reuses only the popup owned by this form, never a stale named tab or the current page. */
+function openGithubPopup(url: string, namePrefix: string, existing?: Window | null): Window | null {
+	if (existing && existing !== window && !existing.closed) {
+		existing.location.href = url;
+		existing.focus();
+		return existing;
+	}
+	const popup = window.open('', githubPopupName(namePrefix, crypto.randomUUID()), githubPopupFeatures({
 		availableHeight: window.screen.availHeight,
 		availableWidth: window.screen.availWidth,
 		outerHeight: window.outerHeight,
@@ -389,7 +399,9 @@ function openGithubPopup(url: string, name: string): Window | null {
 		screenX: window.screenX,
 		screenY: window.screenY,
 	}));
-	popup?.focus();
+	if (!popup || popup === window) return null;
+	popup.location.replace(url);
+	popup.focus();
 	return popup;
 }
 
@@ -745,7 +757,7 @@ export function DeployApplicationForm({
 
 	async function connectGithub(): Promise<void> {
 		const existingConnectionIds = new Set(githubConnections.map(({ id }) => id));
-		const popup = openGithubPopup('about:blank', 'ghostdeploy-github-install');
+		const popup = openGithubPopup('about:blank', 'ghostdeploy-github-install', githubPopupRef.current);
 		if (!popup) {
 			toast.error(
 				'Allow popups for Ghost Deploy, then try connecting GitHub again.',
@@ -800,11 +812,12 @@ export function DeployApplicationForm({
 
 	function configureGithub(reviewUrl: string | undefined): void {
 		if (!reviewUrl) return;
-		const popup = openGithubPopup(reviewUrl, 'ghostdeploy-github-configure');
+		const popup = openGithubPopup(reviewUrl, 'ghostdeploy-github-configure', githubPopupRef.current);
 		if (!popup)
 			toast.error(
 				'Allow popups for Ghost Deploy, then try configuring GitHub again.',
 			);
+		else githubPopupRef.current = popup;
 	}
 
 	async function syncGithubProvider(): Promise<void> {
