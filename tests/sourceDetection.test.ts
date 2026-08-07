@@ -153,6 +153,10 @@ describe('application source detection', () => {
 		expect(result.candidates[0]?.commands?.start).toBe(
 			'gunicorn website.wsgi:application --bind 0.0.0.0:$PORT',
 		);
+		expect(result.candidates[0]?.commands?.install).toBeUndefined();
+		expect(result.evidence).toContain(
+			'requirements.txt dependency installation is managed by the Python build provider',
+		);
 	});
 
 	it('derives a FastAPI command from a conventional entry module', async () => {

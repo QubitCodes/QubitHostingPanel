@@ -443,20 +443,8 @@ export async function analyzeApplicationSource(
     const directory = projectDirectory(path);
     const besideManifest = (name: string) =>
       paths.includes(directory === "/" ? name : `${directory}/${name}`);
-    const pythonInstall = besideManifest("uv.lock")
-      ? "uv sync --frozen"
-      : besideManifest("poetry.lock")
-        ? "poetry install --no-interaction --no-root"
-        : path.endsWith("Pipfile")
-          ? besideManifest("Pipfile.lock")
-            ? "pipenv sync"
-            : "pipenv install"
-          : path.endsWith("pyproject.toml")
-            ? "pip install ."
-            : `pip install -r ${path.split("/").pop() ?? "requirements.txt"}`;
     candidates.push({
       commands: {
-        install: pythonInstall,
         start: pythonStartCommand(framework, directory, paths, raw),
       },
       projectDirectory: directory,
@@ -472,6 +460,9 @@ export async function analyzeApplicationSource(
     });
     evidence.push(
       `${path}${framework ? ` identifies ${framework}` : " identifies Python"}`,
+    );
+    evidence.push(
+      `${path} dependency installation is managed by the Python build provider`,
     );
   }
 	for (const phpCandidate of candidates.filter(

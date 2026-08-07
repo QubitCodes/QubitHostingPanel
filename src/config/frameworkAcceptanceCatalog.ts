@@ -15,6 +15,7 @@ export interface FrameworkAcceptanceCase {
 	healthResponseContains: string;
 	installCommand?: string;
 	persistenceDirectories: string[];
+	persistencePath?: string;
 	port: number;
 	publishDirectory?: string;
 	requiredFiles: string[];
@@ -81,11 +82,13 @@ export const FRAMEWORK_ACCEPTANCE_CASES: readonly FrameworkAcceptanceCase[] = [
 		healthResponseContains: '"framework":"laravel"',
 		databaseMode: 'required-postgresql',
 		persistenceDirectories: ['storage/app/public'],
+		persistencePath: '/persistence',
 		requiredFiles: [
 			'artisan',
 			'composer.json',
 			'composer.lock',
 			'public/index.php',
+			'bootstrap/app.php',
 			'routes/web.php',
 		],
 	},
@@ -103,11 +106,13 @@ export const FRAMEWORK_ACCEPTANCE_CASES: readonly FrameworkAcceptanceCase[] = [
 		healthResponseContains: '"framework":"wordpress"',
 		databaseMode: 'required-mysql',
 		persistenceDirectories: ['wp-content'],
+		persistencePath: '/persistence.php',
 		requiredFiles: [
 			'composer.json',
 			'composer.lock',
 			'health.php',
 			'index.php',
+			'persistence.php',
 			'wp-config.php',
 			'wp-includes/version.php',
 		],
@@ -118,7 +123,6 @@ export const FRAMEWORK_ACCEPTANCE_CASES: readonly FrameworkAcceptanceCase[] = [
 		runtimeCode: 'python-3.12',
 		fixtureDirectory: 'fixtures/frameworks/django',
 		buildPack: 'nixpacks',
-		installCommand: 'pip install -r requirements.txt',
 		startCommand:
 			'gunicorn fixture.wsgi:application --bind 0.0.0.0:$PORT',
 		port: 8000,
@@ -126,6 +130,7 @@ export const FRAMEWORK_ACCEPTANCE_CASES: readonly FrameworkAcceptanceCase[] = [
 		healthResponseContains: '"framework": "django"',
 		databaseMode: 'required-postgresql',
 		persistenceDirectories: ['media'],
+		persistencePath: '/persistence',
 		requiredFiles: [
 			'manage.py',
 			'requirements.txt',

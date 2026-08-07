@@ -52,6 +52,20 @@ interface CreatedDatabase {
 	name: string;
 }
 
+interface AcceptanceEvidence {
+	applicationId: string;
+	buildLogBytes: number;
+	deploymentCount: number;
+	healthBody: string;
+	healthStatus: number;
+	latestDeploymentStatus: string | null;
+	localDeploymentStatus: string | null;
+	providerId: string;
+	providerStatus: string;
+	runtimeLogBytes: number;
+	url: string;
+}
+
 const REPOSITORY =
 	process.env.FRAMEWORK_ACCEPTANCE_REPOSITORY_URL ??
 	'https://github.com/QubitCodes/QubitHostingPanel';
@@ -238,8 +252,36 @@ async function createApplication(
 	entry: FrameworkAcceptanceCase,
 	database: CreatedDatabase | undefined,
 	suffix: string,
+	acceptanceToken: string,
 ): Promise<CreatedApplication> {
 	const name = `Acceptance ${entry.code} ${suffix}`;
+	const environmentVariables: Array<{
+		key: string;
+		value: string;
+		isSecret: boolean;
+		scope: 'build' | 'both' | 'runtime';
+	}> = [
+		...(entry.code === 'laravel'
+			? [
+					{
+						key: 'APP_KEY',
+						value: `base64:${randomBytes(32).toString('base64')}`,
+						isSecret: true,
+						scope: 'runtime' as const,
+					},
+				]
+			: []),
+		...(entry.persistencePath
+			? [
+					{
+						key: 'FRAMEWORK_ACCEPTANCE_TOKEN',
+						value: acceptanceToken,
+						isSecret: true,
+						scope: 'runtime' as const,
+					},
+				]
+			: []),
+	];
 	const data = await responseData<{ id: string }>(
 		await ApplicationController.create(
 			authenticatedRequest(personalToken),
@@ -253,17 +295,7 @@ async function createApplication(
 				deploymentEnvironment: 'testing',
 				autoDeployEnabled: false,
 				framework: entry.code,
-				environmentVariables:
-					entry.code === 'laravel'
-						? [
-								{
-									key: 'APP_KEY',
-									value: `base64:${randomBytes(32).toString('base64')}`,
-									isSecret: true,
-									scope: 'runtime',
-								},
-							]
-						: [],
+				environmentVariables,
 				installCommand: entry.installCommand,
 				buildCommand: entry.buildCommand,
 				startCommand: entry.startCommand,
@@ -287,7 +319,7 @@ async function createApplication(
 async function waitForAcceptance(
 	application: CreatedApplication,
 	entry: FrameworkAcceptanceCase,
-): Promise<Record<string, unknown>> {
+): Promise<AcceptanceEvidence> {
 	const deadline = Date.now() + TIMEOUT_MS;
 	let lastStatus = '';
 	while (Date.now() < deadline) {
@@ -391,6 +423,100 @@ async function waitForAcceptance(
 	throw new Error(`${entry.code} acceptance timed out after ${TIMEOUT_MS}ms.`);
 }
 
+/** Writes a protected marker, redeploys the same app and proves its checksum survives replacement. */
+async function verifyReplacementPersistence(
+	target: AcceptanceTarget,
+	personalToken: string,
+	application: CreatedApplication,
+	entry: FrameworkAcceptanceCase,
+	evidence: AcceptanceEvidence,
+	acceptanceToken: string,
+): Promise<Record<string, unknown> | null> {
+	if (!entry.persistencePath) return null;
+	const markerUrl = new URL(entry.persistencePath, evidence.url).toString();
+	const marker = `ghost-deploy-${entry.code}-${randomBytes(24).toString('hex')}`;
+	const requestMarker = async (method: 'GET' | 'POST') => {
+		const response = await fetch(markerUrl, {
+			method,
+			headers: {
+				'x-framework-acceptance-token': acceptanceToken,
+				...(method === 'POST' ? { 'content-type': 'application/json' } : {}),
+			},
+			body: method === 'POST' ? JSON.stringify({ marker }) : undefined,
+			signal: AbortSignal.timeout(15_000),
+		});
+		if (!response.ok)
+			throw new Error(`${entry.code} persistence endpoint returned ${response.status}.`);
+		return (await response.json()) as { checksum?: string };
+	};
+	const before = await requestMarker('POST');
+	if (!before.checksum) throw new Error(`${entry.code} persistence checksum was not created.`);
+	const provider = await hostingProvider();
+	const existingIds = new Set(
+		(await provider.listApplicationDeployments(evidence.providerId, 10)).map(
+			(deployment) => deployment.id,
+		),
+	);
+	await responseData(
+		await ApplicationController.control(
+			authenticatedRequest(personalToken),
+			target.workspacePublicId,
+			application.id,
+			{ action: 'redeploy', reason: 'Framework persistence acceptance.' },
+			metadata,
+		),
+	);
+	const deadline = Date.now() + TIMEOUT_MS;
+	while (Date.now() < deadline) {
+		const deployments = await provider.listApplicationDeployments(
+			evidence.providerId,
+			10,
+		);
+		const replacement = deployments.find(
+			(deployment) => !existingIds.has(deployment.id),
+		);
+		if (replacement && /fail|error/i.test(replacement.status))
+			throw new Error(
+				`${entry.code} replacement deployment failed.\n${safeLogTail(replacement.logs) ?? ''}`,
+			);
+		if (replacement && /finish|success|complete/i.test(replacement.status)) {
+			const [localDeployment] = await db
+				.select({ status: applicationDeployments.status })
+				.from(applicationDeployments)
+				.where(
+					and(
+						eq(applicationDeployments.applicationBuildId, application.id),
+						eq(applicationDeployments.providerDeploymentId, replacement.id),
+						isNull(applicationDeployments.deletedAt),
+					),
+				)
+				.limit(1);
+			if (localDeployment?.status !== 'running') {
+				await delay(5_000);
+				continue;
+			}
+			let after: { checksum?: string };
+			try {
+				after = await requestMarker('GET');
+			} catch {
+				/* The replacement can finish before the public route becomes ready. */
+				await delay(5_000);
+				continue;
+			}
+			if (after.checksum !== before.checksum)
+				throw new Error(`${entry.code} persistent marker changed after replacement.`);
+			return {
+				path: entry.persistenceDirectories[0],
+				checksum: after.checksum,
+				replacementDeploymentId: replacement.id,
+				localDeploymentStatus: localDeployment.status,
+			};
+		}
+		await delay(10_000);
+	}
+	throw new Error(`${entry.code} persistence replacement timed out.`);
+}
+
 /** Deletes only the application created by this runner. */
 async function deleteApplication(
 	target: AcceptanceTarget,
@@ -460,6 +586,7 @@ async function main(): Promise<void> {
 		.slice(0, 6)
 		.padEnd(6, '0');
 	const overrideIds: string[] = [];
+	const acceptanceToken = randomBytes(32).toString('hex');
 	let database: CreatedDatabase | undefined;
 	let application: CreatedApplication | undefined;
 	let executionError: unknown;
@@ -488,9 +615,20 @@ async function main(): Promise<void> {
 			entry,
 			database,
 			suffix,
+			acceptanceToken,
 		);
 		const evidence = await waitForAcceptance(application, entry);
-		console.log(JSON.stringify({ framework: entry.code, evidence }, null, 2));
+		const persistence = await verifyReplacementPersistence(
+			target,
+			personalToken,
+			application,
+			entry,
+			evidence,
+			acceptanceToken,
+		);
+		console.log(
+			JSON.stringify({ framework: entry.code, evidence, persistence }, null, 2),
+		);
 	} catch (error) {
 		executionError = error;
 	}

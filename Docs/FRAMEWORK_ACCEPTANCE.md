@@ -10,7 +10,7 @@ Framework detection is not production evidence. Ghost Deploy keeps small, locked
 | Next.js | `fixtures/frameworks/nextjs` | None | None | Passed | HTTPS/runtime/history/logs passed 2026-08-07 |
 | Laravel | `fixtures/frameworks/laravel` | PostgreSQL | `storage/app/public` | Passed with SQLite smoke | PostgreSQL/HTTPS/runtime/history/logs passed 2026-08-07 |
 | WordPress | `fixtures/frameworks/wordpress` | MySQL | `wp-content` | Passed without configured DB | MySQL/HTTPS/runtime/history/logs passed 2026-08-07 |
-| Django | `fixtures/frameworks/django` | PostgreSQL | `media` | Passed with SQLite smoke | Pending retry after WSGI fixture correction |
+| Django | `fixtures/frameworks/django` | PostgreSQL | `media` | Passed with SQLite smoke | PostgreSQL/HTTPS/runtime/history/logs passed 2026-08-07 |
 | Vite | `fixtures/frameworks/vite` | None | None | Production build passed | HTTPS/static/history/logs passed 2026-08-07 |
 
 Local checks prove dependency resolution, build output, runtime startup and HTTP health. They do not replace Coolify networking, generated-domain, shared-database, volume, replacement-deployment or TLS evidence.
@@ -83,3 +83,9 @@ Deploy each case through Ghost Deploy, not directly from Coolify. Record:
 Laravel receives safe first-boot session/cache/queue defaults unless the customer supplies explicit values. Its `APP_KEY` is treated as a required secret and is generated in the deployment form. No customer database migrations are run automatically.
 
 Do not change a live status to passed from local output, source detection, provider configuration, or a queued deployment alone.
+
+Database-backed fixtures expose a token-protected marker endpoint used only by
+the live runner. The runner writes a random marker into the framework's mounted
+persistent directory, requests a normal customer-authorized redeployment, waits
+for both Coolify and Ghost Deploy history to reconcile, and requires the same
+SHA-256 checksum from the replacement container before cleanup.
