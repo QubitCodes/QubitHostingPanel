@@ -28,6 +28,12 @@ export interface DeploymentContract {
 	startCommand?: string;
 }
 
+export interface FrameworkEnvironmentDefault {
+	key: string;
+	scope: 'both' | 'build' | 'runtime';
+	value: string;
+}
+
 interface DeploymentContractInput {
 	buildCommand?: string;
 	framework?: string | null;
@@ -40,6 +46,33 @@ interface DeploymentContractInput {
 }
 
 const CMS_FRAMEWORKS = new Set(['wordpress']);
+
+const FRAMEWORK_START_COMMANDS: Readonly<Record<string, string>> = {
+	laravel: 'php artisan serve --host=0.0.0.0 --port=$PORT',
+	wordpress: 'php -S 0.0.0.0:$PORT',
+};
+
+const FRAMEWORK_ENVIRONMENT_DEFAULTS: Readonly<
+	Record<string, readonly FrameworkEnvironmentDefault[]>
+> = {
+	laravel: [
+		{ key: 'SESSION_DRIVER', value: 'file', scope: 'runtime' },
+		{ key: 'CACHE_STORE', value: 'file', scope: 'runtime' },
+		{ key: 'QUEUE_CONNECTION', value: 'sync', scope: 'runtime' },
+	],
+};
+
+/**
+ * Returns conservative first-boot defaults. Customer variables are applied
+ * afterward and therefore retain final authority over every value.
+ */
+export function frameworkEnvironmentDefaults(
+	framework?: string | null,
+): FrameworkEnvironmentDefault[] {
+	return framework
+		? [...(FRAMEWORK_ENVIRONMENT_DEFAULTS[framework] ?? [])]
+		: [];
+}
 
 /** Ensures production-mode Node builds still install compiler and framework tooling. */
 export function buildSafeInstallCommand(
@@ -68,6 +101,9 @@ export function resolveDeploymentContract(
 		input.installCommand,
 		input.buildCommand,
 	);
+	const startCommand =
+		input.startCommand ??
+		(input.framework ? FRAMEWORK_START_COMMANDS[input.framework] : undefined);
 	const publishDirectory =
 		input.publishDirectory || framework?.outputDirectory || undefined;
 	const checks: DeploymentCheck[] = [
@@ -95,10 +131,10 @@ export function resolveDeploymentContract(
 	if (serviceType === 'web' && input.stack !== 'php')
 		checks.push({
 			code: 'start-command',
-			message: input.startCommand
-				? `Start command is ${input.startCommand}.`
+			message: startCommand
+				? `Start command is ${startCommand}.`
 				: 'A start command could not be proven from the repository.',
-			status: input.startCommand
+			status: startCommand
 				? 'pass'
 				: input.framework
 					? 'error'
@@ -120,6 +156,6 @@ export function resolveDeploymentContract(
 		publishDirectory,
 		recipeVersion: DEPLOYMENT_RECIPE_VERSION,
 		serviceType,
-		startCommand: input.startCommand,
+		startCommand,
 	};
 }

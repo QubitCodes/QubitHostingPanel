@@ -12,6 +12,15 @@ build/
 # Testing
 coverage/
 
+# Framework acceptance build and dependency artifacts
+fixtures/frameworks/**/node_modules/
+fixtures/frameworks/**/vendor/
+fixtures/frameworks/**/.next/
+fixtures/frameworks/**/dist/
+fixtures/frameworks/**/__pycache__/
+fixtures/frameworks/**/.venv/
+fixtures/frameworks/wordpress/wordpress/
+
 # Environment files
 .env
 .env.local

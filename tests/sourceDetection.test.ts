@@ -38,9 +38,37 @@ describe('application source detection', () => {
 		);
 
 		expect(result.candidates[0]).toMatchObject({
+			commands: { start: 'php -S 0.0.0.0:$PORT' },
 			framework: 'wordpress',
 			projectDirectory: '/',
 			stack: 'php',
+		});
+	});
+
+	it('supplies a deterministic Laravel start command', async () => {
+		const files = {
+			'composer.json': JSON.stringify({
+				require: { 'laravel/framework': '^12.0' },
+			}),
+			'artisan': '#!/usr/bin/env php',
+		};
+		vi.stubGlobal(
+			'fetch',
+			vi.fn((input: string | URL | Request) =>
+				Promise.resolve(githubResponse(String(input), files)),
+			),
+		);
+
+		const result = await analyzeApplicationSource(
+			'https://github.com/ghostdeploy/laravel-example',
+			'main',
+		);
+
+		expect(result.candidates[0]).toMatchObject({
+			commands: {
+				start: 'php artisan serve --host=0.0.0.0 --port=$PORT',
+			},
+			framework: 'laravel',
 		});
 	});
 
@@ -198,5 +226,45 @@ describe('application source detection', () => {
 		expect(result.candidates[0]?.commands?.start).toBe(
 			'touch .env && npm run start',
 		);
+	});
+
+	it('scopes environment templates to each monorepo candidate', async () => {
+		const files = {
+			'package.json': JSON.stringify({
+				dependencies: { express: '^5.0.0' },
+				scripts: { start: 'node server.js' },
+			}),
+			'.env.example': 'NODE_MESSAGE=\n',
+			'app/composer.json': JSON.stringify({
+				require: { 'laravel/framework': '^12.0' },
+			}),
+			'app/.env.example': 'APP_KEY=\nAPP_NAME=\n',
+		};
+		vi.stubGlobal(
+			'fetch',
+			vi.fn((input: string | URL | Request) =>
+				Promise.resolve(githubResponse(String(input), files)),
+			),
+		);
+
+		const result = await analyzeApplicationSource(
+			'https://github.com/ghostdeploy/monorepo-example',
+			'main',
+		);
+		const express = result.candidates.find(
+			(candidate) => candidate.framework === 'express',
+		);
+		const laravel = result.candidates.find(
+			(candidate) => candidate.framework === 'laravel',
+		);
+
+		expect(express?.environmentKeys).toEqual([
+			{ isSecret: false, key: 'NODE_MESSAGE', required: false },
+		]);
+		expect(laravel?.environmentKeys).toContainEqual({
+			isSecret: true,
+			key: 'APP_KEY',
+			required: true,
+		});
 	});
 });

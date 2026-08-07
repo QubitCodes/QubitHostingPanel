@@ -7,6 +7,7 @@ import {
 import {
 	buildSafeInstallCommand,
 	DEPLOYMENT_RECIPE_VERSION,
+	frameworkEnvironmentDefaults,
 	resolveDeploymentContract,
 } from '@services/applications/deploymentRecipeService';
 
@@ -54,5 +55,14 @@ describe('deployment recipes', () => {
 		expect(contract.checks).toContainEqual(
 			expect.objectContaining({ code: 'start-command', status: 'error' }),
 		);
+	});
+
+	it('gives Laravel safe first-boot runtime defaults', () => {
+		expect(frameworkEnvironmentDefaults('laravel')).toEqual([
+			{ key: 'SESSION_DRIVER', value: 'file', scope: 'runtime' },
+			{ key: 'CACHE_STORE', value: 'file', scope: 'runtime' },
+			{ key: 'QUEUE_CONNECTION', value: 'sync', scope: 'runtime' },
+		]);
+		expect(frameworkEnvironmentDefaults('express')).toEqual([]);
 	});
 });

@@ -55,3 +55,5 @@ The runtime-image workflow publishes and scans the shared Node.js, PHP, Python, 
 Node.js 22 is the current source-builder default. Node.js 24 remains in the administrator catalogue as deprecated until the pinned Coolify/Nixpacks package set can resolve it without silently building with an older major version.
 
 See `DEPLOYMENT_RELIABILITY.md` for the preflight, status, logging and acceptance rules shared by all frameworks.
+
+The maintained first-batch fixtures and their current local/live evidence are tracked in `FRAMEWORK_ACCEPTANCE.md`. Environment templates are scoped to each detected project directory in a monorepo; selecting a detected directory updates its stack, framework, commands, output directory, and environment keys together.

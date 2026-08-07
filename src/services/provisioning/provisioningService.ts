@@ -2,7 +2,6 @@ import { and, asc, eq, inArray, isNull, lt, lte } from "drizzle-orm";
 
 import { getEnvironment } from "@config/env";
 import { frameworkDefinition } from "@config/frameworkCatalog";
-import { buildSafeInstallCommand } from "@services/applications/deploymentRecipeService";
 import { db } from "@db/client";
 import {
   applicationBuilds,
@@ -16,6 +15,11 @@ import {
   runtimeImages,
   workspaceResources,
 } from "@db/schema";
+import {
+  buildSafeInstallCommand,
+  frameworkEnvironmentDefaults,
+} from "@services/applications/deploymentRecipeService";
+import { frameworkDatabaseEnvironment } from "@services/applications/frameworkDatabaseEnvironmentService";
 import { databaseClusterEndpoint } from "@services/databases/databaseClusterEndpointService";
 import { decryptCredential } from "@services/encryption/credentialEncryptionService";
 import { hostingProvider } from "@services/hosting/hostingProviderFactory";
@@ -211,43 +215,26 @@ export async function processProvisioningJobs(
                 { key: `${prefix}_USERNAME`, value: credential.username },
                 { key: `${prefix}_PASSWORD`, value: credential.password },
               ];
-              if (configuredApplication.build.framework === "laravel")
-                return [
-                  ...common,
+              return [
+                ...common,
+                ...frameworkDatabaseEnvironment(
+                  configuredApplication.build.framework,
                   {
-                    key: "DB_CONNECTION",
-                    value: cluster.engine === "postgresql" ? "pgsql" : "mysql",
+                    databaseName: credential.databaseName,
+                    engine: cluster.engine,
+                    host: endpoint.host,
+                    password: credential.password,
+                    port: endpoint.port,
+                    username: credential.username,
                   },
-                  { key: "DB_HOST", value: endpoint.host },
-                  { key: "DB_PORT", value: String(endpoint.port) },
-                  { key: "DB_DATABASE", value: credential.databaseName },
-                  { key: "DB_USERNAME", value: credential.username },
-                  { key: "DB_PASSWORD", value: credential.password },
-                ];
-              if (configuredApplication.build.framework === "wordpress")
-                return [
-                  ...common,
-                  {
-                    key: "WORDPRESS_DB_HOST",
-                    value: `${endpoint.host}:${endpoint.port}`,
-                  },
-                  { key: "WORDPRESS_DB_NAME", value: credential.databaseName },
-                  { key: "WORDPRESS_DB_USER", value: credential.username },
-                  { key: "WORDPRESS_DB_PASSWORD", value: credential.password },
-                ];
-              if (configuredApplication.build.framework === "rails") {
-                const protocol =
-                  cluster.engine === "postgresql" ? "postgres" : "mysql2";
-                return [
-                  ...common,
-                  {
-                    key: "DATABASE_URL",
-                    value: `${protocol}://${encodeURIComponent(credential.username)}:${encodeURIComponent(credential.password)}@${endpoint.host}:${endpoint.port}/${encodeURIComponent(credential.databaseName)}`,
-                  },
-                ];
-              }
-              return common;
+                ),
+              ];
             },
+          );
+          databaseEnvironment.push(
+            ...frameworkEnvironmentDefaults(
+              configuredApplication.build.framework,
+            ),
           );
           const runtimeVersionVariable =
             configuredApplication.runtime.language === "node"

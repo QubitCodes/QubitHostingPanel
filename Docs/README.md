@@ -23,11 +23,12 @@
 11. `SHARED_PLATFORM_ARCHITECTURE.md` - shared runtimes, isolated application containers, logical databases, credentials, quotas, and backup boundaries.
 12. `FRAMEWORK_SUPPORT.md` - supported framework catalogue, source detection, runtime mapping, persistence requirements, and verification contract.
 13. `DEPLOYMENT_RELIABILITY.md` - versioned recipes, container networking, live status, diagnostics, and framework acceptance gates.
-14. `DNS_HOSTING.md` - provider-neutral authoritative DNS, record lifecycle, imports, and delegation workflow.
-15. `IMPLEMENTATION_PLAN.md` - delivery phases, verification gates, and deferred work.
-16. `GHOST_DEPLOY_CUTOVER.md` - production/staging domains, provider changes, compatibility, and secret-rotation guidance.
-17. `future-plans/README.md` - explicitly non-MVA roadmap covering hosted email, organisation/deployment/database expansion, and server consolidation.
-18. `ADMIN_CUSTOMER_CONTROL.md` - granular administrator permissions, mandatory read auditing, customer resource hierarchy, and secure project source inspection.
+14. `FRAMEWORK_ACCEPTANCE.md` - maintained fixture matrix, repeatable local/source gates, and live evidence requirements.
+15. `DNS_HOSTING.md` - provider-neutral authoritative DNS, record lifecycle, imports, and delegation workflow.
+16. `IMPLEMENTATION_PLAN.md` - delivery phases, verification gates, and deferred work.
+17. `GHOST_DEPLOY_CUTOVER.md` - production/staging domains, provider changes, compatibility, and secret-rotation guidance.
+18. `future-plans/README.md` - explicitly non-MVA roadmap covering hosted email, organisation/deployment/database expansion, and server consolidation.
+19. `ADMIN_CUSTOMER_CONTROL.md` - granular administrator permissions, mandatory read auditing, customer resource hierarchy, and secure project source inspection.
 
 ## Fixed decisions
 

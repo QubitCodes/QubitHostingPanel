@@ -31,6 +31,11 @@ export interface SourceCandidate {
     install?: string;
     start?: string;
   };
+  environmentKeys?: Array<{
+    isSecret: boolean;
+    key: string;
+    required: boolean;
+  }>;
   framework?: string;
   packageManager?: string;
   projectDirectory: string;
@@ -50,6 +55,43 @@ export interface SourceAnalysis {
 
 const SECRET_KEY =
   /(?:secret|token|password|passwd|private|credential|api_key|auth|database_url|dsn)/i;
+const ENVIRONMENT_TEMPLATE_NAMES = [
+  '.env.example',
+  '.env.sample',
+  '.env.template',
+  'env.example',
+] as const;
+
+/** Parses template names only; values are never returned to the deployment UI. */
+function environmentKeys(
+  template: string | undefined,
+  framework?: string,
+): Array<{ isSecret: boolean; key: string; required: boolean }> {
+  return [
+    ...new Set(
+      (template ?? '')
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter((line) => /^[A-Za-z_][A-Za-z0-9_]*\s*=/.test(line))
+        .map((line) => line.split('=', 1)[0].trim().toUpperCase()),
+    ),
+  ].map((key) => ({
+    key,
+    isSecret: SECRET_KEY.test(key) || key === 'APP_KEY',
+    required: framework === 'laravel' && key === 'APP_KEY',
+  }));
+}
+
+/** Finds only a template directly owned by the selected project directory. */
+function projectEnvironmentTemplate(
+  paths: string[],
+  directory: string,
+): string | undefined {
+  const prefix = directory === '/' ? '' : `${directory}/`;
+  return ENVIRONMENT_TEMPLATE_NAMES.map((name) => `${prefix}${name}`).find(
+    (path) => paths.includes(path),
+  );
+}
 
 /** Parses a canonical GitHub HTTPS URL without accepting credentials or ambiguous paths. */
 function githubRepository(value: string): GitHubRepository {
@@ -432,27 +474,6 @@ export async function analyzeApplicationSource(
       `${path}${framework ? ` identifies ${framework}` : " identifies Python"}`,
     );
   }
-  const templatePath = paths.find((item) =>
-    /(^|\/)(?:\.env\.example|\.env\.sample|\.env\.template|env\.example)$/i.test(
-      item,
-    ),
-  );
-  const template = templatePath
-    ? await rawFile(repository, branch, templatePath, token)
-    : undefined;
-  const environmentKeys = [
-    ...new Set(
-      (template ?? "")
-        .split(/\r?\n/)
-        .map((line) => line.trim())
-        .filter((line) => /^[A-Za-z_][A-Za-z0-9_]*\s*=/.test(line))
-        .map((line) => line.split("=", 1)[0].trim().toUpperCase()),
-    ),
-  ].map((key) => ({ key, isSecret: SECRET_KEY.test(key), required: false }));
-  if (templatePath)
-    evidence.push(
-      `${templatePath} provides ${environmentKeys.length} environment variable keys`,
-    );
   const unique = candidates.filter(
     (candidate, index) =>
       candidates.findIndex(
@@ -461,7 +482,23 @@ export async function analyzeApplicationSource(
           item.stack === candidate.stack,
       ) === index,
   );
-  const contracted = unique.map((candidate) => {
+  const templated: SourceCandidate[] = [];
+  for (const candidate of unique) {
+    const templatePath = projectEnvironmentTemplate(
+      paths,
+      candidate.projectDirectory,
+    );
+    const template = templatePath
+      ? await rawFile(repository, branch, templatePath, token)
+      : undefined;
+    const keys = environmentKeys(template, candidate.framework);
+    if (templatePath)
+      evidence.push(
+        `${templatePath} provides ${keys.length} environment variable keys`,
+      );
+    templated.push({ ...candidate, environmentKeys: keys });
+  }
+  const contracted = templated.map((candidate) => {
     const definition = frameworkDefinition(candidate.framework);
     const deploymentContract = resolveDeploymentContract({
       buildCommand: candidate.commands?.build,
@@ -483,7 +520,13 @@ export async function analyzeApplicationSource(
       ...candidate,
       commands: {
         ...candidate.commands,
+        ...(deploymentContract.buildCommand
+          ? { build: deploymentContract.buildCommand }
+          : {}),
         install: deploymentContract.installCommand,
+        ...(deploymentContract.startCommand
+          ? { start: deploymentContract.startCommand }
+          : {}),
       },
       deploymentContract,
     };
@@ -496,7 +539,7 @@ export async function analyzeApplicationSource(
     candidates: contracted.length
       ? contracted
       : [{ projectDirectory: "/", stack: "static" }],
-    environmentKeys,
+    environmentKeys: selected?.environmentKeys ?? [],
     evidence,
     outputDirectory: outputDirectory(selected?.framework),
   };

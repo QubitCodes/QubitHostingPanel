@@ -84,8 +84,14 @@ interface SourceAnalysis {
 				status: 'error' | 'pass' | 'warning';
 			}>;
 			healthCheckPath: string;
+			publishDirectory?: string;
 			recipeVersion: string;
 		};
+		environmentKeys?: Array<{
+			isSecret: boolean;
+			key: string;
+			required: boolean;
+		}>;
 		framework?: string;
 		packageManager?: string;
 		projectDirectory: string;
@@ -98,6 +104,7 @@ interface SourceAnalysis {
 interface EnvironmentVariable {
 	isSecret: boolean;
 	key: string;
+	required: boolean;
 	scope: 'runtime' | 'build' | 'both';
 	value: string;
 }
@@ -193,6 +200,13 @@ function databaseIdentifier(value: string): string {
 		.replace(/^_+|_+$/g, '')
 		.replace(/_+/g, '_')
 		.slice(0, 70);
+}
+
+/** Creates a Laravel-compatible 32-byte application key in the browser. */
+function generatedEnvironmentValue(framework: string | undefined, key: string): string {
+	if (framework !== 'laravel' || key !== 'APP_KEY') return '';
+	const bytes = crypto.getRandomValues(new Uint8Array(32));
+	return `base64:${btoa(String.fromCharCode(...bytes))}`;
 }
 
 function Hint({ children }: { children: string }) {
@@ -802,6 +816,29 @@ export function DeployApplicationForm({
 		setAnalysis(undefined);
 		setGithubRepositories([]);
 	}
+	function applyDetectedCandidate(
+		candidate: SourceAnalysis['candidates'][number],
+		fallbackEnvironmentKeys: SourceAnalysis['environmentKeys'],
+	): void {
+		selectStack(candidate.stack);
+		setProjectDirectory(candidate.projectDirectory);
+		if (candidate.framework) selectFramework(candidate.framework);
+		setInstallCommand(candidate.commands?.install ?? '');
+		setBuildCommand(candidate.commands?.build ?? '');
+		setStartCommand(candidate.commands?.start ?? '');
+		setOutputDirectory(candidate.deploymentContract?.publishDirectory ?? '');
+		setVariables(
+			(candidate.environmentKeys ?? fallbackEnvironmentKeys).map((item) => ({
+				key: item.key,
+				value: generatedEnvironmentValue(candidate.framework, item.key),
+				isSecret: item.isSecret,
+				required: item.required,
+				scope: /^(?:NEXT_PUBLIC_|VITE_|PUBLIC_)/.test(item.key)
+					? 'both'
+					: 'runtime',
+			})),
+		);
+	}
 	async function inspectSource(source?: {
 		branch: string;
 		repository: string;
@@ -826,25 +863,8 @@ export function DeployApplicationForm({
 			setAnalysis(result);
 			setAvailableBranches(result.branches);
 			const candidate = result.candidates[0];
-			if (candidate) {
-				selectStack(candidate.stack);
-				setProjectDirectory(candidate.projectDirectory);
-				if (candidate.framework) selectFramework(candidate.framework);
-				setInstallCommand(candidate.commands?.install ?? '');
-				setBuildCommand(candidate.commands?.build ?? '');
-				setStartCommand(candidate.commands?.start ?? '');
-			}
-			setOutputDirectory(result.outputDirectory ?? '');
-			setVariables(
-				result.environmentKeys.map((item) => ({
-					key: item.key,
-					value: '',
-					isSecret: item.isSecret,
-					scope: /^(?:NEXT_PUBLIC_|VITE_|PUBLIC_)/.test(item.key)
-						? 'both'
-						: 'runtime',
-				})),
-			);
+			if (candidate) applyDetectedCandidate(candidate, result.environmentKeys);
+			else setOutputDirectory(result.outputDirectory ?? '');
 			if (
 				result.branches.includes(sourceBranch) === false &&
 				result.branches[0]
@@ -880,7 +900,9 @@ export function DeployApplicationForm({
 		}
 		setVariables((current) => {
 			const next = clearEnvironmentBeforeImport
-				? []
+				? current
+						.filter(({ required }) => required)
+						.map((item) => ({ ...item, value: '' }))
 				: current.map((item) => ({ ...item }));
 			const positions = new Map(
 				next
@@ -901,6 +923,7 @@ export function DeployApplicationForm({
 				next.push({
 					isSecret: isLikelySecretEnvKey(entry.key),
 					key: entry.key,
+					required: false,
 					scope: 'runtime',
 					value: entry.value,
 				});
@@ -940,6 +963,16 @@ export function DeployApplicationForm({
 					? 'Choose an available database name.'
 					: 'Wait for database name verification to finish.',
 			);
+			return;
+		}
+		const missingEnvironment = variables.filter(
+			({ required, value }) => required && !value.trim(),
+		);
+		if (missingEnvironment.length) {
+			toast.error(
+				`Set required environment variable${missingEnvironment.length === 1 ? '' : 's'}: ${missingEnvironment.map(({ key }) => key).join(', ')}.`,
+			);
+			setEnvironmentEditorOpen(true);
 			return;
 		}
 		setSubmitting(true);
@@ -997,9 +1030,14 @@ export function DeployApplicationForm({
 							databaseMode !== 'none' && databaseId
 								? [{ databaseId, environmentPrefix: 'DATABASE' }]
 								: [],
-						environmentVariables: variables
+					environmentVariables: variables
 							.filter((item) => item.key)
-							.map((item) => ({ ...item, key: item.key.trim().toUpperCase() })),
+							.map(({ isSecret, key, scope, value }) => ({
+								isSecret,
+								key: key.trim().toUpperCase(),
+								scope,
+								value,
+							})),
 					}),
 				},
 			);
@@ -1364,6 +1402,13 @@ export function DeployApplicationForm({
 							<input
 								className={`${inputClass} min-w-0 flex-1`}
 								onChange={(event) => setProjectDirectory(event.target.value)}
+								onBlur={() => {
+									const candidate = analysis?.candidates.find(
+										(item) => item.projectDirectory === projectDirectory,
+									);
+									if (candidate && analysis)
+										applyDetectedCandidate(candidate, analysis.environmentKeys);
+								}}
 								placeholder="/ or apps/api"
 								required
 								value={projectDirectory}
@@ -1920,7 +1965,13 @@ export function DeployApplicationForm({
 												: variable.scope}
 										</td>
 										<td className="px-3 py-2 text-app-muted">
-											{variable.isSecret ? 'Secret' : 'Plain'}
+										{variable.required
+											? variable.isSecret
+												? 'Required secret'
+												: 'Required'
+											: variable.isSecret
+												? 'Secret'
+												: 'Plain'}
 										</td>
 									</tr>
 								))}
@@ -2134,13 +2185,19 @@ export function DeployApplicationForm({
 									/>
 									<button
 										aria-label="Remove variable"
-										className="rounded-xl border border-red-500/20 p-3 text-red-600 dark:text-red-300"
+										className="rounded-xl border border-red-500/20 p-3 text-red-600 disabled:cursor-not-allowed disabled:opacity-40 dark:text-red-300"
+										disabled={variable.required}
 										onClick={() =>
 											setVariables((current) =>
 												current.filter((_, position) => position !== index),
 											)
 										}
 										type="button"
+										title={
+											variable.required
+												? 'Required variables cannot be removed.'
+												: 'Remove variable'
+										}
 									>
 										<Trash2 className="size-4" />
 									</button>
@@ -2193,7 +2250,13 @@ export function DeployApplicationForm({
 							onClick={() =>
 								setVariables((current) => [
 									...current,
-									{ key: '', value: '', isSecret: true, scope: 'runtime' },
+									{
+										key: '',
+										value: '',
+										isSecret: true,
+										required: false,
+										scope: 'runtime',
+									},
 								])
 							}
 							type="button"
@@ -2240,8 +2303,17 @@ export function DeployApplicationForm({
 										className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left font-mono text-sm hover:bg-brand-primary/5"
 										key={directory}
 										onClick={() => {
-											if (directoryTarget === 'project')
-												setProjectDirectory(directory);
+											if (directoryTarget === 'project') {
+												const candidate = analysis.candidates.find(
+													(item) => item.projectDirectory === directory,
+												);
+												if (candidate)
+													applyDetectedCandidate(
+														candidate,
+														analysis.environmentKeys,
+													);
+												else setProjectDirectory(directory);
+											}
 											else
 												setOutputDirectory(directory === '/' ? '' : directory);
 											setDirectoryTarget(null);

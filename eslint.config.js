@@ -5,7 +5,15 @@ import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
-	{ ignores: ['build/**', 'node_modules/**', '.react-router/**', 'storage/**'] },
+	{
+		ignores: [
+			'build/**',
+			'node_modules/**',
+			'.react-router/**',
+			'storage/**',
+			'fixtures/frameworks/**'
+		]
+	},
 	eslint.configs.recommended,
 	...tseslint.configs.recommended,
 	{

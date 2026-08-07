@@ -1,0 +1,20 @@
+{
+	"name": "ghost-deploy/wordpress-fixture",
+	"description": "Ghost Deploy WordPress deployment acceptance fixture.",
+	"type": "project",
+	"require": {
+		"johnpbloch/wordpress": "^6.8"
+	},
+	"extra": {
+		"wordpress-install-dir": "wordpress"
+	},
+	"config": {
+		"platform": {
+			"php": "8.3.32"
+		},
+		"allow-plugins": {
+			"johnpbloch/wordpress-core-installer": true
+		},
+		"sort-packages": true
+	}
+}
