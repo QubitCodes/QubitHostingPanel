@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
 
-import { and, desc, eq, gt, inArray, isNull } from 'drizzle-orm';
+import { and, count, desc, eq, gt, inArray, isNull } from 'drizzle-orm';
 
 import { ApplicationController } from '@controllers/ApplicationController';
 import { LogicalDatabaseController } from '@controllers/LogicalDatabaseController';
@@ -188,7 +188,7 @@ async function createCountOverride(
 	target: AcceptanceTarget,
 	adminToken: string,
 	code: 'applications.count' | 'databases.count',
-	value: number,
+	minimumValue: number,
 ): Promise<string> {
 	const [existing] = await db
 		.select({ id: workspaceEntitlementOverrides.id })
@@ -204,6 +204,27 @@ async function createCountOverride(
 		.limit(1);
 	if (existing)
 		throw new Error(`Refusing to replace the existing ${code} override.`);
+	const [{ currentCount }] =
+		code === 'applications.count'
+			? await db
+					.select({ currentCount: count() })
+					.from(applicationBuilds)
+					.where(
+						and(
+							eq(applicationBuilds.workspaceId, target.workspaceId),
+							isNull(applicationBuilds.deletedAt),
+						),
+					)
+			: await db
+					.select({ currentCount: count() })
+					.from(logicalDatabases)
+					.where(
+						and(
+							eq(logicalDatabases.workspaceId, target.workspaceId),
+							isNull(logicalDatabases.deletedAt),
+						),
+					);
+	const value = Math.max(minimumValue, Number(currentCount) + 1);
 	const created = await responseData<{ id: string }>(
 		await UsageController.override(
 			authenticatedRequest(adminToken),
