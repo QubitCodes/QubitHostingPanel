@@ -86,6 +86,7 @@ export interface ProviderDeployment {
 	finishedAt?: string | null;
 	id: string;
 	logs?: string | null;
+	logSections?: import('@services/applications/deploymentLogParserService').DeploymentLogSections;
 	status: string;
 	trigger: 'api' | 'manual' | 'webhook';
 }

@@ -27,6 +27,7 @@ import { toast } from 'sonner';
 import { Offcanvas } from '@components/ui/offcanvas';
 import { DeployApplicationForm } from '@root/app/components/applications/deploy-application-form';
 import { ApplicationCronJobs } from '@root/app/components/applications/application-cron-jobs';
+import { RepositoryDirectoryBrowser } from '@root/app/components/applications/repository-directory-browser';
 import { authenticatedFetch } from '@root/app/utils/authenticatedFetch';
 
 interface ApplicationDomain {
@@ -84,11 +85,16 @@ interface DeploymentHistory {
 		id: string;
 		diagnostic?: {
 			code: string;
+			detail?: string;
 			developerActionRequired: boolean;
 			explanation: string;
+			location?: string;
+			owner: 'configuration' | 'platform' | 'project' | 'runtime' | 'unknown';
+			phase: 'build' | 'deployment' | 'runtime';
 			suggestion: string;
 			title: string;
 		} | null;
+		logSections?: { build: string; deployment: string; raw: string };
 		logs?: string | null;
 		status: string;
 		trigger?: string;
@@ -213,6 +219,106 @@ async function consumeEventStream(
 	}
 }
 
+type ApplicationLogChannel = 'activity' | 'build' | 'deployment' | 'runtime';
+
+/** Presents provider output as distinct customer build, platform deployment and runtime channels. */
+function ApplicationLogChannels({
+	channel,
+	history,
+	onChannelChange,
+	onRefresh,
+	runtimeLogs,
+	status,
+}: {
+	channel: ApplicationLogChannel;
+	history: DeploymentHistory | null;
+	onChannelChange: (channel: ApplicationLogChannel) => void;
+	onRefresh: () => void;
+	runtimeLogs: string;
+	status: string;
+}) {
+	const latest = history?.items[0];
+	const diagnostic = latest?.diagnostic;
+	const channelLogs =
+		channel === 'build'
+			? latest?.logSections?.build
+			: channel === 'deployment'
+				? latest?.logSections?.deployment
+				: runtimeLogs;
+	const running = /queued|provision|building|starting|progress/i.test(status);
+	const ownerLabel =
+		diagnostic?.owner === 'project'
+			? 'Your project needs a change'
+			: diagnostic?.owner === 'platform'
+				? 'Ghost Deploy platform issue'
+				: diagnostic?.owner === 'runtime'
+					? 'Application runtime issue'
+					: 'Deployment configuration issue';
+	return (
+		<div className="grid gap-4">
+			<nav aria-label="Application log channels" className="flex gap-1 overflow-x-auto border-b border-brand-primary/10">
+				{([
+					['build', 'Build Logs'],
+					['deployment', 'Deployment Logs'],
+					['runtime', 'Runtime Logs'],
+					['activity', 'Activity'],
+				] as const).map(([value, label]) => (
+					<button
+						className={`whitespace-nowrap border-b-2 px-3 py-2 text-sm font-bold ${channel === value ? 'border-brand-action text-app-foreground' : 'border-transparent text-app-muted hover:text-app-foreground'}`}
+						key={value}
+						onClick={() => onChannelChange(value)}
+						type="button"
+					>
+						{label}
+					</button>
+				))}
+			</nav>
+			{diagnostic && diagnostic.phase === channel && (
+				<div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-5 text-red-700 dark:text-red-200">
+					<p className="text-xs font-black uppercase tracking-wide">{ownerLabel}</p>
+					<h3 className="mt-1 text-xl font-black">{diagnostic.title}</h3>
+					<p className="mt-2 text-sm">{diagnostic.explanation}</p>
+					{diagnostic.location && (
+						<code className="mt-3 block rounded-lg bg-black/15 px-3 py-2 text-xs font-bold">{diagnostic.location}</code>
+					)}
+					{diagnostic.detail && <p className="mt-2 font-mono text-sm">{diagnostic.detail}</p>}
+					<p className="mt-3 text-sm font-semibold">Next: {diagnostic.suggestion}</p>
+				</div>
+			)}
+			{channel === 'activity' ? (
+				<div className="grid gap-3">
+					{history?.items.map((deployment) => (
+						<div className="flex flex-col justify-between gap-2 rounded-xl border border-brand-primary/10 p-4 sm:flex-row sm:items-center" key={deployment.id}>
+							<div>
+								<strong className={`rounded-full px-2.5 py-1 text-xs ${statusClass(deployment.status)}`}>{statusLabel(deployment.status)}</strong>
+								<p className="mt-2 text-sm">{deployment.commitMessage || 'Deployment requested'}</p>
+							</div>
+							<small className="text-app-muted">{deployment.trigger ?? 'manual'} · {deployment.createdAt ? new Date(deployment.createdAt).toLocaleString('en-IN') : 'Time unavailable'}</small>
+						</div>
+					))}
+					{!history?.items.length && <p className="rounded-xl border border-dashed border-brand-primary/15 p-5 text-sm text-app-muted">No deployment activity yet.</p>}
+				</div>
+			) : (
+				<>
+					<div className="flex items-center justify-between gap-3">
+						<p className="text-sm text-app-muted">
+							{channel === 'build'
+								? 'Repository checkout, dependency installation, compilation and type checking.'
+								: channel === 'deployment'
+									? 'Image release, container replacement, networking and health checks.'
+									: 'Live stdout and stderr from the running application.'}
+						</p>
+						<button className="rounded-xl border border-brand-primary/15 px-3 py-2 text-sm font-bold" onClick={onRefresh} type="button">Refresh</button>
+					</div>
+					<pre className="min-h-72 max-h-[65vh] overflow-auto rounded-2xl bg-gray-950 p-5 text-xs text-gray-100">
+						{channelLogs || (running ? `Waiting for ${channel} logs…` : `No ${channel} logs are available.`)}
+					</pre>
+				</>
+			)}
+		</div>
+	);
+}
+
 export default function CustomerApplicationsPage() {
 	const { active } = useOutletContext<{ active?: { publicId: number } }>();
 	const { applicationId } = useParams();
@@ -235,6 +341,7 @@ export default function CustomerApplicationsPage() {
 	const [loading, setLoading] = useState(true);
 	const [submitting, setSubmitting] = useState(false);
 	const [logs, setLogs] = useState('');
+	const [logChannel, setLogChannel] = useState<ApplicationLogChannel>('build');
 	const [history, setHistory] = useState<DeploymentHistory | null>(null);
 	const [actionPending, setActionPending] = useState(false);
 	const [actionsOpen, setActionsOpen] = useState(false);
@@ -297,7 +404,12 @@ export default function CustomerApplicationsPage() {
 			.finally(() => setOptionsLoading(false));
 	}, [active, creating, editing]);
 	useEffect(() => {
-		if (!active || !applicationId || activeTab !== 'deployments') return;
+		if (
+			!active ||
+			!applicationId ||
+			!['deployments', 'logs'].includes(activeTab)
+		)
+			return;
 		void api<DeploymentHistory>(
 			`/api/v1/workspaces/${active.publicId}/applications/${applicationId}/deployments`,
 		)
@@ -491,7 +603,7 @@ export default function CustomerApplicationsPage() {
 							);
 						if (event.type !== 'deployment') return;
 						if (activeTab === 'logs') void loadLogs();
-						if (activeTab === 'deployments')
+						if (['deployments', 'logs'].includes(activeTab))
 							void api<DeploymentHistory>(
 								`/api/v1/workspaces/${active.publicId}/applications/${applicationId}/deployments`,
 							)
@@ -997,24 +1109,20 @@ export default function CustomerApplicationsPage() {
 					title="Choose repository directory"
 					width="md"
 				>
-					<div className="mt-5 max-h-[70vh] overflow-y-auto rounded-2xl border border-brand-primary/10 p-2">
-						{editDirectories.map((directory) => (
-							<button
-								className="block w-full rounded-xl px-3 py-2 text-left font-mono text-sm hover:bg-brand-primary/5"
-								key={directory}
-								onClick={() => {
-									if (editDirectoryTarget === 'base')
-										setEditBaseDirectory(directory);
-									else
-										setEditPublishDirectory(directory === '/' ? '' : directory);
-									setEditDirectoryTarget(null);
-								}}
-								type="button"
-							>
-								{directory}
-							</button>
-						))}
-					</div>
+					<RepositoryDirectoryBrowser
+						directories={editDirectories}
+						initialDirectory={
+							editDirectoryTarget === 'base'
+								? editBaseDirectory || '/'
+								: editPublishDirectory || '/'
+						}
+						onSelect={(directory) => {
+							if (editDirectoryTarget === 'base')
+								setEditBaseDirectory(directory);
+							else setEditPublishDirectory(directory === '/' ? '' : directory);
+							setEditDirectoryTarget(null);
+						}}
+					/>
 				</Offcanvas>
 			)}
 			{applicationId && (
@@ -1245,29 +1353,14 @@ export default function CustomerApplicationsPage() {
 								</div>
 							)}
 							{activeTab === 'logs' && (
-								<div className="grid gap-3">
-									<div className="flex items-center justify-between">
-										<p className="text-sm text-app-muted">
-											Runtime logs are shown while running; otherwise the latest
-											deployment logs are used.
-										</p>
-										<button
-											className="rounded-xl border border-brand-primary/15 px-3 py-2 text-sm font-bold"
-											onClick={() => void loadLogs()}
-											type="button"
-										>
-											Refresh
-										</button>
-									</div>
-									<pre className="min-h-72 max-h-[65vh] overflow-auto rounded-2xl bg-gray-950 p-5 text-xs text-gray-100">
-										{logs ||
-											(/queued|provision|building|starting|progress/i.test(
-												record.resourceStatus ?? record.status,
-											)
-												? 'Waiting for build logs…'
-												: 'No runtime or deployment logs were returned by the provider.')}
-									</pre>
-								</div>
+								<ApplicationLogChannels
+									channel={logChannel}
+									history={history}
+									onChannelChange={setLogChannel}
+									onRefresh={() => void loadLogs()}
+									runtimeLogs={logs}
+									status={record.resourceStatus ?? record.status}
+								/>
 							)}
 							{activeTab === 'deployments' && (
 								<div className="grid gap-4">
@@ -1330,9 +1423,13 @@ export default function CustomerApplicationsPage() {
 														}`}
 													>
 														<p className="text-xs font-bold uppercase tracking-wide">
-															{deployment.diagnostic.developerActionRequired
-																? 'Repository change required'
-																: 'Deployment configuration issue'}
+															{deployment.diagnostic.owner === 'project'
+																? 'Your project needs a change'
+																: deployment.diagnostic.owner === 'platform'
+																	? 'Ghost Deploy platform issue'
+																	: deployment.diagnostic.owner === 'runtime'
+																		? 'Application runtime issue'
+																		: 'Deployment configuration issue'}
 														</p>
 														<p className="mt-1 font-bold">
 															{deployment.diagnostic.title}
@@ -1340,6 +1437,14 @@ export default function CustomerApplicationsPage() {
 														<p className="mt-1 text-sm">
 															{deployment.diagnostic.explanation}
 														</p>
+														{deployment.diagnostic.location && (
+															<code className="mt-3 block rounded-lg bg-black/15 px-3 py-2 text-xs font-bold">
+																{deployment.diagnostic.location}
+															</code>
+														)}
+														{deployment.diagnostic.detail && (
+															<p className="mt-2 font-mono text-sm">{deployment.diagnostic.detail}</p>
+														)}
 														<p className="mt-2 text-sm font-medium">
 															Next: {deployment.diagnostic.suggestion}
 														</p>
@@ -1355,9 +1460,12 @@ export default function CustomerApplicationsPage() {
 															: 'Completion time unavailable.'}
 												</p>
 												{deployment.logs ? (
-													<pre className="mt-4 max-h-96 overflow-auto rounded-xl bg-gray-950 p-4 text-xs text-gray-100">
-														{deployment.logs}
-													</pre>
+													<details className="mt-4 rounded-xl border border-brand-primary/10 p-3">
+														<summary className="cursor-pointer text-sm font-bold">View Full Raw Provider Log</summary>
+														<pre className="mt-3 max-h-96 overflow-auto rounded-xl bg-gray-950 p-4 text-xs text-gray-100">
+															{deployment.logs}
+														</pre>
+													</details>
 												) : (
 													<p className="mt-3 rounded-xl border border-dashed border-brand-primary/15 p-3 text-sm text-app-muted">
 														{/queued|progress|building|starting/i.test(

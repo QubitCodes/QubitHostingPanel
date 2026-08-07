@@ -36,6 +36,7 @@ import { getEffectivePlatformUrls } from '@services/platformUrlService';
 import { analyzeApplicationSource } from '@services/applications/sourceDetectionService';
 import { resolveDeploymentContract } from '@services/applications/deploymentRecipeService';
 import { diagnoseDeploymentLogs } from '@services/applications/deploymentDiagnosticService';
+import { parseDeploymentLogs } from '@services/applications/deploymentLogParserService';
 import {
 	ensureApplicationTracker,
 	publishApplicationEvent,
@@ -846,6 +847,7 @@ export class ApplicationController {
 							id: row.providerDeploymentId ?? row.id,
 							diagnostic: diagnoseDeploymentLogs(logs),
 							logs,
+							logSections: parseDeploymentLogs(logs),
 						};
 					}),
 				limit: limitPolicy.isUnlimited ? null : limit,

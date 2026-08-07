@@ -31,6 +31,7 @@ import {
 import { toast } from 'sonner';
 
 import { authenticatedFetch } from '@root/app/utils/authenticatedFetch';
+import { RepositoryDirectoryBrowser } from '@root/app/components/applications/repository-directory-browser';
 import { SearchableSelect } from '@root/app/components/forms/searchable-select';
 import { Offcanvas } from '@root/app/components/ui/offcanvas';
 import {
@@ -427,7 +428,6 @@ export function DeployApplicationForm({
 	const [directoryTarget, setDirectoryTarget] = useState<
 		'output' | 'project' | null
 	>(null);
-	const [directorySearch, setDirectorySearch] = useState('');
 	const [installCommand, setInstallCommand] = useState('');
 	const [buildCommand, setBuildCommand] = useState('');
 	const [startCommand, setStartCommand] = useState('');
@@ -2276,57 +2276,29 @@ export function DeployApplicationForm({
 			{directoryTarget && analysis && (
 				<Offcanvas
 					layer="nested"
-					onClose={() => {
-						setDirectoryTarget(null);
-						setDirectorySearch('');
-					}}
+					onClose={() => setDirectoryTarget(null)}
 					title={`Choose ${directoryTarget === 'project' ? 'project' : 'output'} directory`}
 					width="md"
 				>
-					<div className="mt-5 grid gap-3">
-						<input
-							autoFocus
-							className={inputClass}
-							onChange={(event) => setDirectorySearch(event.target.value)}
-							placeholder="Search repository folders"
-							value={directorySearch}
-						/>
-						<div className="max-h-[65vh] overflow-y-auto rounded-2xl border border-brand-primary/10 p-2">
-							{analysis.directories
-								.filter((directory) =>
-									directory
-										.toLowerCase()
-										.includes(directorySearch.toLowerCase()),
-								)
-								.map((directory) => (
-									<button
-										className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left font-mono text-sm hover:bg-brand-primary/5"
-										key={directory}
-										onClick={() => {
-											if (directoryTarget === 'project') {
-												const candidate = analysis.candidates.find(
-													(item) => item.projectDirectory === directory,
-												);
-												if (candidate)
-													applyDetectedCandidate(
-														candidate,
-														analysis.environmentKeys,
-													);
-												else setProjectDirectory(directory);
-											}
-											else
-												setOutputDirectory(directory === '/' ? '' : directory);
-											setDirectoryTarget(null);
-											setDirectorySearch('');
-										}}
-										type="button"
-									>
-										<FolderTree className="size-4 shrink-0 text-app-muted" />
-										{directory}
-									</button>
-								))}
-						</div>
-					</div>
+					<RepositoryDirectoryBrowser
+						directories={analysis.directories}
+						initialDirectory={
+							directoryTarget === 'project'
+								? projectDirectory
+								: outputDirectory || '/'
+						}
+						onSelect={(directory) => {
+							if (directoryTarget === 'project') {
+								const candidate = analysis.candidates.find(
+									(item) => item.projectDirectory === directory,
+								);
+								if (candidate)
+									applyDetectedCandidate(candidate, analysis.environmentKeys);
+								else setProjectDirectory(directory);
+							} else setOutputDirectory(directory === '/' ? '' : directory);
+							setDirectoryTarget(null);
+						}}
+					/>
 				</Offcanvas>
 			)}
 			<div className="fixed bottom-0 left-0 right-0 z-10 flex justify-end border-t border-brand-primary/10 bg-app-surface/95 px-5 py-4 backdrop-blur lg:left-[var(--app-sidebar-width,16rem)]">

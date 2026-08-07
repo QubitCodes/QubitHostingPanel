@@ -1,7 +1,11 @@
 export interface DeploymentDiagnostic {
 	code: string;
+	detail?: string;
 	developerActionRequired: boolean;
 	explanation: string;
+	location?: string;
+	owner: 'configuration' | 'platform' | 'project' | 'runtime' | 'unknown';
+	phase: 'build' | 'deployment' | 'runtime';
 	suggestion: string;
 	title: string;
 }
@@ -10,7 +14,9 @@ interface DiagnosticRule {
 	code: string;
 	developerActionRequired: boolean;
 	explanation: string;
+	owner: DeploymentDiagnostic['owner'];
 	pattern: RegExp;
+	phase: DeploymentDiagnostic['phase'];
 	suggestion: string;
 	title: string;
 }
@@ -19,6 +25,8 @@ const DIAGNOSTIC_RULES: DiagnosticRule[] = [
 	{
 		code: 'npm-lock-out-of-sync',
 		developerActionRequired: false,
+		owner: 'project',
+		phase: 'build',
 		explanation:
 			'The npm lockfile does not fully match package.json, so a frozen clean install cannot run.',
 		pattern:
@@ -31,15 +39,19 @@ const DIAGNOSTIC_RULES: DiagnosticRule[] = [
 		code: 'typescript-check-failed',
 		developerActionRequired: true,
 		explanation:
-			'The source compiled, but the framework rejected a TypeScript type error before producing a deployable image.',
+			'Your project did not pass TypeScript validation, so Ghost Deploy stopped before deployment.',
+		owner: 'project',
 		pattern: /(?:failed to type check|type error:)[\s\S]{0,3000}/i,
+		phase: 'build',
 		suggestion:
 			'Fix the first reported file and line in the repository, run the project typecheck/build locally, then redeploy.',
-		title: 'Application type check failed',
+		title: 'Project build failed',
 	},
 	{
 		code: 'missing-build-environment',
 		developerActionRequired: false,
+		owner: 'configuration',
+		phase: 'build',
 		explanation:
 			'The application validates a required environment variable while its production bundle is being built.',
 		pattern:
@@ -51,6 +63,8 @@ const DIAGNOSTIC_RULES: DiagnosticRule[] = [
 	{
 		code: 'unsupported-runtime-version',
 		developerActionRequired: false,
+		owner: 'configuration',
+		phase: 'build',
 		explanation:
 			'The selected language or package version is unavailable in the current builder image.',
 		pattern:
@@ -61,6 +75,8 @@ const DIAGNOSTIC_RULES: DiagnosticRule[] = [
 	{
 		code: 'dependency-install-failed',
 		developerActionRequired: true,
+		owner: 'project',
+		phase: 'build',
 		explanation:
 			'The dependency manager could not produce a complete install from the repository manifest.',
 		pattern:
@@ -72,6 +88,8 @@ const DIAGNOSTIC_RULES: DiagnosticRule[] = [
 	{
 		code: 'missing-environment-file',
 		developerActionRequired: false,
+		owner: 'configuration',
+		phase: 'runtime',
 		explanation:
 			'The start command requires a physical .env file, but the platform supplies runtime values directly to the container.',
 		pattern: /ENOENT[\s\S]{0,300}(?:\.env|env file)/i,
@@ -82,6 +100,8 @@ const DIAGNOSTIC_RULES: DiagnosticRule[] = [
 	{
 		code: 'memory-limit',
 		developerActionRequired: false,
+		owner: 'platform',
+		phase: 'build',
 		explanation:
 			'The build or application process exceeded its memory allowance.',
 		pattern: /(?:out of memory|oomkilled|exit code 137|signal: killed)/i,
@@ -92,6 +112,8 @@ const DIAGNOSTIC_RULES: DiagnosticRule[] = [
 	{
 		code: 'port-not-listening',
 		developerActionRequired: false,
+		owner: 'runtime',
+		phase: 'runtime',
 		explanation:
 			'The process started but did not accept traffic on the platform-assigned interface and port.',
 		pattern:
@@ -103,6 +125,8 @@ const DIAGNOSTIC_RULES: DiagnosticRule[] = [
 	{
 		code: 'database-connection',
 		developerActionRequired: false,
+		owner: 'configuration',
+		phase: 'runtime',
 		explanation:
 			'The application started but could not authenticate with or reach its configured database.',
 		pattern:
@@ -120,10 +144,22 @@ export function diagnoseDeploymentLogs(
 	if (!logs) return null;
 	const rule = DIAGNOSTIC_RULES.find(({ pattern }) => pattern.test(logs));
 	if (!rule) return null;
+	const location = logs.match(
+		/(?:^|\n)(?:#\d+\s+[\d.]+\s+)?\.\/?([^\r\n:]+\.(?:[cm]?[jt]sx?|php|py|rb|go)):(\d+):(\d+)/i,
+	);
+	const detail = logs.match(
+		/(?:Type error:|error TS\d+:|npm ERR!|ERR_PNPM|yarn error)\s*([^\r\n]+)/i,
+	);
 	return {
 		code: rule.code,
+		...(detail?.[1] ? { detail: detail[1].trim() } : {}),
 		developerActionRequired: rule.developerActionRequired,
 		explanation: rule.explanation,
+		...(location
+			? { location: `${location[1]}:${location[2]}:${location[3]}` }
+			: {}),
+		owner: rule.owner,
+		phase: rule.phase,
 		suggestion: rule.suggestion,
 		title: rule.title,
 	};

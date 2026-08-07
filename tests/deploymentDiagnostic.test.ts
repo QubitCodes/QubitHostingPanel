@@ -17,11 +17,16 @@ describe('deployment diagnostics', () => {
 	it('identifies source type failures as requiring a repository fix', () => {
 		expect(
 			diagnoseDeploymentLogs(
-				'Failed to type check. Type error: Property id does not exist.',
+				'Failed to type check.\n./src/services/messaging/MessagingService.ts:182:29\nType error: Property id does not exist on type WhatsAppTemplateSubmission.',
 			),
 		).toMatchObject({
 			code: 'typescript-check-failed',
 			developerActionRequired: true,
+			detail: 'Property id does not exist on type WhatsAppTemplateSubmission.',
+			location: 'src/services/messaging/MessagingService.ts:182:29',
+			owner: 'project',
+			phase: 'build',
+			title: 'Project build failed',
 		});
 	});
 });

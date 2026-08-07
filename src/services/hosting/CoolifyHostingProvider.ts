@@ -1,5 +1,6 @@
 import { getEnvironment } from '@config/env';
 import { diagnoseDeploymentLogs } from '@services/applications/deploymentDiagnosticService';
+import { parseDeploymentLogs } from '@services/applications/deploymentLogParserService';
 import type {
 	HostingProvider,
 	ProviderConnectionResult,
@@ -256,6 +257,7 @@ export class CoolifyHostingProvider implements HostingProvider {
 							typeof item.finished_at === 'string' ? item.finished_at : null,
 						diagnostic: diagnoseDeploymentLogs(logs),
 						logs,
+						logSections: parseDeploymentLogs(logs),
 						trigger:
 							item.is_webhook === true
 								? 'webhook'
@@ -299,6 +301,7 @@ export class CoolifyHostingProvider implements HostingProvider {
 				typeof item.finished_at === 'string' ? item.finished_at : null,
 			diagnostic: diagnoseDeploymentLogs(logs),
 			logs,
+			logSections: parseDeploymentLogs(logs),
 			trigger:
 				item.is_webhook === true
 					? 'webhook'

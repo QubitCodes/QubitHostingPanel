@@ -1746,7 +1746,7 @@ export const OPENAPI_DOCUMENT = {
 		},
 		'/workspaces/{workspaceId}/applications/{applicationId}/deployments': {
 			get: {
-				summary: 'List package-limited deployment history and captured logs',
+				summary: 'List deployment history, diagnostics, and categorized build output',
 				operationId: 'listWorkspaceApplicationDeployments',
 				security: [{ bearerAuth: [] }],
 				parameters: [
@@ -1756,7 +1756,7 @@ export const OPENAPI_DOCUMENT = {
 				responses: {
 					'200': {
 						description:
-							'History includes effective entry and retention limits.',
+							'History includes effective retention limits, failure ownership, actionable source evidence, categorized build/deployment logs, and the complete raw provider output.',
 					},
 					'404': { description: 'Application not found.' },
 				},
@@ -1797,7 +1797,7 @@ export const OPENAPI_DOCUMENT = {
 		},
 		'/workspaces/{workspaceId}/applications/{applicationId}/logs': {
 			get: {
-				summary: 'Read workspace application logs',
+				summary: 'Read live runtime stdout and stderr',
 				operationId: 'workspaceApplicationLogs',
 				security: [{ bearerAuth: [] }],
 				parameters: [
