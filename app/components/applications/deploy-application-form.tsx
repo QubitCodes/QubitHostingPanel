@@ -34,6 +34,10 @@ import { toast } from 'sonner';
 import { authenticatedFetch } from '@root/app/utils/authenticatedFetch';
 import { RepositoryDirectoryBrowser } from '@root/app/components/applications/repository-directory-browser';
 import { SearchableSelect } from '@root/app/components/forms/searchable-select';
+import {
+	TechnologyLogo,
+	type TechnologyLogoName,
+} from '@root/app/components/technology-logo';
 import { Offcanvas } from '@root/app/components/ui/offcanvas';
 import {
 	isLikelySecretEnvKey,
@@ -100,6 +104,8 @@ interface SourceAnalysis {
 			key: string;
 			required: boolean;
 		}>;
+		databaseEngine?: 'mysql' | 'postgresql';
+		databaseEvidence?: string[];
 		framework?: string;
 		packageManager?: string;
 		projectDirectory: string;
@@ -151,37 +157,37 @@ const hintClass =
 const STACKS: Array<{
 	code: RuntimeOption['language'];
 	label: string;
-	mark: string;
+	logo: TechnologyLogoName;
 	color: string;
 }> = [
 	{
 		code: 'node',
 		label: 'Node.js',
-		mark: 'JS',
+		logo: 'node',
 		color: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300',
 	},
 	{
 		code: 'php',
 		label: 'PHP',
-		mark: 'php',
+		logo: 'php',
 		color: 'bg-indigo-500/15 text-indigo-700 dark:text-indigo-300',
 	},
 	{
 		code: 'python',
 		label: 'Python',
-		mark: 'Py',
+		logo: 'python',
 		color: 'bg-blue-500/15 text-blue-700 dark:text-blue-300',
 	},
 	{
 		code: 'static',
 		label: 'Static site',
-		mark: '</>',
+		logo: 'html',
 		color: 'bg-amber-500/15 text-amber-700 dark:text-amber-300',
 	},
 	{
 		code: 'ruby',
 		label: 'Ruby',
-		mark: 'Rb',
+		logo: 'ruby',
 		color: 'bg-red-500/15 text-red-700 dark:text-red-300',
 	},
 ];
@@ -278,6 +284,14 @@ function DetectionSummary({
 				{[
 					['Stack', stackLabel ?? 'Not detected'],
 					['Framework', detectedFramework ?? 'Not detected'],
+					[
+						'Database',
+						candidate.databaseEngine === 'postgresql'
+							? 'PostgreSQL detected'
+							: candidate.databaseEngine === 'mysql'
+								? 'MySQL detected'
+								: 'Not detected',
+					],
 					[
 						'Project directory',
 						!candidate?.projectDirectory || candidate.projectDirectory === '/' ? 'Repository root' : candidate.projectDirectory,
@@ -958,6 +972,7 @@ export function DeployApplicationForm({
 		selectStack(candidate.stack);
 		setProjectDirectory(candidate.projectDirectory);
 		if (candidate.framework) selectFramework(candidate.framework);
+		if (candidate.databaseEngine) setDatabaseEngine(candidate.databaseEngine);
 		setInstallCommand(candidate.commands?.install ?? '');
 		setBuildCommand(candidate.commands?.build ?? '');
 		setStartCommand(candidate.commands?.start ?? '');
@@ -1527,7 +1542,7 @@ export function DeployApplicationForm({
 									<span
 										className={`grid h-10 w-12 place-items-center rounded-xl text-sm font-black ${item.color}`}
 									>
-										{item.mark}
+										<TechnologyLogo className="size-7" name={item.logo} />
 									</span>
 									<span className="mt-3 block font-bold">{item.label}</span>
 								</button>
@@ -1985,8 +2000,8 @@ export function DeployApplicationForm({
 										}
 										type="button"
 									>
-										<span className="grid size-11 place-items-center rounded-xl bg-blue-500/15 font-black text-blue-700 dark:text-blue-300">
-											Pg
+										<span className="grid size-11 place-items-center rounded-xl bg-blue-500/15 text-blue-700 dark:text-blue-300">
+											<TechnologyLogo className="size-7" name="postgresql" />
 										</span>
 										<strong className="mt-3 block">PostgreSQL</strong>
 										<span className="text-xs text-app-muted">
@@ -2002,8 +2017,8 @@ export function DeployApplicationForm({
 										}
 										type="button"
 									>
-										<span className="grid size-11 place-items-center rounded-xl bg-orange-500/15 font-black text-orange-700 dark:text-orange-300">
-											My
+										<span className="grid size-11 place-items-center rounded-xl bg-orange-500/15 text-orange-700 dark:text-orange-300">
+											<TechnologyLogo className="size-7" name="mysql" />
 										</span>
 										<strong className="mt-3 block">MySQL</strong>
 										<span className="text-xs text-app-muted">

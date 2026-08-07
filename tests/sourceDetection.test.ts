@@ -372,4 +372,105 @@ describe('application source detection', () => {
 			required: true,
 		});
 	});
+
+	it('detects PostgreSQL from repository dependencies', async () => {
+		const files = {
+			'package.json': JSON.stringify({
+				dependencies: { express: '^5.0.0', pg: '^8.16.0' },
+				scripts: { start: 'node server.js' },
+			}),
+		};
+		vi.stubGlobal(
+			'fetch',
+			vi.fn((input: string | URL | Request) =>
+				Promise.resolve(githubResponse(String(input), files)),
+			),
+		);
+
+		const result = await analyzeApplicationSource(
+			'https://github.com/ghostdeploy/postgres-example',
+			'main',
+		);
+
+		expect(result.candidates[0]?.databaseEngine).toBe('postgresql');
+		expect(result.candidates[0]?.databaseEvidence).toContain(
+			'package.json includes a PostgreSQL driver',
+		);
+	});
+
+	it('detects MySQL from a safe example environment file', async () => {
+		const files = {
+			'composer.json': JSON.stringify({
+				require: { 'laravel/framework': '^12.0' },
+			}),
+			'.env.example': 'DB_CONNECTION=mysql\nDB_HOST=127.0.0.1\nDB_PORT=3306\n',
+		};
+		vi.stubGlobal(
+			'fetch',
+			vi.fn((input: string | URL | Request) =>
+				Promise.resolve(githubResponse(String(input), files)),
+			),
+		);
+
+		const result = await analyzeApplicationSource(
+			'https://github.com/ghostdeploy/mysql-example',
+			'main',
+		);
+
+		expect(result.candidates[0]?.databaseEngine).toBe('mysql');
+		expect(result.candidates[0]?.databaseEvidence).toContain(
+			'.env.example configures MySQL',
+		);
+	});
+
+	it('does not guess when manifests and environment examples conflict', async () => {
+		const files = {
+			'package.json': JSON.stringify({
+				dependencies: { express: '^5.0.0', pg: '^8.16.0' },
+				scripts: { start: 'node server.js' },
+			}),
+			'.env.example': 'DATABASE_URL=mysql://user:password@localhost:3306/app\n',
+		};
+		vi.stubGlobal(
+			'fetch',
+			vi.fn((input: string | URL | Request) =>
+				Promise.resolve(githubResponse(String(input), files)),
+			),
+		);
+
+		const result = await analyzeApplicationSource(
+			'https://github.com/ghostdeploy/ambiguous-database-example',
+			'main',
+		);
+
+		expect(result.candidates[0]?.databaseEngine).toBeUndefined();
+	});
+
+	it('detects MySQL from Prisma configuration', async () => {
+		const files = {
+			'package.json': JSON.stringify({
+				dependencies: { '@prisma/client': '^6.0.0', next: '^16.0.0' },
+				scripts: { build: 'next build', start: 'next start' },
+			}),
+			'prisma/schema.prisma':
+				'datasource db {\n provider = "mysql"\n url = env("DATABASE_URL")\n}',
+		};
+		vi.stubGlobal(
+			'fetch',
+			vi.fn((input: string | URL | Request) =>
+				Promise.resolve(githubResponse(String(input), files)),
+			),
+		);
+
+		const result = await analyzeApplicationSource(
+			'https://github.com/ghostdeploy/prisma-example',
+			'main',
+		);
+
+		expect(result.candidates[0]?.databaseEngine).toBe('mysql');
+		expect(result.candidates[0]?.databaseEvidence).toContain(
+			'prisma/schema.prisma configures MySQL',
+		);
+	});
+
 });

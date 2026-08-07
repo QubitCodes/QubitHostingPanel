@@ -36,6 +36,8 @@ export interface SourceCandidate {
     key: string;
     required: boolean;
   }>;
+  databaseEngine?: 'mysql' | 'postgresql';
+  databaseEvidence?: string[];
   framework?: string;
   packageManager?: string;
   projectDirectory: string;
@@ -43,6 +45,9 @@ export interface SourceCandidate {
   stack: RuntimeLanguage;
   versionHint?: string;
 }
+
+type DatabaseEngine = NonNullable<SourceCandidate['databaseEngine']>;
+
 export interface SourceAnalysis {
   branches: string[];
   directories: string[];
@@ -61,6 +66,51 @@ const ENVIRONMENT_TEMPLATE_NAMES = [
   '.env.template',
   'env.example',
 ] as const;
+
+interface DatabaseSignalFile { content: string; path: string }
+
+/** Detects a database only when repository evidence has a single winner. */
+export function detectDatabaseEngine(files: DatabaseSignalFile[], framework?: string): { engine?: 'mysql' | 'postgresql'; evidence: string[] } {
+  const scores = { mysql: 0, postgresql: 0 };
+  const evidence = { mysql: [] as string[], postgresql: [] as string[] };
+  const add = (engine: keyof typeof scores, points: number, reason: string) => {
+    scores[engine] += points;
+    if (!evidence[engine].includes(reason)) evidence[engine].push(reason);
+  };
+  if (framework === 'wordpress') add('mysql', 20, 'WordPress requires MySQL-compatible storage');
+  const supported = frameworkDefinition(framework)?.databaseEngines ?? [];
+  if (supported.length === 1 && supported[0]) add(supported[0], 8, `${framework} supports ${supported[0]} storage`);
+
+  for (const file of files) {
+    const { content } = file;
+    const label = file.path;
+    if (/(?:postgres(?:ql)?:\/\/|db_connection\s*=\s*(?:pgsql|postgres)|provider\s*=\s*["']postgresql["']|django\.db\.backends\.postgresql|adapter:\s*postgresql|port\s*=\s*5432)/i.test(content)) add('postgresql', 12, `${label} configures PostgreSQL`);
+    if (/(?:mysql:\/\/|mariadb:\/\/|db_connection\s*=\s*(?:mysql|mariadb)|provider\s*=\s*["']mysql["']|django\.db\.backends\.mysql|adapter:\s*mysql2?|port\s*=\s*3306)/i.test(content)) add('mysql', 12, `${label} configures MySQL`);
+    if (/package\.json$/i.test(label)) {
+      try {
+        const manifest = JSON.parse(content) as PackageManifest;
+        const dependencies = { ...manifest.devDependencies, ...manifest.dependencies };
+        if (['pg', 'postgres', '@prisma/adapter-pg'].some((name) => Object.hasOwn(dependencies, name))) add('postgresql', 7, `${label} includes a PostgreSQL driver`);
+        if (['mysql', 'mysql2', 'mariadb', '@prisma/adapter-mariadb'].some((name) => Object.hasOwn(dependencies, name))) add('mysql', 7, `${label} includes a MySQL driver`);
+      } catch { /* Malformed manifests are ignored. */ }
+    }
+    if (/(?:requirements[^/]*\.txt|pyproject\.toml|pipfile)$/i.test(label)) {
+      if (/\b(?:psycopg2?|asyncpg|pg8000)\b/i.test(content)) add('postgresql', 7, `${label} includes a PostgreSQL driver`);
+      if (/\b(?:mysqlclient|pymysql|aiomysql|mysql-connector)\b/i.test(content)) add('mysql', 7, `${label} includes a MySQL driver`);
+    }
+    if (/(?:^|\/)gemfile$/i.test(label)) {
+      if (/^\s*gem\s+["']pg["']/im.test(content)) add('postgresql', 7, `${label} includes a PostgreSQL driver`);
+      if (/^\s*gem\s+["']mysql2?["']/im.test(content)) add('mysql', 7, `${label} includes a MySQL driver`);
+    }
+    if (/composer\.json$/i.test(label)) {
+      if (/"ext-pgsql"/i.test(content)) add('postgresql', 6, `${label} includes PostgreSQL support`);
+      if (/"ext-mysqli"|"ext-pdo_mysql"/i.test(content)) add('mysql', 6, `${label} includes MySQL support`);
+    }
+  }
+  if (scores.mysql === scores.postgresql || Math.max(scores.mysql, scores.postgresql) === 0) return { evidence: [] };
+  const engine = scores.postgresql > scores.mysql ? 'postgresql' : 'mysql';
+  return { engine, evidence: evidence[engine] };
+}
 
 /** Parses template names only; values are never returned to the deployment UI. */
 function environmentKeys(
@@ -397,6 +447,7 @@ export async function analyzeApplicationSource(
       projectDirectory(wordpressMarker).replace(/(?:^|\/)wp-includes$/, "") ||
       "/";
     candidates.push({
+      databaseEngine: "mysql",
       projectDirectory: directory,
       stack: "php",
       framework: "wordpress",
@@ -412,6 +463,7 @@ export async function analyzeApplicationSource(
       const manifest = JSON.parse(raw) as PackageManifest;
       const framework = nodeFramework(manifest);
       const commandSuggestion = nodeCommands(manifest, path, paths, framework);
+      const database = detectDatabaseEngine([{ content: raw, path }], framework);
       candidates.push({
         commands: commandSuggestion.commands,
         projectDirectory: projectDirectory(path),
@@ -424,6 +476,8 @@ export async function analyzeApplicationSource(
             ? "static"
             : "node",
         framework,
+        databaseEngine: database.engine,
+        databaseEvidence: database.evidence,
       });
       evidence.push(
         `${path}${framework ? ` identifies ${framework}` : " identifies Node.js"}`,
@@ -458,6 +512,7 @@ export async function analyzeApplicationSource(
     if (!raw) continue;
     try {
       const framework = phpFramework(JSON.parse(raw) as ComposerManifest);
+      const database = detectDatabaseEngine([{ content: raw, path }], framework);
       const directory = projectDirectory(path);
       const composerCandidate = {
         commands: {
@@ -469,6 +524,8 @@ export async function analyzeApplicationSource(
         packageManager: "composer",
         stack: "php" as const,
         framework,
+        databaseEngine: database.engine,
+        databaseEvidence: database.evidence,
       };
       const structuralCandidate = candidates.find(
         (candidate) =>
@@ -497,6 +554,7 @@ export async function analyzeApplicationSource(
     const locked = paths.includes(
       directory === "/" ? "Gemfile.lock" : `${directory}/Gemfile.lock`,
     );
+    const database = detectDatabaseEngine([{ content: raw, path }], framework);
     candidates.push({
       commands: {
         install: locked
@@ -510,6 +568,8 @@ export async function analyzeApplicationSource(
       projectDirectory: directory,
       stack: "ruby",
       framework,
+      databaseEngine: database.engine,
+      databaseEvidence: database.evidence,
     });
     evidence.push(
       `${path}${framework ? " identifies Ruby on Rails" : " identifies Ruby"}`,
@@ -525,6 +585,7 @@ export async function analyzeApplicationSource(
     const raw = await rawFile(repository, branch, path, token);
     if (!raw) continue;
     const framework = pythonFramework(raw);
+    const database = detectDatabaseEngine([{ content: raw, path }], framework);
     const directory = projectDirectory(path);
     const besideManifest = (name: string) =>
       paths.includes(directory === "/" ? name : `${directory}/${name}`);
@@ -542,6 +603,8 @@ export async function analyzeApplicationSource(
             : "pip",
       stack: "python",
       framework,
+      databaseEngine: database.engine,
+      databaseEvidence: database.evidence,
     });
     evidence.push(
       `${path}${framework ? ` identifies ${framework}` : " identifies Python"}`,
@@ -605,11 +668,46 @@ export async function analyzeApplicationSource(
       ? await rawFile(repository, branch, templatePath, token)
       : undefined;
     const keys = environmentKeys(template, candidate.framework);
+    const database = detectDatabaseEngine(
+      template ? [{ content: template, path: templatePath ?? '.env.example' }] : [],
+      candidate.framework,
+    );
+    const prefix = candidate.projectDirectory === '/' ? '' : `${candidate.projectDirectory}/`;
+    const configurationPaths = [
+      `${prefix}prisma/schema.prisma`,
+      `${prefix}config/database.php`,
+      `${prefix}config/database.yml`,
+      `${prefix}config/database.yaml`,
+      `${prefix}settings.py`,
+    ].filter((path) => paths.includes(path));
+    const configurationDetections = await Promise.all(
+      configurationPaths.map(async (path) => {
+        const content = await rawFile(repository, branch, path, token);
+        return detectDatabaseEngine(content ? [{ content, path }] : [], candidate.framework);
+      }),
+    );
     if (templatePath)
       evidence.push(
         `${templatePath} provides ${keys.length} environment variable keys`,
       );
-    templated.push({ ...candidate, environmentKeys: keys });
+    const candidateEngines = new Set(
+      [candidate.databaseEngine, database.engine, ...configurationDetections.map(({ engine }) => engine)].filter(Boolean),
+    );
+    templated.push({
+      ...candidate,
+      environmentKeys: keys,
+      databaseEngine:
+        candidateEngines.size === 1
+          ? ([...candidateEngines][0] as DatabaseEngine)
+          : undefined,
+      databaseEvidence: [
+        ...new Set([
+          ...(candidate.databaseEvidence ?? []),
+          ...database.evidence,
+          ...configurationDetections.flatMap(({ evidence: items }) => items),
+        ]),
+      ],
+    });
   }
   const contracted = templated.map((candidate) => {
     const definition = frameworkDefinition(candidate.framework);
