@@ -133,10 +133,31 @@ jobs:
         uses: anchore/scan-action@e1165082ffb1fe366ebaf02d8526e7c4989ea9d2 # v7.4.0
         with:
           image: ${{ steps.image.outputs.local_image }}
+          grype-version: v0.110.0
+          cache-db: true
           fail-build: true
           output-format: table
+          output-file: grype-${{ matrix.runtime }}-${{ matrix.version }}.txt
           only-fixed: true
           severity-cutoff: critical
+
+      - name: Record vulnerability scan report
+        if: always()
+        shell: bash
+        run: |
+          report='grype-${{ matrix.runtime }}-${{ matrix.version }}.txt'
+          if [[ -s "$report" ]]; then
+            {
+              echo '### Vulnerability scan'
+              echo
+              echo '```text'
+              cat "$report"
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo '### Vulnerability scan' >> "$GITHUB_STEP_SUMMARY"
+            echo 'Grype did not produce a report. Inspect the scan step for an operational error.' >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Log in to GHCR
         if: github.event_name != 'pull_request'
