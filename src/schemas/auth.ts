@@ -22,7 +22,8 @@ export const switchContextSchema = z.object({
 }).strict();
 
 export const sessionIdSchema = z.uuid();
-export const createAuthenticationHandoffSchema = z.object({ targetPath: z.enum(['/dashboard', '/admin/overview']) }).strict();
+const databaseManagerPathSchema = z.string().regex(/^\/database\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}(?:\/[a-z0-9_./%-]+)?$/i, 'Invalid database-manager path.').refine((value) => { try { return !decodeURIComponent(value).split('/').some((segment) => segment === '.' || segment === '..'); } catch { return false; } }, 'Invalid database-manager path.');
+export const createAuthenticationHandoffSchema = z.object({ targetPath: z.union([z.enum(['/dashboard', '/admin/overview']), databaseManagerPathSchema]) }).strict();
 export const consumeAuthenticationHandoffSchema = z.object({ token: z.string().min(32).max(200) }).strict();
 export type CreateAuthenticationHandoffInput = z.infer<typeof createAuthenticationHandoffSchema>;
 export type ConsumeAuthenticationHandoffInput = z.infer<typeof consumeAuthenticationHandoffSchema>;

@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 export const logicalDatabasePublicIdSchema = z.uuid();
-const databaseNameSchema = z
+export const databaseNameSchema = z
 	.string()
 	.trim()
 	.min(2)
@@ -17,9 +17,16 @@ export const logicalDatabaseNameAvailabilitySchema = z
 export const createLogicalDatabaseSchema = z.object({
 	engine: z.enum(['postgresql', 'mysql']),
 	name: databaseNameSchema,
+	userMode: z.enum(['new', 'existing']).default('new'),
+	username: databaseNameSchema.optional(),
+	databaseUserId: z.uuid().optional(),
 	connectionLimit: z.number().int().min(1).max(100).default(10),
 	storageQuotaMb: z.number().int().min(128).max(102400).default(1024),
+}).strict().superRefine((value, context) => {
+	if (value.userMode === 'existing' && !value.databaseUserId) context.addIssue({ code: 'custom', message: 'Choose an existing database user.', path: ['databaseUserId'] });
 });
+export const logicalDatabaseUserQuerySchema = z.object({ engine: z.enum(['postgresql', 'mysql']).optional() }).strict();
+export const rotateDatabaseCredentialSchema = z.object({ acceptedImpact: z.literal(true) }).strict();
 export const deleteLogicalDatabaseSchema = z
 	.object({
 		acceptedImpact: z.boolean().default(false),

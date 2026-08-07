@@ -9,6 +9,7 @@ import {
   applicationDatabaseBindings,
   customers,
   databaseClusters,
+  databaseUsers,
   logicalDatabases,
   workspaceMemberships,
   workspaceResources,
@@ -159,11 +160,16 @@ export class LogicalDatabaseController {
 
 			const admin = JSON.parse(decryptCredential(record.cluster.adminCredentialCiphertext)) as ClusterCredential;
 			const endpoint = databaseClusterEndpoint(record.cluster);
-			await sharedDatabaseProvisioner(record.cluster.engine).deleteLogicalDatabase({ adminDatabase: admin.database, adminPassword: admin.password, adminUsername: admin.username, databaseName: record.database.databaseName, host: endpoint.host, port: endpoint.port, tlsMode: endpoint.tlsMode, username: record.database.username });
+			const [{ value: linkedDatabaseCount }] = record.database.databaseUserId
+				? await db.select({ value: count() }).from(logicalDatabases).where(and(eq(logicalDatabases.databaseUserId, record.database.databaseUserId), isNull(logicalDatabases.deletedAt)))
+				: [{ value: 1 }];
+			const dropUser = Number(linkedDatabaseCount) <= 1;
+			await sharedDatabaseProvisioner(record.cluster.engine).deleteLogicalDatabase({ adminDatabase: admin.database, adminPassword: admin.password, adminUsername: admin.username, databaseName: record.database.databaseName, dropUser, host: endpoint.host, port: endpoint.port, tlsMode: endpoint.tlsMode, username: record.database.username });
 			const deletedAt = new Date();
 			await db.transaction(async (transaction) => {
 				if (bindings.length) await transaction.update(applicationDatabaseBindings).set({ deletedAt, deleteReason: 'Database deleted by workspace user.', updatedAt: deletedAt }).where(inArray(applicationDatabaseBindings.id, bindings.map(({ bindingId }) => bindingId)));
 				await transaction.update(logicalDatabases).set({ status: 'suspended', deletedAt, deleteReason: 'Deleted by workspace user.', updatedAt: deletedAt }).where(eq(logicalDatabases.id, record.database.id));
+				if (dropUser && record.database.databaseUserId) await transaction.update(databaseUsers).set({ status: 'suspended', deletedAt, deleteReason: 'Last connected database deleted by workspace user.', updatedAt: deletedAt }).where(eq(databaseUsers.id, record.database.databaseUserId));
 				if (record.database.resourceId) await transaction.update(workspaceResources).set({ status: 'stopped', deletedAt, deleteReason: 'Logical database deleted by workspace user.', updatedAt: deletedAt }).where(eq(workspaceResources.id, record.database.resourceId));
 				await transaction.update(workspaceUsageReservations).set({ status: 'released', releasedAt: deletedAt, releaseReason: 'Logical database deleted.', updatedAt: deletedAt }).where(and(eq(workspaceUsageReservations.resourceType, 'logical_database'), eq(workspaceUsageReservations.resourceId, record.database.id), eq(workspaceUsageReservations.status, 'committed'), isNull(workspaceUsageReservations.deletedAt)));
 			});
@@ -227,6 +233,32 @@ export class LogicalDatabaseController {
     }
   }
 
+  /** Lists reusable database logins owned by the workspace without exposing credentials. */
+  public static async users(
+    request: Request,
+    workspacePublicId: number,
+    engine: 'mysql' | 'postgresql' | undefined,
+    metadata: RequestMetadata,
+  ): Promise<Response> {
+    try {
+      const { workspace } = await workspaceAccess(request, workspacePublicId, metadata);
+      const filters = [eq(databaseUsers.workspaceId, workspace.id), eq(databaseUsers.status, 'active'), eq(databaseClusters.status, 'active'), isNull(databaseUsers.deletedAt), isNull(databaseClusters.deletedAt)];
+      if (engine) filters.push(eq(databaseClusters.engine, engine));
+      const rows = await db.select({ id: databaseUsers.id, username: databaseUsers.username, engine: databaseClusters.engine, databaseCount: count(logicalDatabases.id) })
+        .from(databaseUsers)
+        .innerJoin(databaseClusters, eq(databaseClusters.id, databaseUsers.clusterId))
+        .leftJoin(logicalDatabases, and(eq(logicalDatabases.databaseUserId, databaseUsers.id), isNull(logicalDatabases.deletedAt)))
+        .where(and(...filters))
+        .groupBy(databaseUsers.id, databaseClusters.engine)
+        .orderBy(asc(databaseUsers.username));
+      return resp.success('Workspace database users retrieved.', rows.map((row) => ({ ...row, databaseCount: Number(row.databaseCount) })));
+    } catch (error) {
+      const authenticationFailure = authenticationFailureResponse(error);
+      if (authenticationFailure) return authenticationFailure;
+      return resp.failure('Workspace not found.', resp.codes.RESOURCE_NOT_FOUND, undefined, null, undefined, 404);
+    }
+  }
+
   public static async index(
     request: Request,
     workspacePublicId: number,
@@ -266,6 +298,34 @@ export class LogicalDatabaseController {
         undefined,
         404,
       );
+    }
+  }
+
+  /** Resolves one authorized database independently of the dashboard's active-workspace selection. */
+  public static async context(request: Request, databaseId: string, metadata: RequestMetadata): Promise<Response> {
+    try {
+      const actor = await authenticateSession(request, metadata);
+      const [record] = await db.select({ ...publicFields, databaseUserId: logicalDatabases.databaseUserId, workspacePublicId: workspaces.publicId })
+        .from(logicalDatabases)
+        .innerJoin(databaseClusters, eq(databaseClusters.id, logicalDatabases.clusterId))
+        .innerJoin(workspaces, and(eq(workspaces.id, logicalDatabases.workspaceId), eq(workspaces.status, 'active'), isNull(workspaces.deletedAt)))
+        .innerJoin(workspaceMemberships, and(eq(workspaceMemberships.workspaceId, workspaces.id), eq(workspaceMemberships.status, 'active'), isNull(workspaceMemberships.deletedAt)))
+        .innerJoin(customers, and(eq(customers.id, workspaceMemberships.customerId), eq(customers.userId, actor.userId), isNull(customers.deletedAt)))
+        .where(and(eq(logicalDatabases.id, databaseId), isNull(logicalDatabases.deletedAt), isNull(databaseClusters.deletedAt)))
+        .limit(1);
+      if (!record) return resp.failure('Database not found.', resp.codes.RESOURCE_NOT_FOUND, undefined, null, undefined, 404);
+      const sharedDatabases = record.databaseUserId
+		? await db.select({ id: logicalDatabases.id, databaseName: logicalDatabases.databaseName }).from(logicalDatabases).where(and(eq(logicalDatabases.databaseUserId, record.databaseUserId), isNull(logicalDatabases.deletedAt)))
+		: [{ id: record.id, databaseName: record.databaseName }];
+	  const sharedDatabaseIds = sharedDatabases.map(({ id }) => id);
+      const bindings = sharedDatabaseIds.length ? await db.select({ id: applicationBuilds.id, metadata: applicationBuilds.metadata, databaseId: applicationDatabaseBindings.logicalDatabaseId }).from(applicationDatabaseBindings).innerJoin(applicationBuilds, eq(applicationBuilds.id, applicationDatabaseBindings.applicationBuildId)).where(and(inArray(applicationDatabaseBindings.logicalDatabaseId, sharedDatabaseIds), isNull(applicationDatabaseBindings.deletedAt), isNull(applicationBuilds.deletedAt))) : [];
+	  const connectedApplications = bindings.filter(({ databaseId: bindingDatabaseId }) => bindingDatabaseId === databaseId).map((binding) => ({ id: binding.id, name: String(binding.metadata?.name ?? 'Application') }));
+	  const passwordImpactApplications = [...new Map(bindings.map((binding) => [binding.id, { id: binding.id, name: String(binding.metadata?.name ?? 'Application') }])).values()];
+      return resp.success('Database context retrieved.', { ...record, databaseUserId: undefined, displayName: String(record.metadata?.displayName ?? record.databaseName), connectedApplications, passwordImpact: { applications: passwordImpactApplications, databases: sharedDatabases } });
+    } catch (error) {
+      const authenticationFailure = authenticationFailureResponse(error);
+      if (authenticationFailure) return authenticationFailure;
+      return resp.failure('Database not found.', resp.codes.RESOURCE_NOT_FOUND, undefined, null, undefined, 404);
     }
   }
 
@@ -331,29 +391,24 @@ export class LogicalDatabaseController {
             isNull(logicalDatabases.deletedAt),
           ),
         );
-      const [cluster] = await db
+      const [selectedDatabaseUser] = input.userMode === 'existing' && input.databaseUserId
+        ? await db.select({ user: databaseUsers, cluster: databaseClusters })
+            .from(databaseUsers)
+            .innerJoin(databaseClusters, eq(databaseClusters.id, databaseUsers.clusterId))
+            .where(and(eq(databaseUsers.id, input.databaseUserId), eq(databaseUsers.workspaceId, workspace.id), eq(databaseUsers.status, 'active'), eq(databaseClusters.engine, input.engine), eq(databaseClusters.status, 'active'), isNull(databaseUsers.deletedAt), isNull(databaseClusters.deletedAt)))
+            .limit(1)
+        : [];
+      if (input.userMode === 'existing' && !selectedDatabaseUser) return resp.failure('Selected database user is unavailable.', resp.codes.RESOURCE_NOT_FOUND, undefined, null, undefined, 404);
+      const [availableCluster] = selectedDatabaseUser ? [{ cluster: selectedDatabaseUser.cluster }] : await db
         .select({ cluster: databaseClusters, used: count(logicalDatabases.id) })
         .from(databaseClusters)
-        .leftJoin(
-          logicalDatabases,
-          and(
-            eq(logicalDatabases.clusterId, databaseClusters.id),
-            isNull(logicalDatabases.deletedAt),
-          ),
-        )
-        .where(
-          and(
-            eq(databaseClusters.engine, input.engine),
-            eq(databaseClusters.status, "active"),
-            isNull(databaseClusters.deletedAt),
-          ),
-        )
+        .leftJoin(logicalDatabases, and(eq(logicalDatabases.clusterId, databaseClusters.id), isNull(logicalDatabases.deletedAt)))
+        .where(and(eq(databaseClusters.engine, input.engine), eq(databaseClusters.status, 'active'), isNull(databaseClusters.deletedAt)))
         .groupBy(databaseClusters.id)
-        .having(
-          sql`${databaseClusters.maximumDatabases} IS NULL OR count(${logicalDatabases.id}) < ${databaseClusters.maximumDatabases}`,
-        )
+        .having(sql`${databaseClusters.maximumDatabases} IS NULL OR count(${logicalDatabases.id}) < ${databaseClusters.maximumDatabases}`)
         .orderBy(asc(count(logicalDatabases.id)))
         .limit(1);
+      const cluster = availableCluster;
       if (!cluster)
         return resp.failure(
           "No healthy database cluster has capacity.",
@@ -363,13 +418,24 @@ export class LogicalDatabaseController {
           undefined,
           503,
         );
-      const reservation = await reserveWorkspaceUsage({ workspaceId: workspace.id, code: "databases.count", current: Number(used), quantity: 1, idempotencyKey: `database-create:${randomUUID()}` });
-      reservationId = reservation.reservationId;
-      if (!reservation.allowed || !reservationId) return resp.failure("Workspace database limit reached.", resp.codes.ORDER_CANNOT_BE_PROCESSED, undefined, { quota: reservation }, undefined, 422);
-      const suffix = randomBytes(6).toString("hex");
+	  if (selectedDatabaseUser && cluster.cluster.maximumDatabases !== null) {
+		const [{ value: clusterDatabaseCount }] = await db
+		  .select({ value: count() })
+		  .from(logicalDatabases)
+		  .where(and(eq(logicalDatabases.clusterId, cluster.cluster.id), isNull(logicalDatabases.deletedAt)));
+		if (Number(clusterDatabaseCount) >= cluster.cluster.maximumDatabases) return resp.failure('The selected database user belongs to a cluster that has reached capacity.', resp.codes.SYSTEM_MAINTENANCE, undefined, null, undefined, 503);
+	  }
       const databaseName = logicalDatabasePhysicalName(input.name);
-      const username = `u_${workspace.publicId}_${suffix}`;
-      const password = randomBytes(32).toString("base64url");
+      const username = selectedDatabaseUser?.user.username ?? input.username ?? databaseName;
+      if (!selectedDatabaseUser) {
+        const [duplicateUser] = await db.select({ id: databaseUsers.id }).from(databaseUsers).where(and(eq(databaseUsers.clusterId, cluster.cluster.id), eq(databaseUsers.username, username), isNull(databaseUsers.deletedAt))).limit(1);
+        if (duplicateUser) return resp.failure('Database username is already in use.', resp.codes.RESOURCE_ALREADY_EXISTS, [{ field: 'username', message: 'Choose another database username or select the existing user.' }], null, undefined, 409);
+      }
+	  const reservation = await reserveWorkspaceUsage({ workspaceId: workspace.id, code: "databases.count", current: Number(used), quantity: 1, idempotencyKey: `database-create:${randomUUID()}` });
+	  reservationId = reservation.reservationId;
+	  if (!reservation.allowed || !reservationId) return resp.failure("Workspace database limit reached.", resp.codes.ORDER_CANNOT_BE_PROCESSED, undefined, { quota: reservation }, undefined, 422);
+      const existingCredential = selectedDatabaseUser ? JSON.parse(decryptCredential(selectedDatabaseUser.user.credentialCiphertext)) as { password: string } : undefined;
+      const password = existingCredential?.password ?? randomBytes(32).toString("base64url");
       const admin = JSON.parse(
         decryptCredential(cluster.cluster.adminCredentialCiphertext),
       ) as ClusterCredential;
@@ -382,6 +448,7 @@ export class LogicalDatabaseController {
         connectionLimit: input.connectionLimit,
         databaseName,
         engine: input.engine,
+        existingUser: Boolean(selectedDatabaseUser),
         host: endpoint.host,
         password,
         port: endpoint.port,
@@ -390,6 +457,8 @@ export class LogicalDatabaseController {
         workspaceId: workspace.id,
       });
       const record = await db.transaction(async (transaction) => {
+        const databaseUserId = selectedDatabaseUser?.user.id ?? (await transaction.insert(databaseUsers).values({ workspaceId: workspace.id, clusterId: cluster.cluster.id, username, credentialCiphertext: encryptCredential(JSON.stringify(created)) }).returning({ id: databaseUsers.id }))[0]?.id;
+        if (!databaseUserId) throw new Error('Unable to persist database user.');
         const [resource] = await transaction
           .insert(workspaceResources)
           .values({
@@ -412,6 +481,7 @@ export class LogicalDatabaseController {
             workspaceId: workspace.id,
             resourceId: resource.id,
             clusterId: cluster.cluster.id,
+            databaseUserId,
             status: "active",
             databaseName,
             username,
@@ -439,8 +509,8 @@ export class LogicalDatabaseController {
         userAgent: metadata.userAgent,
       });
       return resp.success(
-        "Database created. Save these credentials now.",
-        { database: record, credential: created },
+        selectedDatabaseUser ? 'Database created with the existing workspace user.' : 'Database created. Save these credentials now.',
+        { database: record, credential: selectedDatabaseUser ? undefined : created },
         resp.codes.CREATED,
         undefined,
         201,
@@ -475,9 +545,12 @@ export class LogicalDatabaseController {
       const [record] = await db
         .select({
           id: logicalDatabases.id,
+          databaseName: logicalDatabases.databaseName,
           credential: logicalDatabases.credentialCiphertext,
+          databaseUserCredential: databaseUsers.credentialCiphertext,
         })
         .from(logicalDatabases)
+        .leftJoin(databaseUsers, and(eq(databaseUsers.id, logicalDatabases.databaseUserId), isNull(databaseUsers.deletedAt)))
         .where(
           and(
             eq(logicalDatabases.id, databaseId),
@@ -504,10 +577,8 @@ export class LogicalDatabaseController {
         ipAddress: metadata.ipAddress,
         userAgent: metadata.userAgent,
       });
-      return resp.success(
-        "Database credential revealed.",
-        JSON.parse(decryptCredential(record.credential)),
-      );
+      const credential = JSON.parse(decryptCredential(record.databaseUserCredential ?? record.credential)) as Record<string, unknown>;
+      return resp.success("Database credential revealed.", { ...credential, databaseName: record.databaseName });
     } catch (error) {
       const authenticationFailure = authenticationFailureResponse(error);
       if (authenticationFailure) return authenticationFailure;
@@ -526,6 +597,7 @@ export class LogicalDatabaseController {
     request: Request,
     workspacePublicId: number,
     databaseId: string,
+    input: { acceptedImpact: true },
     metadata: RequestMetadata,
   ): Promise<Response> {
     try {
@@ -535,12 +607,13 @@ export class LogicalDatabaseController {
         metadata,
       );
       const [record] = await db
-        .select({ database: logicalDatabases, cluster: databaseClusters })
+        .select({ database: logicalDatabases, cluster: databaseClusters, databaseUserCredential: databaseUsers.credentialCiphertext })
         .from(logicalDatabases)
         .innerJoin(
           databaseClusters,
           eq(databaseClusters.id, logicalDatabases.clusterId),
         )
+        .leftJoin(databaseUsers, and(eq(databaseUsers.id, logicalDatabases.databaseUserId), isNull(databaseUsers.deletedAt)))
         .where(
           and(
             eq(logicalDatabases.id, databaseId),
@@ -558,8 +631,12 @@ export class LogicalDatabaseController {
           undefined,
           404,
         );
+      if (!input.acceptedImpact) return resp.failure('Password rotation confirmation is required.', resp.codes.ORDER_CANNOT_BE_PROCESSED, undefined, null, undefined, 422);
+      const affectedDatabases = record.database.databaseUserId
+        ? await db.select({ id: logicalDatabases.id, databaseName: logicalDatabases.databaseName }).from(logicalDatabases).where(and(eq(logicalDatabases.databaseUserId, record.database.databaseUserId), isNull(logicalDatabases.deletedAt)))
+        : [{ id: record.database.id, databaseName: record.database.databaseName }];
       const current = JSON.parse(
-        decryptCredential(record.database.credentialCiphertext),
+        decryptCredential(record.databaseUserCredential ?? record.database.credentialCiphertext),
       ) as {
         databaseName: string;
         engine: "mysql" | "postgresql";
@@ -593,19 +670,16 @@ export class LogicalDatabaseController {
         password,
         port: endpoint.port,
       };
-      await db
-        .update(logicalDatabases)
-        .set({
-          credentialCiphertext: encryptCredential(JSON.stringify(credential)),
-          updatedAt: new Date(),
-        })
-        .where(eq(logicalDatabases.id, record.database.id));
+      await db.transaction(async (transaction) => {
+        if (record.database.databaseUserId) await transaction.update(databaseUsers).set({ credentialCiphertext: encryptCredential(JSON.stringify(credential)), updatedAt: new Date() }).where(eq(databaseUsers.id, record.database.databaseUserId));
+        for (const affected of affectedDatabases) await transaction.update(logicalDatabases).set({ credentialCiphertext: encryptCredential(JSON.stringify({ ...credential, databaseName: affected.databaseName })), updatedAt: new Date() }).where(eq(logicalDatabases.id, affected.id));
+      });
       await recordAuditLog({
         actorUserId,
         action: "logical_database.credential_rotated",
         resourceType: "logical_database",
         resourceId: record.database.id,
-        metadata: { workspacePublicId },
+        metadata: { workspacePublicId, affectedDatabaseCount: affectedDatabases.length },
         ipAddress: metadata.ipAddress,
         userAgent: metadata.userAgent,
       });

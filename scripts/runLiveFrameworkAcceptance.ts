@@ -259,7 +259,7 @@ async function createDatabase(
 		await LogicalDatabaseController.create(
 			authenticatedRequest(personalToken),
 			target.workspacePublicId,
-			{ engine, name, connectionLimit: 5, storageQuotaMb: 128 },
+			{ engine, name, userMode: 'new', connectionLimit: 5, storageQuotaMb: 128 },
 			metadata,
 		),
 	);

@@ -173,6 +173,9 @@ Initial publication policy: Launch, Growth, and Business may be public after the
 - `/api/v1/public/platform` - effective public, panel, and application-domain URL configuration.
 - `/api/v1/operations/platform-settings` - permission-protected platform-domain configuration.
 - `/api/v1/operations/platform-settings/dns-providers` - masked, permission-protected Cloudflare, GoDaddy, and Hostinger connection management. Tokens are encrypted at rest; database connections take precedence over Cloudflare environment fallback.
+- `/api/v1/workspaces/:workspaceId/database-users` - list reusable workspace-owned PostgreSQL/MySQL logins without exposing passwords.
+- `/api/v1/workspaces/:workspaceId/databases` - list databases or create one with a generated new login or an existing workspace login.
+- `/api/v1/databases/:databaseId/context` - authorize and resolve a standalone, URL-addressable database-manager tab.
 - `/api/v1/workspaces/:workspaceId/databases/:databaseId/backups` - list and create encrypted logical-database recovery points.
 - `/api/v1/workspaces/:workspaceId/databases/:databaseId/backups/:backupId/restore` - exact-name-confirmed destructive restore.
 - `/api/v1/workspaces/:workspaceId/databases/:databaseId/backups/:backupId/download` - authorized, audited decrypted dump download.
@@ -186,6 +189,8 @@ Initial publication policy: Launch, Growth, and Business may be public after the
 Create one public GitHub App with repository `Contents: Read-only` and `Metadata: Read-only` permissions. Set its setup URL to `/api/v1/github/callback`, enable installation on user and organisation accounts, and configure the `GITHUB_APP_*` values plus `COOLIFY_GITHUB_PRIVATE_KEY_UUID`. Each workspace installation is reconciled idempotently to its own Coolify GitHub Source; no Source UUID is shared globally. PKCS#1 keys downloaded by GitHub are normalized internally. Repository access remains selectable and reviewable in GitHub. Real `.env` files are never fetched; only environment templates such as `.env.example` are inspected.
 
 Dockerfile deployments are intentionally disabled until package entitlements and workload isolation policies are enabled.
+
+Database details in the customer dashboard expose read-only table/object inventories and an **Open DB** action. The action opens `/database/:databaseId/...` in a separately authenticated tab, so multiple databases can be managed concurrently without sharing active-workspace UI state. Database users are workspace-owned and reusable within one engine cluster. New users receive generated passwords; existing-user selection never reveals or changes the password. Password rotation is audited and reports every database/application sharing the login.
 
 GitHub App deployments expose a per-application auto-deploy switch. Packages independently control manual deployment availability, automatic deployment availability, history count, and retention duration. Private application visibility removes public provider routes without deleting the provider resource.
 

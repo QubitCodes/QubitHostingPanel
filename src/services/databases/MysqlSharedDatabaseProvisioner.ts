@@ -11,7 +11,7 @@ export class MysqlSharedDatabaseProvisioner implements SharedDatabaseProvisioner
 		const admin = await mysql.createConnection({ host: input.host, port: input.port, database: input.adminDatabase, user: input.adminUsername, password: input.adminPassword, ssl: input.tlsMode === 'disabled' ? undefined : { rejectUnauthorized: input.tlsMode === 'verify-full' }, connectTimeout: 15_000 });
 		try {
 			await admin.query(`DROP DATABASE IF EXISTS ${identifier(input.databaseName)}`);
-			await admin.query(`DROP USER IF EXISTS ?@'%'`, [input.username]);
+			if (input.dropUser) await admin.query(`DROP USER IF EXISTS ?@'%'`, [input.username]);
 		} finally { await admin.end(); }
 	}
 
@@ -25,11 +25,11 @@ export class MysqlSharedDatabaseProvisioner implements SharedDatabaseProvisioner
 		const admin = await mysql.createConnection({ host: input.host, port: input.port, database: input.adminDatabase, user: input.adminUsername, password: input.adminPassword, ssl: input.tlsMode === 'disabled' ? undefined : { rejectUnauthorized: input.tlsMode === 'verify-full' }, connectTimeout: 15_000 });
 		try {
 			await admin.query(`CREATE DATABASE ${identifier(input.databaseName)} CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci`);
-			await admin.query(`CREATE USER ?@'%' IDENTIFIED BY ?`, [input.username, input.password]);
+			if (!input.existingUser) await admin.query(`CREATE USER ?@'%' IDENTIFIED BY ?`, [input.username, input.password]);
 			await admin.query(`GRANT ALL PRIVILEGES ON ${identifier(input.databaseName)}.* TO ?@'%'`, [input.username]);
 		} catch (error) {
 			await admin.query(`DROP DATABASE IF EXISTS ${identifier(input.databaseName)}`).catch(() => undefined);
-			await admin.query(`DROP USER IF EXISTS ?@'%'`, [input.username]).catch(() => undefined);
+			if (!input.existingUser) await admin.query(`DROP USER IF EXISTS ?@'%'`, [input.username]).catch(() => undefined);
 			throw error;
 		} finally { await admin.end(); }
 		return { databaseName: input.databaseName, engine: 'mysql', host: input.host, password: input.password, port: input.port, tlsMode: input.tlsMode, username: input.username };

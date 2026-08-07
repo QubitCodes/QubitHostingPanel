@@ -7,6 +7,7 @@ export interface CreateLogicalDatabaseInput {
 	connectionLimit?: number;
 	databaseName: string;
 	engine: SharedDatabaseEngine;
+	existingUser?: boolean;
 	host: string;
 	port: number;
 	password: string;
@@ -36,6 +37,7 @@ export interface MeasureLogicalDatabaseInput {
 }
 
 export interface DeleteLogicalDatabaseInput extends MeasureLogicalDatabaseInput {
+	dropUser?: boolean;
 	username: string;
 }
 

@@ -19,7 +19,7 @@ export class PostgresSharedDatabaseProvisioner implements SharedDatabaseProvisio
 		try {
 			await admin.query('SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()', [input.databaseName]);
 			await admin.query(`DROP DATABASE IF EXISTS ${identifier(input.databaseName)}`);
-			await admin.query(`DROP ROLE IF EXISTS ${identifier(input.username)}`);
+			if (input.dropUser) await admin.query(`DROP ROLE IF EXISTS ${identifier(input.username)}`);
 		} finally { await admin.end(); }
 	}
 
@@ -34,13 +34,13 @@ export class PostgresSharedDatabaseProvisioner implements SharedDatabaseProvisio
 		const admin = new pg.Client({ host: input.host, port: input.port, database: input.adminDatabase, user: input.adminUsername, password: input.adminPassword, ssl: input.tlsMode === 'disabled' ? false : { rejectUnauthorized: input.tlsMode === 'verify-full' }, connectionTimeoutMillis: 15_000 });
 		await admin.connect();
 		try {
-			await admin.query(`CREATE ROLE ${identifier(input.username)} LOGIN PASSWORD ${postgresStringLiteral(input.password)}`);
+			if (!input.existingUser) await admin.query(`CREATE ROLE ${identifier(input.username)} LOGIN PASSWORD ${postgresStringLiteral(input.password)}`);
 			await admin.query(`CREATE DATABASE ${identifier(input.databaseName)} OWNER ${identifier(input.username)}`);
 			await admin.query(postgresDatabaseIsolationDdl(input.databaseName));
 			if (input.connectionLimit) await admin.query(`ALTER DATABASE ${identifier(input.databaseName)} CONNECTION LIMIT ${Math.max(1, Math.trunc(input.connectionLimit))}`);
 		} catch (error) {
 			await admin.query(`DROP DATABASE IF EXISTS ${identifier(input.databaseName)}`).catch(() => undefined);
-			await admin.query(`DROP ROLE IF EXISTS ${identifier(input.username)}`).catch(() => undefined);
+			if (!input.existingUser) await admin.query(`DROP ROLE IF EXISTS ${identifier(input.username)}`).catch(() => undefined);
 			throw error;
 		} finally { await admin.end(); }
 		return { databaseName: input.databaseName, engine: 'postgresql', host: input.host, password: input.password, port: input.port, tlsMode: input.tlsMode, username: input.username };

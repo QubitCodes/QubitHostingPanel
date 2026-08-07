@@ -37,7 +37,9 @@ Coolify structured log payloads are normalised into readable output. Known failu
 
 ## Database names
 
-The database name confirmed in the application form is the exact physical logical-database name created in the shared cluster. Names are globally unique, lowercase `snake_case`, and limited to PostgreSQL's 63-character identifier boundary. Passwords and usernames remain generated and encrypted independently.
+The database name confirmed in the application form is the exact physical logical-database name created in the shared cluster. Names are globally unique, lowercase `snake_case`, and limited to PostgreSQL's 63-character identifier boundary. A new database username defaults to that name but remains editable. Passwords are generated server-side and encrypted at rest. A workspace may instead reuse one of its existing users on the same database engine; that user's password is neither regenerated nor exposed during creation.
+
+Rotating a reusable user's password updates every linked database credential record and is explicitly confirmed and audited. The manager lists affected databases and applications before rotation. Already-running applications may need redeployment because their process environment can still contain the previous password.
 
 Legacy databases created before this rule retain their existing physical name until an explicit data-preserving rename or recreation is performed.
 

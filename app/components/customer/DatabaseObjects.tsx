@@ -8,7 +8,7 @@ import { authenticatedFetch } from '@root/app/utils/authenticatedFetch';
 type ObjectKind = 'event' | 'function' | 'materialized_view' | 'procedure' | 'sequence' | 'trigger' | 'view';
 interface DatabaseObject { definition: string | null; kind: ObjectKind; name: string; schema: string; tableName: string | null }
 interface ApiBody { data?: { databaseName: string; objects: DatabaseObject[] }; message: string; status: boolean }
-interface Props { databaseId: string; workspacePublicId: number }
+interface Props { basePath?: string; databaseId: string; workspacePublicId: number }
 
 const labels: Record<ObjectKind, string> = {
 	event: 'Events',
@@ -21,12 +21,12 @@ const labels: Record<ObjectKind, string> = {
 };
 
 /** Read-only URL-addressable browser for routines and other database objects. */
-export function DatabaseObjects({ databaseId, workspacePublicId }: Props) {
+export function DatabaseObjects({ basePath: providedBasePath, databaseId, workspacePublicId }: Props) {
 	const navigate = useNavigate();
 	const { objectKind, objectName, schemaName } = useParams();
 	const [objects, setObjects] = useState<DatabaseObject[]>([]);
 	const [loading, setLoading] = useState(true);
-	const basePath = `/dashboard/databases/${databaseId}/objects`;
+	const basePath = `${providedBasePath ?? `/dashboard/databases/${databaseId}`}/objects`;
 	const loadObjects = useCallback(async () => {
 		setLoading(true);
 		try {

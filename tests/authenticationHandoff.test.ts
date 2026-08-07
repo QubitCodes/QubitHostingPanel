@@ -4,8 +4,11 @@ import { describe, expect, it } from 'vitest';
 import { consumeAuthenticationHandoffSchema, createAuthenticationHandoffSchema } from '@schemas/auth';
 
 describe('separate panel authentication handoff', () => {
-	it('limits handoffs to known dashboard destinations', () => {
+	it('limits handoffs to known dashboards and UUID-scoped database-manager destinations', () => {
 		expect(createAuthenticationHandoffSchema.safeParse({ targetPath: '/dashboard' }).success).toBe(true);
+		expect(createAuthenticationHandoffSchema.safeParse({ targetPath: '/database/3a993f13-cb14-4b72-b705-6980ec594fff/tables' }).success).toBe(true);
+		expect(createAuthenticationHandoffSchema.safeParse({ targetPath: '/database/not-a-uuid/tables' }).success).toBe(false);
+		expect(createAuthenticationHandoffSchema.safeParse({ targetPath: '/database/3a993f13-cb14-4b72-b705-6980ec594fff/../../admin/overview' }).success).toBe(false);
 		expect(createAuthenticationHandoffSchema.safeParse({ targetPath: 'https://evil.example' }).success).toBe(false);
 		expect(consumeAuthenticationHandoffSchema.safeParse({ token: 'a'.repeat(64) }).success).toBe(true);
 	});

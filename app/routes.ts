@@ -32,18 +32,6 @@ export default [
 			'dashboard/databases/:databaseId/:section',
 			'pages/customer/database-section.tsx',
 		),
-		route(
-			'dashboard/databases/:databaseId/tables/:schemaName',
-			'pages/customer/database-schema.tsx',
-		),
-		route(
-			'dashboard/databases/:databaseId/tables/:schemaName/:tableName/:tableSection',
-			'pages/customer/database-table.tsx',
-		),
-		route(
-			'dashboard/databases/:databaseId/objects/:objectKind/:schemaName/:objectName',
-			'pages/customer/database-object.tsx',
-		),
 		route('dashboard/domains', 'pages/customer/domains.tsx'),
 		route('dashboard/applications', 'pages/customer/applications.tsx'),
 		route(
@@ -62,6 +50,13 @@ export default [
 			'dashboard/workspaces/create',
 			'pages/customer/create-workspace-modal.tsx',
 		),
+	]),
+	layout('layouts/database.tsx', [
+		route('database/:databaseId', 'pages/customer/database-manager.tsx', { id: 'database-manager-overview' }),
+		route('database/:databaseId/:section', 'pages/customer/database-manager.tsx', { id: 'database-manager-section' }),
+		route('database/:databaseId/tables/:schemaName', 'pages/customer/database-manager.tsx', { id: 'database-manager-schema' }),
+		route('database/:databaseId/tables/:schemaName/:tableName/:tableSection', 'pages/customer/database-manager.tsx', { id: 'database-manager-table' }),
+		route('database/:databaseId/objects/:objectKind/:schemaName/:objectName', 'pages/customer/database-manager.tsx', { id: 'database-manager-object' }),
 	]),
 	layout('layouts/application.tsx', [
 		route('admin/overview', 'pages/admin/overview.tsx'),
@@ -149,6 +144,7 @@ export default [
 	]),
 	route('api/docs', 'pages/api/docs.tsx'),
 	...prefix('api/v1', [
+		route('databases/:databaseId/context', 'api/v1/databases/context.ts'),
 		route('health', 'api/v1/health.ts'),
 		route('github/callback', 'api/v1/github-callback.ts'),
 		route('webhooks/coolify', 'api/v1/coolify-webhook.ts'),
@@ -238,6 +234,10 @@ export default [
 		route(
 			'workspaces/:workspaceId/databases/:databaseId/backups/:backupId/download',
 			'api/v1/workspaces/databases/backups/download.ts',
+		),
+		route(
+			'workspaces/:workspaceId/database-users',
+			'api/v1/workspaces/databases/users.ts',
 		),
 		route(
 			'workspaces/:workspaceId/applications',

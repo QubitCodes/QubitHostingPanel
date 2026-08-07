@@ -8,6 +8,7 @@ import {
 	createLogicalDatabaseSchema,
 	logicalDatabaseNameAvailabilitySchema,
 	logicalDatabasePublicIdSchema,
+	rotateDatabaseCredentialSchema,
 } from '@schemas/logicalDatabase';
 
 describe('logical database validation', () => {
@@ -22,7 +23,17 @@ describe('logical database validation', () => {
 				engine: 'postgresql',
 				name: 'main_database_a1b2c3',
 			}),
-		).toMatchObject({ connectionLimit: 10, storageQuotaMb: 1024 });
+		).toMatchObject({ connectionLimit: 10, storageQuotaMb: 1024, userMode: 'new' });
+	});
+
+	it('requires a selected workspace user in existing-user mode', () => {
+		expect(createLogicalDatabaseSchema.safeParse({ engine: 'postgresql', name: 'shared_database', userMode: 'existing' }).success).toBe(false);
+		expect(createLogicalDatabaseSchema.safeParse({ engine: 'postgresql', name: 'shared_database', userMode: 'existing', databaseUserId: '3a993f13-cb14-4b72-b705-6980ec594fff' }).success).toBe(true);
+	});
+
+	it('requires explicit acceptance before rotating a shared password', () => {
+		expect(rotateDatabaseCredentialSchema.safeParse({ acceptedImpact: true }).success).toBe(true);
+		expect(rotateDatabaseCredentialSchema.safeParse({ acceptedImpact: false }).success).toBe(false);
 	});
 
 	it('rejects SQL-shaped names and unsupported engines', () => {

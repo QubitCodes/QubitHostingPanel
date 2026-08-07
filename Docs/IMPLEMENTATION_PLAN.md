@@ -173,6 +173,7 @@ Gate: completed with encrypted multi-connection storage, validated rotation roll
 - [x] Admin runtime catalogue editing and lifecycle management.
 - [x] PostgreSQL/MySQL logical database allocation, restricted users, encrypted credential reveal/rotation, entitlement quotas, and audited lifecycle API.
 - [x] Customer database management UI/API with URL-backed list, create, detail, reveal, and rotation views.
+- [x] Reusable workspace database users, existing-user selection during app/database creation, shared password-impact reporting, and an independently authenticated `/database/:databaseId/...` manager for parallel database tabs.
 - [x] Separate private Coolify and optional IP-restricted management endpoints with explicit runtime selection and TLS-ready client configuration; migration `0023` applied to Supabase.
 - [x] Live PostgreSQL/MySQL logical database creation, credential rotation, quota enforcement, and cross-workspace/platform isolation verified against staging management endpoints.
 - [x] Customer application runtime/source selection, workspace database bindings, domain conflict checks, idempotent deployment management, provider logs, and URL-backed UI/API.

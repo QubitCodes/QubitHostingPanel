@@ -1229,6 +1229,9 @@ export const OPENAPI_DOCUMENT = {
 								properties: {
 									engine: { type: 'string', enum: ['postgresql', 'mysql'] },
 									name: { type: 'string' },
+									userMode: { type: 'string', enum: ['new', 'existing'], default: 'new' },
+									username: { type: 'string', description: 'Editable login name when creating a new database user. Defaults to the database name.' },
+									databaseUserId: { type: 'string', format: 'uuid', description: 'Required when userMode is existing.' },
 									connectionLimit: {
 										type: 'integer',
 										minimum: 1,
@@ -1247,10 +1250,25 @@ export const OPENAPI_DOCUMENT = {
 				responses: {
 					'201': {
 						description:
-							'Database created; credential returned for controlled display.',
+							'Database created. A generated credential is returned only for a new database user; an existing user password is never regenerated or exposed.',
 					},
 					'422': { description: 'Workspace entitlement limit reached.' },
 					'503': { description: 'No healthy cluster has capacity.' },
+				},
+			},
+		},
+		'/workspaces/{workspaceId}/database-users': {
+			get: {
+				summary: 'List reusable workspace database users',
+				operationId: 'listWorkspaceDatabaseUsers',
+				security: [{ bearerAuth: [] }],
+				parameters: [
+					{ $ref: '#/components/parameters/WorkspaceId' },
+					{ in: 'query', name: 'engine', schema: { type: 'string', enum: ['postgresql', 'mysql'] } },
+				],
+				responses: {
+					'200': { description: 'Reusable users returned without credentials.' },
+					'404': { description: 'Workspace not found.' },
 				},
 			},
 		},
@@ -1345,12 +1363,28 @@ export const OPENAPI_DOCUMENT = {
 					{ $ref: '#/components/parameters/WorkspaceId' },
 					{ $ref: '#/components/parameters/DatabaseId' },
 				],
+				requestBody: {
+					required: true,
+					content: { 'application/json': { schema: { type: 'object', additionalProperties: false, required: ['acceptedImpact'], properties: { acceptedImpact: { type: 'boolean', enum: [true] } } } } },
+				},
 				responses: {
 					'200': {
 						description:
 							'Password rotated, encrypted, and returned for controlled display.',
 					},
 					'404': { description: 'Database not found in the workspace.' },
+				},
+			},
+		},
+		'/databases/{databaseId}/context': {
+			get: {
+				summary: 'Resolve an authorized standalone database-manager context',
+				operationId: 'getDatabaseManagerContext',
+				security: [{ bearerAuth: [] }],
+				parameters: [{ $ref: '#/components/parameters/DatabaseId' }],
+				responses: {
+					'200': { description: 'Database, workspace, and connected-application context returned without credentials.' },
+					'404': { description: 'Database not found or inaccessible.' },
 				},
 			},
 		},

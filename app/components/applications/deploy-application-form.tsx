@@ -55,6 +55,12 @@ interface DatabaseOption {
 	databaseName: string;
 	id: string;
 }
+interface DatabaseUserOption {
+	databaseCount: number;
+	engine: 'mysql' | 'postgresql';
+	id: string;
+	username: string;
+}
 interface Options {
 	applicationBaseDomain?: string;
 	availableDomains?: Array<{
@@ -457,6 +463,11 @@ export function DeployApplicationForm({
 	const [databaseEngine, setDatabaseEngine] = useState<'postgresql' | 'mysql'>(
 		'postgresql',
 	);
+	const [databaseUserMode, setDatabaseUserMode] = useState<'new' | 'existing'>('new');
+	const [databaseUsername, setDatabaseUsername] = useState('');
+	const [databaseUsernameEdited, setDatabaseUsernameEdited] = useState(false);
+	const [databaseUsers, setDatabaseUsers] = useState<DatabaseUserOption[]>([]);
+	const [existingDatabaseUserId, setExistingDatabaseUserId] = useState('');
 	const [existingDatabaseId, setExistingDatabaseId] = useState(
 		options.limits?.databases.allowed === false
 			? (options.databases[0]?.id ?? '')
@@ -488,6 +499,23 @@ export function DeployApplicationForm({
 	const combinedDatabaseName = databaseNamePrefix
 		? `${databaseNamePrefix}_${databaseSuffix}`
 		: '';
+	const effectiveDatabaseUsername = databaseUsernameEdited ? databaseUsername : combinedDatabaseName;
+
+	useEffect(() => {
+		if (databaseMode !== 'new') return;
+		const controller = new AbortController();
+		void request<DatabaseUserOption[]>(`/api/v1/workspaces/${workspaceId}/database-users?engine=${databaseEngine}`, { signal: controller.signal })
+			.then((users) => {
+				setDatabaseUsers(users);
+				setExistingDatabaseUserId((current) => users.some(({ id }) => id === current) ? current : (users[0]?.id ?? ''));
+				if (!users.length) setDatabaseUserMode('new');
+			})
+			.catch((error: unknown) => {
+				if (error instanceof DOMException && error.name === 'AbortError') return;
+				setDatabaseUsers([]);
+			});
+		return () => controller.abort();
+	}, [databaseEngine, databaseMode, workspaceId]);
 	const parsedEnvironmentImport = useMemo(
 		() => parseEnvFile(environmentImportSource),
 		[environmentImportSource],
@@ -983,6 +1011,14 @@ export function DeployApplicationForm({
 			);
 			return;
 		}
+		if (databaseMode === 'new' && databaseUserMode === 'new' && !effectiveDatabaseUsername.trim()) {
+			toast.error('Enter a database username.');
+			return;
+		}
+		if (databaseMode === 'new' && databaseUserMode === 'existing' && !existingDatabaseUserId) {
+			toast.error('Choose an existing database user.');
+			return;
+		}
 		const missingEnvironment = variables.filter(
 			({ required, value }) => required && !value.trim(),
 		);
@@ -1005,6 +1041,9 @@ export function DeployApplicationForm({
 						body: JSON.stringify({
 							engine: databaseEngine,
 							name: combinedDatabaseName,
+							userMode: databaseUserMode,
+							username: databaseUserMode === 'new' ? effectiveDatabaseUsername : undefined,
+							databaseUserId: databaseUserMode === 'existing' ? existingDatabaseUserId : undefined,
 							connectionLimit: 10,
 							storageQuotaMb: 1024,
 						}),
@@ -1903,6 +1942,15 @@ export function DeployApplicationForm({
 									</div>
 								)}
 							</label>
+							<fieldset className="grid gap-3">
+								<legend className="font-semibold">Database user</legend>
+								<Hint>Use a new restricted login or grant this database to an existing workspace login. Existing-user passwords are never changed.</Hint>
+								<div className="grid grid-cols-2 gap-3">
+									<button className={`rounded-xl border p-3 text-sm font-bold ${databaseUserMode === 'new' ? 'border-brand-action bg-brand-action/10' : 'border-brand-primary/10'}`} onClick={() => setDatabaseUserMode('new')} type="button">Create New User</button>
+									<button className={`rounded-xl border p-3 text-sm font-bold ${databaseUserMode === 'existing' ? 'border-brand-action bg-brand-action/10' : 'border-brand-primary/10'}`} disabled={!databaseUsers.length} onClick={() => setDatabaseUserMode('existing')} type="button">Use Existing User</button>
+								</div>
+								{databaseUserMode === 'new' ? <label className="grid gap-2 font-semibold">Database username<input className={inputClass} maxLength={63} onChange={(event) => { setDatabaseUsernameEdited(true); setDatabaseUsername(databaseIdentifier(event.target.value).slice(0, 63)); }} pattern="[a-z0-9]+(?:_[a-z0-9]+)*" required value={effectiveDatabaseUsername} /><Hint>A strong password is generated automatically. You can rotate it later from Database Settings.</Hint></label> : <label className="grid gap-2 font-semibold">Existing workspace user<SearchableSelect ariaLabel="Choose an existing database user" onChange={setExistingDatabaseUserId} options={databaseUsers.map((user) => ({ label: `${user.username} · ${user.databaseCount} database${user.databaseCount === 1 ? '' : 's'}`, value: user.id, keywords: `${user.username} ${user.engine}` }))} placeholder="Choose a database user" searchable value={existingDatabaseUserId} /><Hint>This user's current password is reused without being revealed, regenerated, or changed.</Hint></label>}
+							</fieldset>
 						</>
 					)}
 					{databaseMode === 'existing' && (

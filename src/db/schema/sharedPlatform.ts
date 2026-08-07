@@ -18,6 +18,7 @@ export const databaseEngineEnum = pgEnum('database_engine', ['postgresql', 'mysq
 export const databaseClusterStatusEnum = pgEnum('database_cluster_status', ['provisioning', 'active', 'maintenance', 'unavailable', 'retired']);
 export const databaseTlsModeEnum = pgEnum('database_tls_mode', ['disabled', 'require', 'verify-full']);
 export const logicalDatabaseStatusEnum = pgEnum('logical_database_status', ['provisioning', 'active', 'suspended', 'failed']);
+export const databaseUserStatusEnum = pgEnum('database_user_status', ['active', 'suspended']);
 export const databaseBackupStatusEnum = pgEnum('database_backup_status', ['queued', 'running', 'completed', 'failed', 'deleted']);
 export const databaseRestoreStatusEnum = pgEnum('database_restore_status', ['not_started', 'running', 'completed', 'failed']);
 
@@ -197,12 +198,30 @@ export const databaseClusters = pgTable('database_clusters', {
 	check('database_clusters_capacity_check', sql`${table.maximumDatabases} IS NULL OR ${table.maximumDatabases} > 0`),
 ]);
 
-/** Workspace-owned database and restricted login created inside a shared database cluster. */
+/** Reusable, workspace-owned database login within one shared engine cluster. */
+export const databaseUsers = pgTable('database_users', {
+	id: uuid('id').primaryKey().defaultRandom(),
+	workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'restrict' }),
+	clusterId: uuid('cluster_id').notNull().references(() => databaseClusters.id, { onDelete: 'restrict' }),
+	status: databaseUserStatusEnum('status').notNull().default('active'),
+	username: varchar('username', { length: 120 }).notNull(),
+	credentialCiphertext: text('credential_ciphertext').notNull(),
+	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+	updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+	deletedAt: timestamp('deleted_at', { withTimezone: true }),
+	deleteReason: varchar('delete_reason', { length: 500 }),
+}, (table) => [
+	uniqueIndex('database_users_cluster_username_active_unique').on(table.clusterId, table.username).where(sql`${table.deletedAt} IS NULL`),
+	index('database_users_workspace_status_idx').on(table.workspaceId, table.status),
+]);
+
+/** Workspace-owned database connected to one reusable restricted login. */
 export const logicalDatabases = pgTable('logical_databases', {
 	id: uuid('id').primaryKey().defaultRandom(),
 	workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'restrict' }),
 	resourceId: uuid('resource_id').references(() => workspaceResources.id, { onDelete: 'restrict' }),
 	clusterId: uuid('cluster_id').notNull().references(() => databaseClusters.id, { onDelete: 'restrict' }),
+	databaseUserId: uuid('database_user_id').references(() => databaseUsers.id, { onDelete: 'restrict' }),
 	status: logicalDatabaseStatusEnum('status').notNull().default('provisioning'),
 	databaseName: varchar('database_name', { length: 120 }).notNull(),
 	username: varchar('username', { length: 120 }).notNull(),
@@ -217,7 +236,6 @@ export const logicalDatabases = pgTable('logical_databases', {
 	deleteReason: varchar('delete_reason', { length: 500 }),
 }, (table) => [
 	uniqueIndex('logical_databases_cluster_name_active_unique').on(table.clusterId, table.databaseName).where(sql`${table.deletedAt} IS NULL`),
-	uniqueIndex('logical_databases_cluster_username_active_unique').on(table.clusterId, table.username).where(sql`${table.deletedAt} IS NULL`),
 	uniqueIndex('logical_databases_resource_active_unique').on(table.resourceId).where(sql`${table.resourceId} IS NOT NULL AND ${table.deletedAt} IS NULL`),
 	index('logical_databases_workspace_status_idx').on(table.workspaceId, table.status),
 	check('logical_databases_storage_quota_check', sql`${table.storageQuotaMb} IS NULL OR ${table.storageQuotaMb} > 0`),
@@ -258,8 +276,9 @@ export const applicationBuildRelations = relations(applicationBuilds, ({ one, ma
 export const applicationDomainRelations = relations(applicationDomains, ({ one }) => ({ application: one(applicationBuilds, { fields: [applicationDomains.applicationBuildId], references: [applicationBuilds.id] }) }));
 export const applicationDatabaseBindingRelations = relations(applicationDatabaseBindings, ({ one }) => ({ applicationBuild: one(applicationBuilds, { fields: [applicationDatabaseBindings.applicationBuildId], references: [applicationBuilds.id] }), logicalDatabase: one(logicalDatabases, { fields: [applicationDatabaseBindings.logicalDatabaseId], references: [logicalDatabases.id] }) }));
 export const applicationDeploymentRelations = relations(applicationDeployments, ({ one }) => ({ workspace: one(workspaces, { fields: [applicationDeployments.workspaceId], references: [workspaces.id] }), applicationBuild: one(applicationBuilds, { fields: [applicationDeployments.applicationBuildId], references: [applicationBuilds.id] }), resource: one(workspaceResources, { fields: [applicationDeployments.resourceId], references: [workspaceResources.id] }) }));
-export const databaseClusterRelations = relations(databaseClusters, ({ many }) => ({ databases: many(logicalDatabases) }));
-export const logicalDatabaseRelations = relations(logicalDatabases, ({ one, many }) => ({ workspace: one(workspaces, { fields: [logicalDatabases.workspaceId], references: [workspaces.id] }), resource: one(workspaceResources, { fields: [logicalDatabases.resourceId], references: [workspaceResources.id] }), cluster: one(databaseClusters, { fields: [logicalDatabases.clusterId], references: [databaseClusters.id] }), backups: many(databaseBackups) }));
+export const databaseClusterRelations = relations(databaseClusters, ({ many }) => ({ databases: many(logicalDatabases), users: many(databaseUsers) }));
+export const databaseUserRelations = relations(databaseUsers, ({ one, many }) => ({ workspace: one(workspaces, { fields: [databaseUsers.workspaceId], references: [workspaces.id] }), cluster: one(databaseClusters, { fields: [databaseUsers.clusterId], references: [databaseClusters.id] }), databases: many(logicalDatabases) }));
+export const logicalDatabaseRelations = relations(logicalDatabases, ({ one, many }) => ({ workspace: one(workspaces, { fields: [logicalDatabases.workspaceId], references: [workspaces.id] }), resource: one(workspaceResources, { fields: [logicalDatabases.resourceId], references: [workspaceResources.id] }), cluster: one(databaseClusters, { fields: [logicalDatabases.clusterId], references: [databaseClusters.id] }), databaseUser: one(databaseUsers, { fields: [logicalDatabases.databaseUserId], references: [databaseUsers.id] }), backups: many(databaseBackups) }));
 export const databaseBackupRelations = relations(databaseBackups, ({ one }) => ({ workspace: one(workspaces, { fields: [databaseBackups.workspaceId], references: [workspaces.id] }), logicalDatabase: one(logicalDatabases, { fields: [databaseBackups.logicalDatabaseId], references: [logicalDatabases.id] }) }));
 
 export type RuntimeImage = typeof runtimeImages.$inferSelect;
@@ -268,4 +287,5 @@ export type ApplicationDomain = typeof applicationDomains.$inferSelect;
 export type ApplicationDeployment = typeof applicationDeployments.$inferSelect;
 export type DatabaseCluster = typeof databaseClusters.$inferSelect;
 export type LogicalDatabase = typeof logicalDatabases.$inferSelect;
+export type DatabaseUser = typeof databaseUsers.$inferSelect;
 export type DatabaseBackup = typeof databaseBackups.$inferSelect;

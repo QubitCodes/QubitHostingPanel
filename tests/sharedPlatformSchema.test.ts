@@ -1,7 +1,7 @@
 import { getTableConfig } from 'drizzle-orm/pg-core';
 import { describe, expect, it } from 'vitest';
 
-import { applicationBuilds, applicationDatabaseBindings, applicationDeployments, databaseBackups, databaseClusters, logicalDatabases, runtimeImages } from '@db/schema';
+import { applicationBuilds, applicationDatabaseBindings, applicationDeployments, databaseBackups, databaseClusters, databaseUsers, logicalDatabases, runtimeImages } from '@db/schema';
 
 describe('shared platform schema', () => {
 	it('defines shared runtimes, builds, clusters, and logical databases', () => {
@@ -17,7 +17,10 @@ describe('shared platform schema', () => {
 		expect(clusterConfig.name).toBe('database_clusters');
 		expect(clusterConfig.columns.some((column) => column.name === 'management_host')).toBe(true);
 		expect(clusterConfig.checks.some((constraint) => constraint.name === 'database_clusters_management_endpoint_check')).toBe(true);
-		expect(getTableConfig(logicalDatabases).foreignKeys).toHaveLength(3);
+		const databaseUserConfig = getTableConfig(databaseUsers);
+		expect(databaseUserConfig.foreignKeys).toHaveLength(2);
+		expect(databaseUserConfig.indexes.some((index) => index.config.name === 'database_users_cluster_username_active_unique')).toBe(true);
+		expect(getTableConfig(logicalDatabases).foreignKeys).toHaveLength(4);
 		const backupConfig = getTableConfig(databaseBackups);
 		expect(backupConfig.foreignKeys).toHaveLength(2);
 		expect(backupConfig.checks.some((constraint) => constraint.name === 'database_backups_completion_check')).toBe(true);

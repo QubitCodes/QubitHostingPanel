@@ -13,7 +13,7 @@ interface DatabaseStructure { columns: DatabaseColumn[]; indexes: DatabaseIndex[
 interface ObjectResponse { databaseName: string; objects: DatabaseObject[]; structure: DatabaseStructure | null }
 interface RowsResponse { columns: DatabaseColumn[]; page: number; pageSize: number; rows: Array<Record<string, unknown>>; sortColumn: string | null; sortDirection: 'asc' | 'desc'; totalRows: number }
 interface ApiBody<T> { data?: T; message: string; status: boolean }
-interface Props { databaseId: string; workspacePublicId: number }
+interface Props { basePath?: string; databaseId: string; workspacePublicId: number }
 
 async function api<T>(path: string): Promise<T> {
 	const response = await authenticatedFetch(path);
@@ -49,7 +49,7 @@ function parseInputValue(value: string, dataType: string): unknown {
 }
 
 /** URL-addressable database object browser, row viewer, and guarded row editor. */
-export function DatabaseExplorer({ databaseId, workspacePublicId }: Props) {
+export function DatabaseExplorer({ basePath, databaseId, workspacePublicId }: Props) {
 	const navigate = useNavigate();
 	const { schemaName, tableName, tableSection } = useParams();
 	const [searchParams, setSearchParams] = useSearchParams();
@@ -60,7 +60,7 @@ export function DatabaseExplorer({ databaseId, workspacePublicId }: Props) {
 	const [submitting, setSubmitting] = useState(false);
 	const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
 	const baseApi = `/api/v1/workspaces/${workspacePublicId}/databases/${databaseId}/explorer`;
-	const basePage = `/dashboard/databases/${databaseId}/tables`;
+	const basePage = `${basePath ?? `/dashboard/databases/${databaseId}`}/tables`;
 	const selectedSchema = schemaName ? decodeURIComponent(schemaName) : undefined;
 	const selectedTable = tableName ? decodeURIComponent(tableName) : undefined;
 	const activeTableSection = tableSection === 'structure' ? 'structure' : 'data';

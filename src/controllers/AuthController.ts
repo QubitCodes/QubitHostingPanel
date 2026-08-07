@@ -292,11 +292,12 @@ export class AuthController {
 		try {
 			const authenticated = await authenticateSession(request, metadata);
 			const urls = await getEffectivePlatformUrls();
-			if (urls.panelDomainMode !== 'separate_domain' || !urls.panelDomainReady) return resp.failure('A verified separate panel domain is not active.', resp.codes.GENERAL_BUSINESS_LOGIC_ERROR, undefined, null, undefined, 422);
+			const databaseTarget = input.targetPath.startsWith('/database/');
+			if (!databaseTarget && (urls.panelDomainMode !== 'separate_domain' || !urls.panelDomainReady)) return resp.failure('A verified separate panel domain is not active.', resp.codes.GENERAL_BUSINESS_LOGIC_ERROR, undefined, null, undefined, 422);
 			if (input.targetPath === '/admin/overview' && !await hasActiveAdminRole(authenticated.userId)) return resp.failure('Admin dashboard access is not permitted.', resp.codes.PERMISSION_DENIED, undefined, null, undefined, 403);
-			if (input.targetPath === '/dashboard' && !await hasCustomerDashboardAccess(authenticated.userId)) return resp.failure('Customer dashboard access is not permitted.', resp.codes.PERMISSION_DENIED, undefined, null, undefined, 403);
+			if ((input.targetPath === '/dashboard' || databaseTarget) && !await hasCustomerDashboardAccess(authenticated.userId)) return resp.failure('Customer dashboard access is not permitted.', resp.codes.PERMISSION_DENIED, undefined, null, undefined, 403);
 			const token = randomBytes(48).toString('base64url');
-			const targetOrigin = new URL(urls.panelBaseUrl).origin;
+			const targetOrigin = databaseTarget ? new URL(request.url).origin : new URL(urls.panelBaseUrl).origin;
 			await db.insert(authenticationHandoffs).values({ userId: authenticated.userId, sourceSessionId: authenticated.sessionId, tokenHash: hashHandoffToken(token), targetOrigin, targetPath: input.targetPath, expiresAt: new Date(Date.now() + 2 * 60_000) });
 			return resp.success('Secure panel handoff created.', { handoffUrl: new URL(`/auth/handoff#token=${encodeURIComponent(token)}`, targetOrigin).toString() }, resp.codes.CREATED, undefined, 201);
 		} catch { return resp.failure('Unable to create panel handoff.', resp.codes.AUTHENTICATION_ERROR, undefined, null, undefined, 401); }
