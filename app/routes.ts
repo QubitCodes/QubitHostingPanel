@@ -28,6 +28,22 @@ export default [
 			'dashboard/databases/:databaseId',
 			'pages/customer/database-detail.tsx',
 		),
+		route(
+			'dashboard/databases/:databaseId/:section',
+			'pages/customer/database-section.tsx',
+		),
+		route(
+			'dashboard/databases/:databaseId/tables/:schemaName',
+			'pages/customer/database-schema.tsx',
+		),
+		route(
+			'dashboard/databases/:databaseId/tables/:schemaName/:tableName/:tableSection',
+			'pages/customer/database-table.tsx',
+		),
+		route(
+			'dashboard/databases/:databaseId/objects/:objectKind/:schemaName/:objectName',
+			'pages/customer/database-object.tsx',
+		),
 		route('dashboard/domains', 'pages/customer/domains.tsx'),
 		route('dashboard/applications', 'pages/customer/applications.tsx'),
 		route(
@@ -194,6 +210,18 @@ export default [
 		route(
 			'workspaces/:workspaceId/databases/:databaseId/rotate',
 			'api/v1/workspaces/databases/rotate.ts',
+		),
+		route(
+			'workspaces/:workspaceId/databases/:databaseId/explorer/objects',
+			'api/v1/workspaces/databases/explorer-objects.ts',
+		),
+		route(
+			'workspaces/:workspaceId/databases/:databaseId/explorer/rows',
+			'api/v1/workspaces/databases/explorer-rows.ts',
+		),
+		route(
+			'workspaces/:workspaceId/databases/:databaseId/explorer/advanced',
+			'api/v1/workspaces/databases/explorer-advanced.ts',
 		),
 		route(
 			'workspaces/:workspaceId/databases/:databaseId/backups',

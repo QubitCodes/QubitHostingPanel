@@ -1,0 +1,154 @@
+import { and, eq, isNull, sql } from 'drizzle-orm';
+import { resp } from '@qubitcodes/qcresp';
+
+import { db } from '@db/client';
+import { customers, databaseClusters, logicalDatabases, workspaceMemberships, workspaces, workspaceSubscriptions } from '@db/schema';
+import type { DatabaseExplorerDeleteRows, DatabaseExplorerInsertRow, DatabaseExplorerObjectQuery, DatabaseExplorerRowsQuery, DatabaseExplorerUpdateRow } from '@schemas/databaseExplorer';
+import { recordAuditLog } from '@services/auditLogService';
+import { authenticateSession } from '@services/auth/authenticatedSessionService';
+import { authenticationFailureResponse } from '@services/auth/authenticationFailureService';
+import { databaseClusterEndpoint } from '@services/databases/databaseClusterEndpointService';
+import { DatabaseExplorerService, type DatabaseExplorerConnection } from '@services/databases/databaseExplorerService';
+import { decryptCredential } from '@services/encryption/credentialEncryptionService';
+import type { RequestMetadata } from '@utils/request';
+
+interface ExplorerAccess {
+	actorUserId: string;
+	connection: DatabaseExplorerConnection;
+	databaseName: string;
+	workspaceId: string;
+}
+
+/** Resolves one active workspace database without exposing its credential to the browser. */
+async function explorerAccess(request: Request, workspacePublicId: number, databaseId: string, metadata: RequestMetadata): Promise<ExplorerAccess> {
+	const actor = await authenticateSession(request, metadata);
+	const [record] = await db
+		.select({
+			cluster: databaseClusters,
+			credentialCiphertext: logicalDatabases.credentialCiphertext,
+			databaseName: logicalDatabases.databaseName,
+			username: logicalDatabases.username,
+			workspaceId: workspaces.id,
+		})
+		.from(customers)
+		.innerJoin(workspaceMemberships, and(eq(workspaceMemberships.customerId, customers.id), eq(workspaceMemberships.status, 'active'), isNull(workspaceMemberships.deletedAt)))
+		.innerJoin(workspaces, and(eq(workspaces.id, workspaceMemberships.workspaceId), eq(workspaces.publicId, workspacePublicId), eq(workspaces.status, 'active'), isNull(workspaces.deletedAt)))
+		.innerJoin(workspaceSubscriptions, and(eq(workspaceSubscriptions.workspaceId, workspaces.id), eq(workspaceSubscriptions.isPrimary, true), sql`${workspaceSubscriptions.status} IN ('active', 'trialing')`, isNull(workspaceSubscriptions.deletedAt)))
+		.innerJoin(logicalDatabases, and(eq(logicalDatabases.workspaceId, workspaces.id), eq(logicalDatabases.id, databaseId), eq(logicalDatabases.status, 'active'), isNull(logicalDatabases.deletedAt)))
+		.innerJoin(databaseClusters, and(eq(databaseClusters.id, logicalDatabases.clusterId), isNull(databaseClusters.deletedAt)))
+		.where(and(eq(customers.userId, actor.userId), isNull(customers.deletedAt)))
+		.limit(1);
+	if (!record) throw new Error('Database not found.');
+	const credential = JSON.parse(decryptCredential(record.credentialCiphertext)) as { password?: unknown };
+	if (typeof credential.password !== 'string' || !credential.password) throw new Error('Database credential is unavailable.');
+	const endpoint = databaseClusterEndpoint(record.cluster);
+	return {
+		actorUserId: actor.userId,
+		workspaceId: record.workspaceId,
+		databaseName: record.databaseName,
+		connection: {
+			databaseName: record.databaseName,
+			engine: record.cluster.engine,
+			host: endpoint.host,
+			password: credential.password,
+			port: endpoint.port,
+			tlsMode: endpoint.tlsMode,
+			username: record.username,
+		},
+	};
+}
+
+/** Workspace-authorized database schema and data inspection endpoints. */
+export class DatabaseExplorerController {
+	public static async advancedObjects(request: Request, workspacePublicId: number, databaseId: string, metadata: RequestMetadata): Promise<Response> {
+		try {
+			const access = await explorerAccess(request, workspacePublicId, databaseId, metadata);
+			const objects = await new DatabaseExplorerService(access.connection).listAdvancedObjects();
+			await recordAuditLog({
+				actorUserId: access.actorUserId,
+				action: 'logical_database.advanced_objects_viewed',
+				resourceType: 'logical_database',
+				resourceId: databaseId,
+				metadata: { workspacePublicId, objectCount: objects.length },
+				ipAddress: metadata.ipAddress,
+				userAgent: metadata.userAgent,
+			});
+			return resp.success('Database objects retrieved.', { databaseName: access.databaseName, objects });
+		} catch (error) {
+			const authenticationFailure = authenticationFailureResponse(error);
+			if (authenticationFailure) return authenticationFailure;
+			return resp.failure(error instanceof Error ? error.message : 'Unable to inspect database objects.', resp.codes.EXTERNAL_SERVICE_ERROR, undefined, null, undefined, 502);
+		}
+	}
+
+	public static async objects(request: Request, workspacePublicId: number, databaseId: string, input: DatabaseExplorerObjectQuery, metadata: RequestMetadata): Promise<Response> {
+		try {
+			const access = await explorerAccess(request, workspacePublicId, databaseId, metadata);
+			const explorer = new DatabaseExplorerService(access.connection);
+			const objects = await explorer.listObjects();
+			const structure = input.schema && input.table ? await explorer.describeObject(input.schema, input.table) : null;
+			await recordAuditLog({
+				actorUserId: access.actorUserId,
+				action: structure ? 'logical_database.structure_viewed' : 'logical_database.objects_viewed',
+				resourceType: 'logical_database',
+				resourceId: databaseId,
+				metadata: { workspacePublicId, schema: input.schema, table: input.table, objectCount: objects.length },
+				ipAddress: metadata.ipAddress,
+				userAgent: metadata.userAgent,
+			});
+			return resp.success('Database objects retrieved.', { databaseName: access.databaseName, objects, structure });
+		} catch (error) {
+			const authenticationFailure = authenticationFailureResponse(error);
+			if (authenticationFailure) return authenticationFailure;
+			return resp.failure(error instanceof Error ? error.message : 'Unable to inspect database.', resp.codes.EXTERNAL_SERVICE_ERROR, undefined, null, undefined, 502);
+		}
+	}
+
+	public static async rows(request: Request, workspacePublicId: number, databaseId: string, input: DatabaseExplorerRowsQuery, metadata: RequestMetadata): Promise<Response> {
+		try {
+			const access = await explorerAccess(request, workspacePublicId, databaseId, metadata);
+			const result = await new DatabaseExplorerService(access.connection).listRows(input);
+			await recordAuditLog({
+				actorUserId: access.actorUserId,
+				action: 'logical_database.rows_viewed',
+				resourceType: 'logical_database',
+				resourceId: databaseId,
+				metadata: { workspacePublicId, schema: input.schema, table: input.table, page: input.page, pageSize: input.pageSize, filtered: Boolean(input.search) },
+				ipAddress: metadata.ipAddress,
+				userAgent: metadata.userAgent,
+			});
+			return resp.success('Database rows retrieved.', result);
+		} catch (error) {
+			const authenticationFailure = authenticationFailureResponse(error);
+			if (authenticationFailure) return authenticationFailure;
+			return resp.failure(error instanceof Error ? error.message : 'Unable to read database rows.', resp.codes.EXTERNAL_SERVICE_ERROR, undefined, null, undefined, 502);
+		}
+	}
+
+	public static async mutate(request: Request, workspacePublicId: number, databaseId: string, operation: 'delete' | 'insert' | 'update', input: DatabaseExplorerDeleteRows | DatabaseExplorerInsertRow | DatabaseExplorerUpdateRow, metadata: RequestMetadata): Promise<Response> {
+		try {
+			const access = await explorerAccess(request, workspacePublicId, databaseId, metadata);
+			const explorer = new DatabaseExplorerService(access.connection);
+			const result = operation === 'insert'
+				? await explorer.insertRow(input as DatabaseExplorerInsertRow)
+				: operation === 'update'
+					? await explorer.updateRow(input as DatabaseExplorerUpdateRow)
+					: await explorer.deleteRows(input as DatabaseExplorerDeleteRows);
+			const columns = operation === 'delete' ? [] : Object.keys((input as DatabaseExplorerInsertRow | DatabaseExplorerUpdateRow).values);
+			await recordAuditLog({
+				actorUserId: access.actorUserId,
+				action: `logical_database.rows_${operation === 'insert' ? 'inserted' : operation === 'update' ? 'updated' : 'deleted'}`,
+				resourceType: 'logical_database',
+				resourceId: databaseId,
+				metadata: { workspacePublicId, schema: input.schema, table: input.table, columns, affectedRows: result.affectedRows },
+				ipAddress: metadata.ipAddress,
+				userAgent: metadata.userAgent,
+			});
+			return resp.success(`Database rows ${operation === 'insert' ? 'inserted' : operation === 'update' ? 'updated' : 'deleted'}.`, result, operation === 'insert' ? resp.codes.CREATED : resp.codes.UPDATED, undefined, operation === 'insert' ? 201 : 200);
+		} catch (error) {
+			const authenticationFailure = authenticationFailureResponse(error);
+			if (authenticationFailure) return authenticationFailure;
+			return resp.failure(error instanceof Error ? error.message : 'Unable to change database rows.', resp.codes.GENERAL_BUSINESS_LOGIC_ERROR, undefined, null, undefined, 422);
+		}
+	}
+}
