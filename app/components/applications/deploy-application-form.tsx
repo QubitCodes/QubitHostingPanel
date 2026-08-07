@@ -5,6 +5,7 @@ import {
 	Code2,
 	Copy,
 	Database,
+	ExternalLink,
 	FileCode2,
 	FileUp,
 	FolderTree,
@@ -360,9 +361,36 @@ function DetectionSummary({
 	);
 }
 
-/** Opens GitHub setup in a separate tab while keeping the deployment form mounted. */
-function openGithubTab(url: string, name: string): Window | null {
-	return window.open(url, name);
+interface PopupViewport {
+	availableHeight: number;
+	availableWidth: number;
+	outerHeight: number;
+	outerWidth: number;
+	screenX: number;
+	screenY: number;
+}
+
+/** Builds a centered, resizable popup geometry constrained to the current display. */
+export function githubPopupFeatures(viewport: PopupViewport): string {
+	const width = Math.max(360, Math.min(720, viewport.availableWidth - 32));
+	const height = Math.max(520, Math.min(760, viewport.availableHeight - 32));
+	const left = Math.max(0, Math.round(viewport.screenX + (viewport.outerWidth - width) / 2));
+	const top = Math.max(0, Math.round(viewport.screenY + (viewport.outerHeight - height) / 2));
+	return `popup=yes,width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes`;
+}
+
+/** Opens or reuses a centered GitHub setup popup while keeping the deployment form mounted. */
+function openGithubPopup(url: string, name: string): Window | null {
+	const popup = window.open(url, name, githubPopupFeatures({
+		availableHeight: window.screen.availHeight,
+		availableWidth: window.screen.availWidth,
+		outerHeight: window.outerHeight,
+		outerWidth: window.outerWidth,
+		screenX: window.screenX,
+		screenY: window.screenY,
+	}));
+	popup?.focus();
+	return popup;
 }
 
 function Section({
@@ -717,7 +745,7 @@ export function DeployApplicationForm({
 
 	async function connectGithub(): Promise<void> {
 		const existingConnectionIds = new Set(githubConnections.map(({ id }) => id));
-		const popup = openGithubTab('about:blank', 'ghostdeploy-github-install');
+		const popup = openGithubPopup('about:blank', 'ghostdeploy-github-install');
 		if (!popup) {
 			toast.error(
 				'Allow popups for Ghost Deploy, then try connecting GitHub again.',
@@ -772,7 +800,7 @@ export function DeployApplicationForm({
 
 	function configureGithub(reviewUrl: string | undefined): void {
 		if (!reviewUrl) return;
-		const popup = openGithubTab(reviewUrl, 'ghostdeploy-github-configure');
+		const popup = openGithubPopup(reviewUrl, 'ghostdeploy-github-configure');
 		if (!popup)
 			toast.error(
 				'Allow popups for Ghost Deploy, then try configuring GitHub again.',
@@ -1252,9 +1280,11 @@ export function DeployApplicationForm({
 											</button>
 										</div>
 									)}
-									<label className="grid gap-2 font-semibold">
-										Permitted repository
-										<SearchableSelect
+									<div className="grid gap-2 font-semibold">
+										<span>Permitted repository</span>
+										<div className="flex items-stretch gap-2">
+											<div className="min-w-0 flex-1">
+												<SearchableSelect
 											ariaLabel="Choose a permitted GitHub repository"
 											emptyMessage="No permitted repositories found. Use the gear button to review access."
 											onChange={(value) => {
@@ -1280,12 +1310,26 @@ export function DeployApplicationForm({
 											placeholder="Select a repository"
 											searchPlaceholder="Search permitted repositories"
 											value={repository}
-										/>
+												/>
+											</div>
+											<button
+												aria-label="Open selected GitHub repository in a new tab"
+												className="grid size-12 shrink-0 place-items-center rounded-xl border border-brand-primary/15 disabled:cursor-not-allowed disabled:opacity-40"
+												disabled={!repository}
+												onClick={() => {
+													if (repository) window.open(repository, '_blank', 'noopener,noreferrer');
+												}}
+												title="Open selected repository"
+												type="button"
+											>
+												<ExternalLink className="size-4" />
+											</button>
+										</div>
 										<Hint>
 											Only repositories explicitly approved in GitHub are listed
 											here.
 										</Hint>
-									</label>
+									</div>
 								</>
 							) : (
 								<>
