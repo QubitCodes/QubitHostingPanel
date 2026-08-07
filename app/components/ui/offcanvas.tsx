@@ -17,6 +17,7 @@ interface OffcanvasProps {
 	children: ReactNode;
 	layer?: 'default' | 'nested';
 	onClose: () => void;
+	scrollable?: boolean;
 	title: ReactNode;
 	width?: OffcanvasWidth;
 }
@@ -26,6 +27,7 @@ export function Offcanvas({
 	children,
 	layer = 'default',
 	onClose,
+	scrollable = true,
 	title,
 	width = 'lg',
 }: OffcanvasProps) {
@@ -51,7 +53,7 @@ export function Offcanvas({
 		>
 			<aside
 				aria-label={typeof title === 'string' ? title : 'Details'}
-				className={`ml-auto h-full w-full overflow-y-auto bg-app-surface p-5 shadow-2xl sm:p-7 ${WIDTH_CLASSES[width]}`}
+				className={`ml-auto h-full w-full ${scrollable ? 'overflow-y-auto' : 'overflow-hidden'} bg-app-surface p-5 shadow-2xl sm:p-7 ${WIDTH_CLASSES[width]}`}
 			>
 				{width !== 'full' && (
 					<div className="flex items-center justify-between gap-4">

@@ -15,6 +15,7 @@ import {
 	LoaderCircle,
 	Pencil,
 	Plus,
+	RefreshCw,
 	ServerCog,
 	Settings,
 	Sparkles,
@@ -96,6 +97,7 @@ interface SourceAnalysis {
 				status: 'error' | 'pass' | 'warning';
 			}>;
 			healthCheckPath: string;
+			port: number;
 			publishDirectory?: string;
 			recipeVersion: string;
 		};
@@ -221,6 +223,24 @@ function generatedEnvironmentValue(framework: string | undefined, key: string): 
 	if (framework !== 'laravel' || key !== 'APP_KEY') return '';
 	const bytes = crypto.getRandomValues(new Uint8Array(32));
 	return `base64:${btoa(String.fromCharCode(...bytes))}`;
+}
+
+/** Generates a strong URL-safe password that works with PostgreSQL, MySQL and connection URLs. */
+function generateDatabasePassword(): string {
+	const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-';
+	const bytes = crypto.getRandomValues(new Uint8Array(32));
+	const generated = Array.from(bytes, (value) => alphabet[value % alphabet.length]).join('');
+	return `Gd${generated.slice(2)}7a`;
+}
+
+/** Copies one configuration value while keeping clipboard failures visible. */
+async function copyConfigurationValue(value: string, label: string): Promise<void> {
+	try {
+		await navigator.clipboard.writeText(value);
+		toast.success(`${label} copied.`);
+	} catch {
+		toast.error(`Unable to copy ${label.toLowerCase()}.`);
+	}
 }
 
 function Hint({ children }: { children: string }) {
@@ -491,6 +511,7 @@ export function DeployApplicationForm({
 	const [buildCommand, setBuildCommand] = useState('');
 	const [startCommand, setStartCommand] = useState('');
 	const [variables, setVariables] = useState<EnvironmentVariable[]>([]);
+	const [deploymentEnvironment, setDeploymentEnvironment] = useState<'development' | 'testing' | 'staging' | 'production'>('production');
 	const [environmentEditorOpen, setEnvironmentEditorOpen] = useState(false);
 	const [environmentImportOpen, setEnvironmentImportOpen] = useState(false);
 	const [environmentImportSource, setEnvironmentImportSource] = useState('');
@@ -519,6 +540,7 @@ export function DeployApplicationForm({
 	const [databaseUserMode, setDatabaseUserMode] = useState<'new' | 'existing'>('new');
 	const [databaseUsername, setDatabaseUsername] = useState('');
 	const [databaseUsernameEdited, setDatabaseUsernameEdited] = useState(false);
+	const [databasePassword, setDatabasePassword] = useState(generateDatabasePassword);
 	const [databaseUsers, setDatabaseUsers] = useState<DatabaseUserOption[]>([]);
 	const [existingDatabaseUserId, setExistingDatabaseUserId] = useState('');
 	const [existingDatabaseId, setExistingDatabaseId] = useState(
@@ -541,6 +563,7 @@ export function DeployApplicationForm({
 		options.runtimes.find((runtime) => runtime.code === runtimeCode) ??
 		stackRuntimes.find((runtime) => runtime.isDefault) ??
 		stackRuntimes[0];
+	const [applicationPort, setApplicationPort] = useState(3000);
 	const selectedFramework = frameworkDefinition(framework);
 	const branchOptions = useMemo(
 		() =>
@@ -553,6 +576,37 @@ export function DeployApplicationForm({
 		? `${databaseNamePrefix}_${databaseSuffix}`
 		: '';
 	const effectiveDatabaseUsername = databaseUsernameEdited ? databaseUsername : combinedDatabaseName;
+	const platformHostname = domainLabel && options.applicationBaseDomain
+		? `${domainLabel}-${databaseSuffix}.${options.applicationBaseDomain}`
+		: '';
+	const configurationValues = useMemo(() => {
+		const values: Array<{ label: string; value: string; secret?: boolean }> = [
+			{ label: 'Application name', value: name || 'Not set' },
+			{ label: 'Environment', value: deploymentEnvironment },
+			{ label: 'Application URL', value: platformHostname ? `https://${platformHostname}` : 'Generated after naming the application' },
+			{ label: 'Hostname', value: platformHostname || 'Generated after naming the application' },
+			{ label: 'Repository', value: repository || 'Not selected' },
+			{ label: 'Branch', value: branch || 'Not selected' },
+			{ label: 'Stack', value: STACKS.find(({ code }) => code === stack)?.label ?? stack },
+			{ label: 'Stack version', value: selectedRuntime?.version ?? 'Not selected' },
+			{ label: 'Framework', value: frameworkDefinition(framework)?.label ?? 'None' },
+			{ label: 'Project directory', value: projectDirectory || '/' },
+			{ label: 'Output directory', value: outputDirectory || 'Not required' },
+			{ label: 'Application port', value: String(applicationPort) },
+		];
+		if (databaseMode === 'new') values.push(
+			{ label: 'Database type', value: databaseEngine },
+			{ label: 'Database port', value: databaseEngine === 'postgresql' ? '5432' : '3306' },
+			{ label: 'Database name', value: combinedDatabaseName || 'Generated after naming the application' },
+			{ label: 'Database username', value: effectiveDatabaseUsername || 'Generated after naming the application' },
+			...(databaseUserMode === 'new' ? [{ label: 'Database password', value: databasePassword, secret: true }] : []),
+			{ label: 'Database host', value: 'Assigned during provisioning' },
+			{ label: 'Database URL', value: 'Completed during provisioning', secret: true },
+		);
+		else if (databaseMode === 'existing') values.push({ label: 'Database', value: options.databases.find(({ id }) => id === existingDatabaseId)?.databaseName ?? 'Not selected' });
+		return values;
+	}, [applicationPort, branch, combinedDatabaseName, databaseEngine, databaseMode, databasePassword, databaseUserMode, deploymentEnvironment, effectiveDatabaseUsername, existingDatabaseId, framework, name, options.databases, outputDirectory, platformHostname, projectDirectory, repository, selectedRuntime?.version, stack]);
+	const environmentPreview = useMemo(() => variables.filter(({ key }) => key.trim()).map(({ key, value }) => `${key.trim().toUpperCase()}=${value}`).join('\n'), [variables]);
 
 	useEffect(() => {
 		if (databaseMode !== 'new') return;
@@ -928,10 +982,9 @@ export function DeployApplicationForm({
 		const available = options.runtimes.filter(
 			(runtime) => runtime.language === value,
 		);
-		setRuntimeCode(
-			(available.find((runtime) => runtime.isDefault) ?? available[0])?.code ??
-				'',
-		);
+		const runtime = available.find((item) => item.isDefault) ?? available[0];
+		setRuntimeCode(runtime?.code ?? '');
+		setApplicationPort(runtime?.defaultPort ?? 3000);
 		setFramework('');
 	}
 	function selectFramework(code: string): void {
@@ -973,6 +1026,7 @@ export function DeployApplicationForm({
 		setProjectDirectory(candidate.projectDirectory);
 		if (candidate.framework) selectFramework(candidate.framework);
 		if (candidate.databaseEngine) setDatabaseEngine(candidate.databaseEngine);
+		if (candidate.deploymentContract?.port) setApplicationPort(candidate.deploymentContract.port);
 		setInstallCommand(candidate.commands?.install ?? '');
 		setBuildCommand(candidate.commands?.build ?? '');
 		setStartCommand(candidate.commands?.start ?? '');
@@ -1120,8 +1174,16 @@ export function DeployApplicationForm({
 			toast.error('Enter a database username.');
 			return;
 		}
+		if (databaseMode === 'new' && databaseUserMode === 'new' && (databasePassword.length < 16 || !/[a-z]/.test(databasePassword) || !/[A-Z]/.test(databasePassword) || !/[0-9]/.test(databasePassword))) {
+			toast.error('Database password must have at least 16 characters, including uppercase, lowercase, and a number.');
+			return;
+		}
 		if (databaseMode === 'new' && databaseUserMode === 'existing' && !existingDatabaseUserId) {
 			toast.error('Choose an existing database user.');
+			return;
+		}
+		if (!Number.isInteger(applicationPort) || applicationPort < 1 || applicationPort > 65_535) {
+			toast.error('Application port must be between 1 and 65535.');
 			return;
 		}
 		const missingEnvironment = variables.filter(
@@ -1148,6 +1210,7 @@ export function DeployApplicationForm({
 							name: combinedDatabaseName,
 							userMode: databaseUserMode,
 							username: databaseUserMode === 'new' ? effectiveDatabaseUsername : undefined,
+							password: databaseUserMode === 'new' ? databasePassword : undefined,
 							databaseUserId: databaseUserMode === 'existing' ? existingDatabaseUserId : undefined,
 							connectionLimit: 10,
 							storageQuotaMb: 1024,
@@ -1164,19 +1227,19 @@ export function DeployApplicationForm({
 					body: JSON.stringify({
 						name,
 						subdomain: domainLabel,
-						subdomainSuffix: options.suggestedDomainSuffix,
+						subdomainSuffix: databaseSuffix,
 						repository,
 						githubConnectionId:
 							sourceMode === 'github' ? githubConnectionId : undefined,
 						branch,
 						runtimeCode: selectedRuntime.code,
 						framework: framework || null,
-						deploymentEnvironment: data.get('deploymentEnvironment'),
+						deploymentEnvironment,
 						autoDeployEnabled:
 							data.get('autoDeployEnabled') === 'on' &&
 							options.limits?.deployments?.autoEnabled === true,
 						buildPack: stack === 'static' ? 'static' : 'nixpacks',
-						port: Number(data.get('port') || selectedRuntime.defaultPort),
+						port: applicationPort,
 						baseDirectory: projectDirectory,
 						publishDirectory:
 							stack === 'static' ? outputDirectory || undefined : undefined,
@@ -1246,8 +1309,9 @@ export function DeployApplicationForm({
 						Deployment environment
 						<select
 							className={inputClass}
-							defaultValue="production"
+							onChange={(event) => setDeploymentEnvironment(event.target.value as typeof deploymentEnvironment)}
 							name="deploymentEnvironment"
+							value={deploymentEnvironment}
 						>
 							<option value="development">Development</option>
 							<option value="testing">Testing</option>
@@ -1560,7 +1624,10 @@ export function DeployApplicationForm({
 								<button
 									className={`rounded-xl border px-4 py-2 font-bold ${selectedRuntime?.code === runtime.code ? 'border-brand-action bg-brand-action/10' : 'border-brand-primary/10'}`}
 									key={runtime.code}
-									onClick={() => setRuntimeCode(runtime.code)}
+								onClick={() => {
+									setRuntimeCode(runtime.code);
+									setApplicationPort(runtime.defaultPort);
+								}}
 									type="button"
 								>
 									{runtime.version}
@@ -1669,16 +1736,18 @@ export function DeployApplicationForm({
 						Application port
 						<input
 							className={inputClass}
-							defaultValue={selectedRuntime?.defaultPort ?? 3000}
-							key={selectedRuntime?.code}
 							max="65535"
 							min="1"
 							name="port"
+							onChange={(event) => setApplicationPort(Number(event.target.value))}
+							required
 							type="number"
+							value={applicationPort}
 						/>
 						<Hint>
-							The internal port where the application listens. The selected
-							stack version provides the recommended default.
+							The internal container port detected from the framework or stack.
+							Other applications may safely use the same port because containers
+							are isolated; Ghost Deploy does not publish it as a host port.
 						</Hint>
 					</label>
 					<label className="flex items-start gap-3 rounded-xl border border-brand-primary/10 p-4">
@@ -1785,7 +1854,7 @@ export function DeployApplicationForm({
 								value={domainLabel}
 							/>
 							<span className="flex items-center border-l border-brand-primary/10 bg-app-canvas px-3 text-xs font-bold">
-								-{options.suggestedDomainSuffix}.{options.applicationBaseDomain}
+								-{databaseSuffix}.{options.applicationBaseDomain}
 							</span>
 						</div>
 						<Hint>
@@ -2102,7 +2171,26 @@ export function DeployApplicationForm({
 									<button className={`rounded-xl border p-3 text-sm font-bold ${databaseUserMode === 'new' ? 'border-brand-action bg-brand-action/10' : 'border-brand-primary/10'}`} onClick={() => setDatabaseUserMode('new')} type="button">Create New User</button>
 									<button className={`rounded-xl border p-3 text-sm font-bold ${databaseUserMode === 'existing' ? 'border-brand-action bg-brand-action/10' : 'border-brand-primary/10'}`} disabled={!databaseUsers.length} onClick={() => setDatabaseUserMode('existing')} type="button">Use Existing User</button>
 								</div>
-								{databaseUserMode === 'new' ? <label className="grid gap-2 font-semibold">Database username<input className={inputClass} maxLength={63} onChange={(event) => { setDatabaseUsernameEdited(true); setDatabaseUsername(databaseIdentifier(event.target.value).slice(0, 63)); }} pattern="[a-z0-9]+(?:_[a-z0-9]+)*" required value={effectiveDatabaseUsername} /><Hint>A strong password is generated automatically. You can rotate it later from Database Settings.</Hint></label> : <label className="grid gap-2 font-semibold">Existing workspace user<SearchableSelect ariaLabel="Choose an existing database user" onChange={setExistingDatabaseUserId} options={databaseUsers.map((user) => ({ label: `${user.username} · ${user.databaseCount} database${user.databaseCount === 1 ? '' : 's'}`, value: user.id, keywords: `${user.username} ${user.engine}` }))} placeholder="Choose a database user" searchable value={existingDatabaseUserId} /><Hint>This user's current password is reused without being revealed, regenerated, or changed.</Hint></label>}
+								{databaseUserMode === 'new' ? (
+									<div className="grid gap-4">
+										<label className="grid gap-2 font-semibold">
+											Database username
+											<input className={inputClass} maxLength={63} onChange={(event) => { setDatabaseUsernameEdited(true); setDatabaseUsername(databaseIdentifier(event.target.value).slice(0, 63)); }} pattern="[a-z0-9]+(?:_[a-z0-9]+)*" required value={effectiveDatabaseUsername} />
+											<Hint>This restricted user owns the new database.</Hint>
+										</label>
+										<label className="grid gap-2 font-semibold">
+											Database password
+											<div className="flex gap-2">
+												<input autoComplete="new-password" className={`${inputClass} min-w-0 flex-1 font-mono`} maxLength={256} minLength={16} onChange={(event) => setDatabasePassword(event.target.value)} required type="text" value={databasePassword} />
+												<button aria-label="Regenerate database password" className="rounded-xl border border-brand-primary/15 px-4 transition hover:bg-brand-primary/5" onClick={() => setDatabasePassword(generateDatabasePassword())} title="Regenerate password" type="button"><RefreshCw className="size-4" /></button>
+												<button aria-label="Copy database password" className="rounded-xl border border-brand-primary/15 px-4 transition hover:bg-brand-primary/5" onClick={() => void copyConfigurationValue(databasePassword, 'Database password')} title="Copy password" type="button"><Copy className="size-4" /></button>
+											</div>
+											<Hint>Generated automatically. Edit or regenerate it before deployment, then store it securely.</Hint>
+										</label>
+									</div>
+								) : (
+									<label className="grid gap-2 font-semibold">Existing workspace user<SearchableSelect ariaLabel="Choose an existing database user" onChange={setExistingDatabaseUserId} options={databaseUsers.map((user) => ({ label: `${user.username} · ${user.databaseCount} database${user.databaseCount === 1 ? '' : 's'}`, value: user.id, keywords: `${user.username} ${user.engine}` }))} placeholder="Choose a database user" searchable value={existingDatabaseUserId} /><Hint>This user's current password is reused without being revealed, regenerated, or changed.</Hint></label>
+								)}
 							</fieldset>
 						</>
 					)}
@@ -2246,11 +2334,15 @@ export function DeployApplicationForm({
 			</div>
 			{environmentEditorOpen && (
 				<Offcanvas
+					layer="nested"
 					onClose={() => setEnvironmentEditorOpen(false)}
-					title="Edit environment variables"
-					width="lg"
+					scrollable={false}
+					title="Environment configuration"
+					width="full"
 				>
-					<div className="mt-6 grid gap-4 pb-24">
+					<div className="grid h-full min-h-0 gap-5 lg:grid-cols-2">
+						<section className="min-h-0 overflow-y-auto pr-1 lg:pr-3">
+							<div className="grid gap-4 pb-10">
 						<div className="flex flex-wrap items-start justify-between gap-3">
 							<p className="max-w-xl text-sm leading-6 text-app-muted">
 								Use uppercase keys. Secret values are encrypted when the
@@ -2482,13 +2574,40 @@ export function DeployApplicationForm({
 						>
 							<Plus className="size-4" /> Add Variable
 						</button>
-						<button
+								<button
 							className="rounded-xl bg-brand-action px-5 py-3 font-bold text-brand-ink"
 							onClick={() => setEnvironmentEditorOpen(false)}
 							type="button"
 						>
 							Done
 						</button>
+							</div>
+						</section>
+						<aside className="min-h-0 overflow-y-auto rounded-3xl border border-brand-primary/10 bg-app-canvas p-4 sm:p-6">
+							<div className="flex flex-wrap items-start justify-between gap-3">
+								<div>
+									<h3 className="text-xl font-black">Application configuration</h3>
+									<p className="mt-1 text-sm leading-6 text-app-muted">Live preview of values that may help configure this application's environment.</p>
+								</div>
+								<button className="inline-flex items-center gap-2 rounded-xl border border-brand-primary/15 px-3 py-2 text-sm font-bold disabled:opacity-50" disabled={!environmentPreview} onClick={() => void copyConfigurationValue(environmentPreview, '.env block')} type="button"><Copy className="size-4" /> Copy .env</button>
+							</div>
+							<dl className="mt-5 grid gap-3">
+								{configurationValues.map(({ label, value, secret }) => (
+									<div className="rounded-2xl border border-brand-primary/10 bg-app-surface p-4" key={label}>
+										<dt className="text-xs font-bold uppercase tracking-wide text-app-muted">{label}</dt>
+										<dd className="mt-2 flex items-start justify-between gap-3">
+											<code className="min-w-0 break-all text-sm">{value}</code>
+											<button aria-label={`Copy ${label}`} className="shrink-0 rounded-lg border border-brand-primary/15 p-2 transition hover:bg-brand-primary/5" onClick={() => void copyConfigurationValue(value, label)} title={`Copy ${label}`} type="button"><Copy className="size-3.5" /></button>
+										</dd>
+										{secret && <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">Sensitive value. Store it securely.</p>}
+									</div>
+								))}
+							</dl>
+							<section className="mt-5 rounded-2xl border border-brand-primary/10 bg-app-surface p-4">
+								<div className="flex items-center justify-between gap-3"><h4 className="font-bold">Current .env values</h4><button aria-label="Copy environment values" className="rounded-lg border border-brand-primary/15 p-2 disabled:opacity-50" disabled={!environmentPreview} onClick={() => void copyConfigurationValue(environmentPreview, '.env block')} type="button"><Copy className="size-4" /></button></div>
+								<pre className="mt-3 overflow-x-auto whitespace-pre-wrap break-all rounded-xl bg-slate-950 p-4 text-xs leading-6 text-slate-100">{environmentPreview || '# No environment variables configured yet.'}</pre>
+							</section>
+						</aside>
 					</div>
 				</Offcanvas>
 			)}

@@ -32,6 +32,12 @@ describe('logical database validation', () => {
 		expect(createLogicalDatabaseSchema.safeParse({ engine: 'postgresql', name: 'shared_database', userMode: 'existing', databaseUserId: '3a993f13-cb14-4b72-b705-6980ec594fff' }).success).toBe(true);
 	});
 
+	it('accepts a strong chosen password only for a new database user', () => {
+		expect(createLogicalDatabaseSchema.safeParse({ engine: 'postgresql', name: 'main_database', password: 'GeneratedDatabasePassword123' }).success).toBe(true);
+		expect(createLogicalDatabaseSchema.safeParse({ engine: 'postgresql', name: 'main_database', password: 'too-short' }).success).toBe(false);
+		expect(createLogicalDatabaseSchema.safeParse({ engine: 'postgresql', name: 'main_database', userMode: 'existing', databaseUserId: '3a993f13-cb14-4b72-b705-6980ec594fff', password: 'GeneratedDatabasePassword123' }).success).toBe(false);
+	});
+
 	it('requires explicit acceptance before rotating a shared password', () => {
 		expect(rotateDatabaseCredentialSchema.safeParse({ acceptedImpact: true }).success).toBe(true);
 		expect(rotateDatabaseCredentialSchema.safeParse({ acceptedImpact: false }).success).toBe(false);

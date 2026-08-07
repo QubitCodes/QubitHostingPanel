@@ -445,7 +445,7 @@ export class LogicalDatabaseController {
 	  reservationId = reservation.reservationId;
 	  if (!reservation.allowed || !reservationId) return resp.failure("Workspace database limit reached.", resp.codes.ORDER_CANNOT_BE_PROCESSED, undefined, { quota: reservation }, undefined, 422);
       const existingCredential = selectedDatabaseUser ? JSON.parse(decryptCredential(selectedDatabaseUser.user.credentialCiphertext)) as { password: string } : undefined;
-      const password = existingCredential?.password ?? randomBytes(32).toString("base64url");
+      const password = existingCredential?.password ?? input.password ?? randomBytes(32).toString("base64url");
       const admin = JSON.parse(
         decryptCredential(cluster.cluster.adminCredentialCiphertext),
       ) as ClusterCredential;

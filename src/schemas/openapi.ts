@@ -1231,6 +1231,7 @@ export const OPENAPI_DOCUMENT = {
 									name: { type: 'string' },
 									userMode: { type: 'string', enum: ['new', 'existing'], default: 'new' },
 									username: { type: 'string', description: 'Editable login name when creating a new database user. Defaults to the database name.' },
+									password: { type: 'string', format: 'password', minLength: 16, description: 'Optional strong password chosen for a new database user. Omit to generate it on the server. Never accepted for an existing user.' },
 									databaseUserId: { type: 'string', format: 'uuid', description: 'Required when userMode is existing.' },
 									connectionLimit: {
 										type: 'integer',
