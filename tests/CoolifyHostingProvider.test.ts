@@ -6,6 +6,7 @@ import {
 	coolifyJobStatus,
 	isCoolifyEnvironmentConflict,
 	normalizeCoolifyDeploymentLogs,
+	normalizeCoolifyRepositoryDirectory,
 	normalizeCoolifyWildcardDomain,
 	reusableCoolifyApplication,
 	shouldRedeployCoolifyApplication,
@@ -26,6 +27,17 @@ describe('normalizeCoolifyWildcardDomain', () => {
 		['*.apps-staging.ghostdeploy.com', 'apps-staging.ghostdeploy.com'],
 	])('normalizes %s', (input, expected) => {
 		expect(normalizeCoolifyWildcardDomain(input)).toBe(expected);
+	});
+});
+
+describe('normalizeCoolifyRepositoryDirectory', () => {
+	it('uses the absolute-style directory format required by Coolify', () => {
+		expect(normalizeCoolifyRepositoryDirectory('fixtures/example')).toBe(
+			'/fixtures/example',
+		);
+		expect(normalizeCoolifyRepositoryDirectory('./apps/web/')).toBe('/apps/web');
+		expect(normalizeCoolifyRepositoryDirectory('/')).toBe('/');
+		expect(normalizeCoolifyRepositoryDirectory(undefined)).toBeUndefined();
 	});
 });
 
@@ -72,6 +84,26 @@ describe('Coolify state and log normalization', () => {
 		expect(coolifyJobStatus('running:unhealthy')).toBe('failed');
 		expect(coolifyJobStatus('exited:unhealthy')).toBe('failed');
 		expect(coolifyJobStatus('building')).toBe('running');
+	});
+
+	it('uses an active deployment instead of a stale exited container state', async () => {
+		process.env.DATABASE_URL =
+			'postgresql://test:test@localhost:5432/ghost_deploy_test';
+		resetEnvironmentForTests();
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async (input: string | URL | Request) => {
+				const url = String(input);
+				if (url.includes('/deployments/applications/'))
+					return Response.json([{ status: 'in_progress' }]);
+				return Response.json({ status: 'exited:unhealthy' });
+			}),
+		);
+		const provider = new CoolifyHostingProvider({
+			apiToken: 'token',
+			baseUrl: 'https://coolify.example',
+		});
+		expect(await provider.getDeployment('app-uuid')).toBe('running');
 	});
 
 	it('turns Coolify structured logs into readable lines', () => {
@@ -133,11 +165,13 @@ describe('Coolify environment variables', () => {
 		const provider = new CoolifyHostingProvider({
 			apiToken: 'token',
 			baseUrl: 'https://coolify.example',
+			defaultEnvironmentName: 'provider-production',
 			defaultProjectUuid: 'project',
 			serverUuid: 'server',
 		});
 
 		await provider.provisionApplication({
+			deploymentEnvironment: 'testing',
 			environmentVariables: [
 				{ key: 'API_URL', value: 'https://example.com', scope: 'build' },
 			],
@@ -165,6 +199,11 @@ describe('Coolify environment variables', () => {
 			is_buildtime: true,
 			is_runtime: true,
 		});
+		const applicationBody = bodies
+			.map((body) => JSON.parse(body) as Record<string, unknown>)
+			.find((body) => body.git_repository);
+		expect(applicationBody?.environment_name).toBe('provider-production');
+		expect(applicationBody?.base_directory).toBe('/');
 	});
 });
 

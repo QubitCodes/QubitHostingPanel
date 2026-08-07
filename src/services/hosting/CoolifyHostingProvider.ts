@@ -87,6 +87,16 @@ export function normalizeCoolifyWildcardDomain(domain: string): string {
 		.replace(/\/+$/, '');
 }
 
+/** Converts a repository-relative directory into Coolify's absolute-style path format. */
+export function normalizeCoolifyRepositoryDirectory(
+	directory?: string,
+): string | undefined {
+	if (directory === undefined) return undefined;
+	const normalized = directory.trim().replace(/\\/g, '/');
+	if (!normalized || normalized === '.' || normalized === '/') return '/';
+	return `/${normalized.replace(/^\.?\/+/, '').replace(/\/+$/, '')}`;
+}
+
 /** Finds an exact-name provider application created before a panel retry could persist it. */
 export function reusableCoolifyApplication(
 	applications: CoolifyApplication[],
@@ -446,10 +456,11 @@ export class CoolifyHostingProvider implements HostingProvider {
 		const common = {
 			project_uuid: this.config.defaultProjectUuid,
 			server_uuid: this.config.serverUuid,
-			environment_name:
-				input.deploymentEnvironment ??
-				this.config.defaultEnvironmentName ??
-				'production',
+			// Ghost Deploy environments describe an application's release intent
+			// (development, testing, staging or production). They are not Coolify
+			// project-environment names, so placement must remain on the configured
+			// provider environment regardless of the customer-facing selection.
+			environment_name: this.config.defaultEnvironmentName ?? 'production',
 			destination_uuid: this.config.destinationUuid,
 			ports_exposes: runtimePort,
 			name: input.name,
@@ -474,8 +485,11 @@ export class CoolifyHostingProvider implements HostingProvider {
 					install_command: input.installCommand,
 					build_command: input.buildCommand,
 					start_command: input.startCommand,
-					base_directory: input.baseDirectory,
-					publish_directory: input.publishDirectory,
+					base_directory:
+						normalizeCoolifyRepositoryDirectory(input.baseDirectory) ?? '/',
+					publish_directory: normalizeCoolifyRepositoryDirectory(
+						input.publishDirectory,
+					),
 					is_static: input.buildPack === 'static',
 				}
 			: undefined;
@@ -517,8 +531,10 @@ export class CoolifyHostingProvider implements HostingProvider {
 					install_command: input.installCommand ?? '',
 					build_command: input.buildCommand ?? '',
 					start_command: input.startCommand ?? '',
-					base_directory: input.baseDirectory,
-					publish_directory: input.publishDirectory ?? '',
+					base_directory:
+						normalizeCoolifyRepositoryDirectory(input.baseDirectory) ?? '/',
+					publish_directory:
+						normalizeCoolifyRepositoryDirectory(input.publishDirectory) ?? '',
 					ports_exposes: runtimePort,
 					domains,
 					health_check_port: runtimePort,
@@ -587,6 +603,14 @@ export class CoolifyHostingProvider implements HostingProvider {
 	}
 
 	public async getDeployment(jobId: string): Promise<ProviderJobStatus> {
+		const [latestDeployment] = await this.listApplicationDeployments(
+			jobId,
+			1,
+		).catch(() => []);
+		const deploymentStatus = latestDeployment?.status.toLowerCase() ?? '';
+		if (/queued|pending|progress|running|building|deploying/.test(deploymentStatus))
+			return 'running';
+		if (/failed|cancelled|canceled|error/.test(deploymentStatus)) return 'failed';
 		const application = await this.request<CoolifyApplication>(
 			`/applications/${encodeURIComponent(jobId)}`,
 		);

@@ -6,12 +6,12 @@ Framework detection is not production evidence. Ghost Deploy keeps small, locked
 
 | Framework | Fixture | Database gate | Persistence gate | Local status | Live status |
 | --- | --- | --- | --- | --- | --- |
-| Express | `fixtures/frameworks/express` | None | None | Passed | Pending pushed-source deployment |
-| Next.js | `fixtures/frameworks/nextjs` | None | None | Passed | Pending pushed-source deployment |
+| Express | `fixtures/frameworks/express` | None | None | Passed | HTTPS/runtime/history/logs passed 2026-08-07 |
+| Next.js | `fixtures/frameworks/nextjs` | None | None | Passed | HTTPS/runtime/history/logs passed 2026-08-07 |
 | Laravel | `fixtures/frameworks/laravel` | PostgreSQL | `storage/app/public` | Passed with SQLite smoke | Pending PostgreSQL deployment |
 | WordPress | `fixtures/frameworks/wordpress` | MySQL | `wp-content` | Passed without configured DB | Pending MySQL deployment |
 | Django | `fixtures/frameworks/django` | PostgreSQL | `media` | Passed with SQLite smoke | Pending PostgreSQL deployment |
-| Vite | `fixtures/frameworks/vite` | None | None | Production build passed | Pending static deployment |
+| Vite | `fixtures/frameworks/vite` | None | None | Production build passed | HTTPS/static/history/logs passed 2026-08-07 |
 
 Local checks prove dependency resolution, build output, runtime startup and HTTP health. They do not replace Coolify networking, generated-domain, shared-database, volume, replacement-deployment or TLS evidence.
 
@@ -53,6 +53,20 @@ npm.cmd run acceptance:frameworks:source
 This proves GitHub tree inspection detects every nested project, selects its own environment template, and produces a non-blocking deployment contract. Private repositories require a short-lived read token for this operator command; customer inspection continues to use the workspace GitHub App installation.
 
 ## Live gate
+
+Select exactly one maintained case and run it through the normal authenticated
+controllers, quota engine, audit log, provisioning queue and configured provider:
+
+```powershell
+$env:FRAMEWORK_ACCEPTANCE_CASE='express'
+npm.cmd run acceptance:frameworks:live
+Remove-Item Env:FRAMEWORK_ACCEPTANCE_CASE
+```
+
+The runner creates short-lived audited count overrides, owns only its uniquely
+named app/database, and verifies cleanup before exiting. Run database-backed
+cases from the deployed server environment: shared PostgreSQL/MySQL management
+ports should remain closed to arbitrary developer workstations.
 
 Deploy each case through Ghost Deploy, not directly from Coolify. Record:
 

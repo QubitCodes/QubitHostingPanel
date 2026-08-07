@@ -1135,7 +1135,7 @@ export class ApplicationController {
 				providerId: workspaceResources.providerResourceId,
 			})
 			.from(applicationBuilds)
-			.innerJoin(
+			.leftJoin(
 				workspaceResources,
 				and(
 					eq(workspaceResources.id, applicationBuilds.resourceId),
@@ -1188,7 +1188,8 @@ export class ApplicationController {
 			.set({ operationalStatus: 'deleting', updatedAt: new Date() })
 			.where(eq(applicationBuilds.id, application.id));
 		try {
-			await (await hostingProvider()).deleteApplication(application.providerId);
+			if (application.providerId)
+				await (await hostingProvider()).deleteApplication(application.providerId);
 		} catch (error) {
 			await db
 				.update(applicationBuilds)
@@ -1244,15 +1245,16 @@ export class ApplicationController {
 					updatedAt: now,
 				})
 				.where(eq(applicationBuilds.id, application.id));
-			await transaction
-				.update(workspaceResources)
-				.set({
-					deletedAt: now,
-					deleteReason: 'Application deleted by workspace user.',
-					status: 'stopped',
-					updatedAt: now,
-				})
-				.where(eq(workspaceResources.id, application.resourceId));
+			if (application.resourceId)
+				await transaction
+					.update(workspaceResources)
+					.set({
+						deletedAt: now,
+						deleteReason: 'Application deleted by workspace user.',
+						status: 'stopped',
+						updatedAt: now,
+					})
+					.where(eq(workspaceResources.id, application.resourceId));
 		});
 		await recordAuditLog({
 			actorUserId: workspace.actorUserId,
