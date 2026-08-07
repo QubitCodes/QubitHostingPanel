@@ -1384,7 +1384,9 @@ export const OPENAPI_DOCUMENT = {
 				parameters: [{ $ref: '#/components/parameters/DatabaseId' }],
 				responses: {
 					'200': { description: 'Database, workspace, and connected-application context returned without credentials.' },
+					'401': { description: 'Authentication is missing, expired, or no longer maps to an active session.' },
 					'404': { description: 'Database not found or inaccessible.' },
+					'500': { description: 'Database context could not be loaded because of an internal service or schema failure.' },
 				},
 			},
 		},

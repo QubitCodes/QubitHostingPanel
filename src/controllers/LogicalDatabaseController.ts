@@ -41,6 +41,18 @@ interface WorkspaceAccess {
   publicId: number;
 }
 
+/** Preserves authentication failures while keeping unexpected infrastructure errors distinct from a missing record. */
+export function logicalDatabaseContextFailureResponse(error: unknown): Response {
+  return authenticationFailureResponse(error) ?? resp.failure(
+    "Unable to load database context.",
+    resp.codes.INTERNAL_SERVICE_ERROR,
+    undefined,
+    null,
+    undefined,
+    500,
+  );
+}
+
 async function workspaceAccess(
   request: Request,
   publicId: number,
@@ -323,9 +335,7 @@ export class LogicalDatabaseController {
 	  const passwordImpactApplications = [...new Map(bindings.map((binding) => [binding.id, { id: binding.id, name: String(binding.metadata?.name ?? 'Application') }])).values()];
       return resp.success('Database context retrieved.', { ...record, databaseUserId: undefined, displayName: String(record.metadata?.displayName ?? record.databaseName), connectedApplications, passwordImpact: { applications: passwordImpactApplications, databases: sharedDatabases } });
     } catch (error) {
-      const authenticationFailure = authenticationFailureResponse(error);
-      if (authenticationFailure) return authenticationFailure;
-      return resp.failure('Database not found.', resp.codes.RESOURCE_NOT_FOUND, undefined, null, undefined, 404);
+      return logicalDatabaseContextFailureResponse(error);
     }
   }
 

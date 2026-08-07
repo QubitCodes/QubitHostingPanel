@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
 	composeLogicalDatabaseResponse,
+	logicalDatabaseContextFailureResponse,
 	logicalDatabasePhysicalName,
 } from '@controllers/LogicalDatabaseController';
 import {
@@ -78,5 +79,26 @@ describe('logical database validation', () => {
 			engine: 'postgresql',
 			engineVersion: '18.4',
 		});
+	});
+
+	it('does not disguise an infrastructure failure as a missing database', async () => {
+		const response = logicalDatabaseContextFailureResponse(
+			new Error('column does not exist'),
+		);
+		const body = (await response.json()) as { code: number; message: string };
+
+		expect(response.status).toBe(500);
+		expect(body).toMatchObject({
+			code: 304,
+			message: 'Unable to load database context.',
+		});
+	});
+
+	it('keeps database-context authentication failures refreshable', async () => {
+		const response = logicalDatabaseContextFailureResponse(
+			new Error('Session is invalid.'),
+		);
+
+		expect(response.status).toBe(401);
 	});
 });
