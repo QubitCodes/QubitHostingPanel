@@ -360,17 +360,9 @@ function DetectionSummary({
 	);
 }
 
-/** Opens a centered GitHub setup window while keeping the deployment form mounted. */
-function openGithubPopup(url: string, name: string): Window | null {
-	const width = Math.min(960, window.screen.availWidth - 40);
-	const height = Math.min(760, window.screen.availHeight - 80);
-	const left = Math.max(0, window.screenX + (window.outerWidth - width) / 2);
-	const top = Math.max(0, window.screenY + (window.outerHeight - height) / 2);
-	return window.open(
-		url,
-		name,
-		`popup=yes,width=${Math.round(width)},height=${Math.round(height)},left=${Math.round(left)},top=${Math.round(top)},resizable=yes,scrollbars=yes`,
-	);
+/** Opens GitHub setup in a separate tab while keeping the deployment form mounted. */
+function openGithubTab(url: string, name: string): Window | null {
+	return window.open(url, name);
 }
 
 function Section({
@@ -725,7 +717,7 @@ export function DeployApplicationForm({
 
 	async function connectGithub(): Promise<void> {
 		const existingConnectionIds = new Set(githubConnections.map(({ id }) => id));
-		const popup = openGithubPopup('about:blank', 'ghostdeploy-github-install');
+		const popup = openGithubTab('about:blank', 'ghostdeploy-github-install');
 		if (!popup) {
 			toast.error(
 				'Allow popups for Ghost Deploy, then try connecting GitHub again.',
@@ -780,7 +772,7 @@ export function DeployApplicationForm({
 
 	function configureGithub(reviewUrl: string | undefined): void {
 		if (!reviewUrl) return;
-		const popup = openGithubPopup(reviewUrl, 'ghostdeploy-github-configure');
+		const popup = openGithubTab(reviewUrl, 'ghostdeploy-github-configure');
 		if (!popup)
 			toast.error(
 				'Allow popups for Ghost Deploy, then try configuring GitHub again.',
