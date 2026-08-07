@@ -12,6 +12,15 @@ Ghost Deploy uses one typed framework catalogue for repository detection, runtim
 | Ruby | Ruby on Rails |
 | Static/nginx | React, Vite, Vue, Angular, Astro, Gatsby |
 
+### Laravel and PHP compatibility
+
+| PHP runtime | Verified Laravel majors | Recommendation |
+| --- | --- | --- |
+| 8.3.33 | 10, 11, 12, 13 | Laravel 12 or 13 for new deployments |
+| 8.5.9 | 12, 13 | Laravel 12 or 13 |
+
+Laravel 10 and 11 are retained as deployment compatibility targets for existing customer applications, but both are upstream end-of-life. Their isolated test permits Composer to resolve packages with published advisories strictly to prove PHP/runtime compatibility; Ghost Deploy does not disable Composer security policy for customer builds. The runtime publication gate creates a clean project for every listed combination, resolves production dependencies, runs Artisan and configuration caching, then verifies an HTTP response through PHP-FPM and nginx.
+
 Generic Node.js, PHP, Python, Ruby, and static repositories remain deployable without selecting a framework. Framework selection is advisory, but the API rejects a framework paired with the wrong runtime.
 
 ## Detection
@@ -51,7 +60,7 @@ Each advertised framework requires a maintained fixture covering:
 5. Deployment replacement without data loss where persistence applies.
 6. Framework-specific scheduler and worker behavior when those features are enabled.
 
-The runtime-image workflow publishes and scans the shared Node.js, PHP, Python, Ruby, and static foundations. Ruby `3.4.10` is the initial Rails runtime and must be published to GHCR before Rails is enabled on a live catalogue.
+The runtime-image workflow publishes and scans the shared Node.js, PHP, Python, Ruby, and static foundations. It additionally blocks PHP publication unless every supported Laravel/PHP combination passes the container boot gate. Ruby `3.4.10` is the initial Rails runtime and must be published to GHCR before Rails is enabled on a live catalogue.
 
 Node.js 22 is the current source-builder default. Node.js 24 remains in the administrator catalogue as deprecated until the pinned Coolify/Nixpacks package set can resolve it without silently building with an older major version.
 

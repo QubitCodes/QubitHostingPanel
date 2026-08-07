@@ -8,12 +8,14 @@ Framework detection is not production evidence. Ghost Deploy keeps small, locked
 | --- | --- | --- | --- | --- | --- |
 | Express | `fixtures/frameworks/express` | None | None | Passed | HTTPS/runtime/history/logs passed 2026-08-07 |
 | Next.js | `fixtures/frameworks/nextjs` | None | None | Passed | HTTPS/runtime/history/logs passed 2026-08-07 |
-| Laravel | `fixtures/frameworks/laravel` | PostgreSQL | `storage/app/public` | Passed with SQLite smoke | PostgreSQL/HTTPS/runtime/history/logs passed 2026-08-07 |
+| Laravel 12 | `fixtures/frameworks/laravel` | PostgreSQL | `storage/app/public` | Passed with SQLite smoke | PostgreSQL/HTTPS/runtime/history/logs passed 2026-08-07 |
 | WordPress | `fixtures/frameworks/wordpress` | MySQL | `wp-content` | Passed without configured DB | MySQL/HTTPS/runtime/history/logs passed 2026-08-07 |
 | Django | `fixtures/frameworks/django` | PostgreSQL | `media` | Passed with SQLite smoke | PostgreSQL/HTTPS/runtime/history/logs passed 2026-08-07 |
 | Vite | `fixtures/frameworks/vite` | None | None | Production build passed | HTTPS/static/history/logs passed 2026-08-07 |
 
 Local checks prove dependency resolution, build output, runtime startup and HTTP health. They do not replace Coolify networking, generated-domain, shared-database, volume, replacement-deployment or TLS evidence.
+
+The PHP runtime publication gate separately verifies the complete supported Laravel matrix: Laravel 10–13 on PHP 8.3 and Laravel 12–13 on PHP 8.5. That gate proves clean dependency resolution, Artisan/config-cache execution, and an HTTP boot through the production PHP-FPM/nginx entrypoint. It does not mark each major as live-accepted through Ghost Deploy; the maintained Laravel 12 fixture remains the end-to-end provider acceptance case.
 
 ## Local gate
 

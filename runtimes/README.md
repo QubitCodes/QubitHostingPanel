@@ -8,8 +8,8 @@ Ghost Deploy publishes reusable `linux/amd64` application runtime images to GitH
 | --- | --- | --- | --- |
 | Node.js | 22.23.1 | `ghcr.io/qubitcodes/runtime-node:22.23.1` | 3000 |
 | Node.js | 24.18.0 | `ghcr.io/qubitcodes/runtime-node:24.18.0` | 3000 |
-| PHP | 8.3.32 | `ghcr.io/qubitcodes/runtime-php:8.3.32` | 80 |
-| PHP | 8.5.8 | `ghcr.io/qubitcodes/runtime-php:8.5.8` | 80 |
+| PHP | 8.3.33 | `ghcr.io/qubitcodes/runtime-php:8.3.33` | 80 |
+| PHP | 8.5.9 | `ghcr.io/qubitcodes/runtime-php:8.5.9` | 80 |
 | Python | 3.12.13 | `ghcr.io/qubitcodes/runtime-python:3.12.13` | 8000 |
 | Python | 3.13.14 | `ghcr.io/qubitcodes/runtime-python:3.13.14` | 8000 |
 | Ruby | 3.4.10 | `ghcr.io/qubitcodes/runtime-ruby:3.4.10` | 3000 |
@@ -20,6 +20,8 @@ Node.js `22.23.2` is not an upstream release, so the catalogue uses the latest v
 Node images pin npm 12.0.2, including patched `tar` 7.5.19, instead of retaining the vulnerable npm bundle shipped by the upstream runtime image.
 
 PHP images contain nginx, PHP-FPM, Composer 2, PostgreSQL/MySQL drivers, and the common Laravel, WordPress, CakePHP, and Symfony extensions within the application container. Coolify's shared Traefik proxy remains the public ingress and routes traffic to port 80. Node.js, Python, and Ruby images intentionally provide only a runtime foundation; customer builds supply the application entrypoint.
+
+The runtime workflow also creates clean Laravel projects and boots them through the same PHP-FPM/nginx entrypoint before publishing a PHP image. PHP 8.3 verifies Laravel 10, 11, 12, and 13; PHP 8.5 verifies Laravel 12 and 13. Laravel 10 and 11 remain compatibility targets for existing applications even though upstream support has ended. Their isolated compatibility check permits Composer to resolve packages with known advisories so PHP compatibility can still be tested; customer deployments do not suppress Composer security policy. New applications should use a maintained Laravel release.
 
 ## Publication policy
 
@@ -45,6 +47,13 @@ docker run --rm qubit-runtime-node:24.18.0 node --version
 ```
 
 Apply the same pattern to the PHP, Python, and static contexts using a version from the supported matrix.
+
+Verify Laravel compatibility against a locally built PHP image:
+
+```bash
+bash runtimes/php/verify-laravel.sh qubit-runtime-php:8.3.33 10 11 12 13
+bash runtimes/php/verify-laravel.sh qubit-runtime-php:8.5.9 12 13
+```
 
 ## Updating a runtime
 

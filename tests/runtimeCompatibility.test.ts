@@ -9,6 +9,6 @@ describe('nixpacksRuntimeVersion', () => {
 	});
 
 	it('preserves runtime versions for other stacks', () => {
-		expect(nixpacksRuntimeVersion('php', '8.5.8')).toBe('8.5.8');
+		expect(nixpacksRuntimeVersion('php', '8.5.9')).toBe('8.5.9');
 	});
 });
