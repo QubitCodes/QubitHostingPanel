@@ -179,7 +179,23 @@ The approved direction is documented in `SERVER_CONSOLIDATION_PLAN.md`:
 
 This infrastructure programme is operational future work rather than a Ghost Deploy customer feature.
 
-## 13. Observability, security, and operations maturity
+## 13. Visitor, risk, and product intelligence
+
+The approved direction is documented in `VISITOR_RISK_AND_PRODUCT_INTELLIGENCE_PLAN.md`:
+
+- First-party event analytics for acquisition, onboarding, checkout, deployment, feature adoption, retention, geography, and service affinity.
+- Fingerprint-enriched anonymous visitor recognition with server-side verification and pseudonymous user linking after successful authentication.
+- Independent risk and confidence scores for every security assessment.
+- Independent affinity and confidence scores for inferred product interest.
+- Observation-only automated assessment during the initial rollout.
+- Granular administrator permissions, mandatory audit logging, and complete Super Admin access through seeded role permissions.
+- Per-user tracking, analytics, visitor associations, masked identity history, risk evidence, and restrictions in the administrator user module.
+- Explicitly reviewed manual restrictions with reason, evidence, expiry, revocation, and scope isolation.
+- Purpose-separated security, analytics, personalisation, attribution, and marketing-consent controls.
+
+Shared IP addresses, public networks, workplaces, libraries, cafes, universities, carrier-grade NAT, VPNs, and common locations are low-reliability context and never sufficient identity or blocking evidence.
+
+## 14. Observability, security, and operations maturity
 
 Planned capabilities:
 
@@ -195,7 +211,7 @@ Planned capabilities:
 - Regional retention, privacy, and data-export/deletion controls.
 - Abuse reporting, investigation, suspension, and appeal tooling.
 
-## 14. Customer and developer experience
+## 15. Customer and developer experience
 
 Planned capabilities:
 
@@ -209,7 +225,7 @@ Planned capabilities:
 - Expanded documentation and guided remediation.
 - Status, usage, billing, and deployment notifications with customer preferences.
 
-## 15. Suggested delivery order
+## 16. Suggested delivery order
 
 1. **Organisation collaboration:** multi-member roles, invitations, permissions, seats, and ownership safety.
 2. **Project environments:** multi-environment projects, promotion, preview deployments, and rollback.
@@ -219,11 +235,12 @@ Planned capabilities:
 6. **Hosted email foundation:** mail node, SES relay, domains/mailboxes, and anti-abuse controls.
 7. **Native webmail:** JMAP inbox/composer, search, contacts, and calendar phases.
 8. **Provider expansion:** additional source, hosting, DNS, payment, and outbound-mail providers.
-9. **Enterprise/operations maturity:** federation, compliance, observability, security automation, and regional placement.
+9. **Visitor and product intelligence:** consent-aware analytics, observe-only security assessment, administrator investigation, and manual restrictions.
+10. **Enterprise/operations maturity:** federation, compliance, observability, security automation, and regional placement.
 
 Actual ordering may change based on customer demand, infrastructure readiness, provider terms, security risk, and commercial value.
 
-## 16. Initiative entry gate
+## 17. Initiative entry gate
 
 Before any roadmap initiative becomes active implementation, approve:
 
@@ -240,7 +257,7 @@ Before any roadmap initiative becomes active implementation, approve:
 
 After delivery, update the authoritative requirements, traceability map, API/OpenAPI documentation, runbooks, environment examples, and this roadmap status.
 
-## 17. Source documents
+## 18. Source documents
 
 - `../IMPLEMENTATION_PLAN.md`
 - `../SRS_TRACEABILITY.md`
@@ -252,3 +269,4 @@ After delivery, update the authoritative requirements, traceability map, API/Ope
 - `../DATABASE_AND_PORTABILITY.md`
 - `HOSTED_EMAIL_PLATFORM_PLAN.md`
 - `SERVER_CONSOLIDATION_PLAN.md`
+- `VISITOR_RISK_AND_PRODUCT_INTELLIGENCE_PLAN.md`

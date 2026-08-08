@@ -7,6 +7,7 @@ This folder contains approved or proposed work that is deliberately outside the 
 1. `NON_MVA_ROADMAP.md` - consolidated post-MVA feature roadmap and delivery order.
 2. `HOSTED_EMAIL_PLATFORM_PLAN.md` - native hosted-mail architecture using Stalwart, JMAP, and managed outbound relays.
 3. `SERVER_CONSOLIDATION_PLAN.md` - migration from two hosting servers to one Coolify application server with a separate host-maintenance interface.
+4. `VISITOR_RISK_AND_PRODUCT_INTELLIGENCE_PLAN.md` - first-party product analytics, Fingerprint-enriched visitor recognition, observe-only risk assessment, granular administrator access, and manual security restrictions.
 
 ## Status rules
 
