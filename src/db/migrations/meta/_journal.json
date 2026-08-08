@@ -351,6 +351,27 @@
       "when": 1786206662761,
       "tag": "0049_stale_steel_serpent",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1786209994497,
+      "tag": "0050_talented_gravity",
+      "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1786211102863,
+      "tag": "0051_wild_kitty_pryde",
+      "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1786213362754,
+      "tag": "0052_cheerful_nocturne",
+      "breakpoints": true
     }
   ]
 }

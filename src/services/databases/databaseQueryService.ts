@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import mysql, { type ResultSetHeader, type RowDataPacket } from 'mysql2/promise';
 import pg from 'pg';
 
-import type { DatabaseQueryRequest } from '@schemas/databaseQuery';
+import type { DatabaseQueryExport, DatabaseQueryRequest } from '@schemas/databaseQuery';
 import type { DatabaseExplorerConnection } from '@services/databases/databaseExplorerService';
 
 export interface DatabaseQueryResult {
@@ -71,6 +71,15 @@ export class DatabaseQueryService {
 		return { ...result, durationMs: Math.round(performance.now() - started), fingerprint: createHash('sha256').update(policy.sql).digest('hex'), readOnly: policy.readOnly, statementType: policy.statementType };
 	}
 
+	/** Re-runs one read-only statement with a separately bounded export limit. */
+	public async export(input: DatabaseQueryExport): Promise<DatabaseQueryResult> {
+		const policy = databaseQueryPolicy(input.query, false);
+		if (!policy.readOnly) throw new Error('CSV export supports read-only queries only.');
+		const started = performance.now();
+		const result = this.connection.engine === 'postgresql' ? await this.postgres(policy, input.rowLimit) : await this.mysql(policy, input.rowLimit);
+		return { ...result, durationMs: Math.round(performance.now() - started), fingerprint: createHash('sha256').update(policy.sql).digest('hex'), readOnly: true, statementType: policy.statementType };
+	}
+
 	private async postgres(policy: ReturnType<typeof databaseQueryPolicy>, rowLimit: number): Promise<Omit<DatabaseQueryResult, 'durationMs' | 'fingerprint' | 'readOnly' | 'statementType'>> {
 		const client = new pg.Client({ host: this.connection.host, port: this.connection.port, user: this.connection.username, password: this.connection.password, database: this.connection.databaseName, connectionTimeoutMillis: 8000, ssl: this.connection.tlsMode === 'disabled' ? undefined : { rejectUnauthorized: this.connection.tlsMode === 'verify-full' } });
 		await client.connect();
@@ -98,4 +107,16 @@ export class DatabaseQueryService {
 			return { affectedRows: rows.length, columns: fields?.map(({ name }) => name) ?? [], rows: rows.slice(0, rowLimit), truncated: rows.length > rowLimit };
 		} catch (error) { await connection.rollback().catch(() => undefined); throw error; } finally { await connection.end(); }
 	}
+}
+
+function csvCell(value: unknown): string {
+	const normalized = value === null || value === undefined ? '' : typeof value === 'object' ? JSON.stringify(value) : String(value);
+	return `"${normalized.replace(/"/g, '""')}"`;
+}
+
+/** Produces RFC 4180-compatible UTF-8 CSV with an Excel-friendly BOM. */
+export function databaseQueryResultCsv(result: DatabaseQueryResult): string {
+	const lines = [result.columns.map(csvCell).join(',')];
+	for (const row of result.rows) lines.push(result.columns.map((column) => csvCell(row[column])).join(','));
+	return `\uFEFF${lines.join('\r\n')}\r\n`;
 }

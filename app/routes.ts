@@ -246,6 +246,9 @@ export default [
 			'workspaces/:workspaceId/databases/:databaseId/explorer/query',
 			'api/v1/workspaces/databases/explorer-query.ts',
 		),
+		route('workspaces/:workspaceId/databases/:databaseId/explorer/query/export', 'api/v1/workspaces/databases/explorer-query-export.ts'),
+		route('workspaces/:workspaceId/databases/:databaseId/saved-queries', 'api/v1/workspaces/databases/saved-queries.ts'),
+		route('workspaces/:workspaceId/databases/:databaseId/saved-queries/:savedQueryId', 'api/v1/workspaces/databases/saved-query.ts'),
 		route(
 			'workspaces/:workspaceId/databases/:databaseId/diagnostics',
 			'api/v1/workspaces/databases/diagnostics.ts',
@@ -253,6 +256,13 @@ export default [
 		route('workspaces/:workspaceId/databases/:databaseId/import/upload', 'api/v1/workspaces/databases/import-upload.ts'),
 		route('workspaces/:workspaceId/databases/:databaseId/import', 'api/v1/workspaces/databases/import.ts'),
 		route('workspaces/:workspaceId/databases/:databaseId/export', 'api/v1/workspaces/databases/export.ts'),
+		route('workspaces/:workspaceId/databases/:databaseId/transfers', 'api/v1/workspaces/databases/transfers.ts'),
+		route('workspaces/:workspaceId/databases/:databaseId/transfers/:jobId', 'api/v1/workspaces/databases/transfer.ts'),
+		route('workspaces/:workspaceId/databases/:databaseId/transfers/:jobId/download', 'api/v1/workspaces/databases/transfer-download.ts'),
+		route('workspaces/:workspaceId/databases/:databaseId/clone', 'api/v1/workspaces/databases/clone.ts'),
+		route('workspaces/:workspaceId/databases/:databaseId/rename', 'api/v1/workspaces/databases/rename.ts'),
+		route('workspaces/:workspaceId/databases/:databaseId/move', 'api/v1/workspaces/databases/move.ts'),
+		route('workspaces/:workspaceId/databases/:databaseId/external-access', 'api/v1/workspaces/databases/external-access.ts'),
 		route(
 			'workspaces/:workspaceId/databases/:databaseId/backups',
 			'api/v1/workspaces/databases/backups/index.ts',
@@ -400,6 +410,7 @@ export default [
 			'internal/traffic-policy/config',
 			'api/v1/internal/traffic-policy-config.ts',
 		),
+		route('internal/database-gateway/config', 'api/v1/internal/database-gateway-config.ts'),
 		route('operations/payments', 'api/v1/operations/payments.ts'),
 		route('operations/provisioning', 'api/v1/operations/jobs.ts'),
 		route(

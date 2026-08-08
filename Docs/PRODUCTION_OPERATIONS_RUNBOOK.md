@@ -47,6 +47,19 @@ The agent fetches `/api/v1/internal/traffic-policy/config` using `x-internal-job
 
 Rollback: disable the platform switch first. If the panel is unavailable, stop the timer and move `ghostdeploy-policies.json` out of the dynamic directory; Coolify's original routers remain unchanged. Never reset or edit application labels as part of this rollback.
 
+## Customer database gateway host agent
+
+Customer external database access never uses the cluster management endpoint directly. The root-owned agent under `ops/database-gateway` creates one `socat` listener per approved database rule and owns only the `GHOSTDEPLOY_DB_ACCESS` host INPUT chains plus `ghostdeploy-db-gateway-*` systemd units. Each port denies all sources except the saved IPv4/IPv6 CIDRs. The panel marks a rule active only after the agent acknowledges the same rule revision.
+
+1. Set `DATABASE_EXTERNAL_GATEWAY_HOST` to the stable public database gateway hostname and deploy the matching panel migration.
+2. Copy `ops/database-gateway` to a root-readable directory on the Coolify host and run `sudo bash ./install.sh`.
+3. Put the deployed `APP_URL` and matching `INTERNAL_JOB_SECRET` in `/etc/ghostdeploy/database-gateway.env`; retain root ownership and mode `0600`.
+4. Run `sudo systemctl start ghostdeploy-database-gateway.service`, inspect its JSON count/revision output, active generated units, listening ports, and both firewall chains.
+5. Enable ongoing reconciliation with `sudo systemctl enable --now ghostdeploy-database-gateway.timer`.
+6. Allow only the allocated `20000-29999/tcp` range at the cloud firewall. The host allowlist remains the per-database enforcement boundary; never open the private PostgreSQL/MySQL cluster management ports to customers.
+
+Rollback: revoke the customer rule first and wait for one successful sync. For emergency shutdown, stop/disable the timer and generated `ghostdeploy-db-gateway-*` units, then remove only the jump to `GHOSTDEPLOY_DB_ACCESS`; do not flush unrelated INPUT or Docker rules.
+
 Run `npm run applications:audit:provider-references` before remediating stale resources. `confirmed_missing` means a successful provider inventory omitted the referenced UUID. `provider_unavailable` is never evidence for deletion. The audit command is read-only; permanent cleanup still requires the existing permission-controlled, reasoned, audit-logged administrator workflow.
 
 ## Application domain operations

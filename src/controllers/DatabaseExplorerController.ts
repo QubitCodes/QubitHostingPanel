@@ -3,17 +3,19 @@ import { resp } from '@qubitcodes/qcresp';
 
 import { db } from '@db/client';
 import { customers, databaseClusters, logicalDatabases, workspaceMemberships, workspaces, workspaceSubscriptions } from '@db/schema';
-import type { DatabaseExplorerDeleteRows, DatabaseExplorerInsertRow, DatabaseExplorerObjectQuery, DatabaseExplorerRowsQuery, DatabaseExplorerUpdateRow } from '@schemas/databaseExplorer';
+import type { DatabaseAdvancedObjectMutation, DatabaseExplorerDeleteRows, DatabaseExplorerInsertRow, DatabaseExplorerObjectQuery, DatabaseExplorerRowsQuery, DatabaseExplorerUpdateRow } from '@schemas/databaseExplorer';
 import type { CancelDatabaseSessionRequest, DatabaseDiagnosticsQuery } from '@schemas/databaseDiagnostics';
-import type { DatabaseQueryRequest } from '@schemas/databaseQuery';
+import type { DatabaseQueryExport, DatabaseQueryRequest } from '@schemas/databaseQuery';
 import type { DatabaseSchemaMutation } from '@schemas/databaseSchema';
 import { recordAuditLog } from '@services/auditLogService';
 import { authenticateSession } from '@services/auth/authenticatedSessionService';
 import { authenticationFailureResponse } from '@services/auth/authenticationFailureService';
 import { databaseClusterEndpoint } from '@services/databases/databaseClusterEndpointService';
+import { DatabaseAdvancedObjectService } from '@services/databases/databaseAdvancedObjectService';
 import { DatabaseDiagnosticsService } from '@services/databases/databaseDiagnosticsService';
 import { DatabaseExplorerService, type DatabaseExplorerConnection } from '@services/databases/databaseExplorerService';
-import { DatabaseQueryService } from '@services/databases/databaseQueryService';
+import { databaseQueryResultCsv, DatabaseQueryService } from '@services/databases/databaseQueryService';
+import { markSavedQueryExecuted } from '@services/databases/databaseSavedQueryService';
 import { DatabaseSchemaService } from '@services/databases/databaseSchemaService';
 import { decryptCredential } from '@services/encryption/credentialEncryptionService';
 import type { RequestMetadata } from '@utils/request';
@@ -112,6 +114,9 @@ export class DatabaseExplorerController {
 			const access = await explorerAccess(request, workspacePublicId, databaseId, metadata);
 			actorUserId = access.actorUserId;
 			const result = await new DatabaseQueryService(access.connection).execute(input);
+			if (input.savedQueryId) {
+				await markSavedQueryExecuted(access.actorUserId, access.workspaceId, databaseId, input.savedQueryId, input.query);
+			}
 			await recordAuditLog({ actorUserId: access.actorUserId, action: result.readOnly ? 'logical_database.query_read' : 'logical_database.query_changed_data', resourceType: 'logical_database', resourceId: databaseId, metadata: { workspacePublicId, statementType: result.statementType, fingerprint: result.fingerprint, durationMs: result.durationMs, affectedRows: result.affectedRows, truncated: result.truncated }, ipAddress: metadata.ipAddress, userAgent: metadata.userAgent });
 			return resp.success('Database query completed.', result);
 		} catch (error) {
@@ -119,6 +124,20 @@ export class DatabaseExplorerController {
 			if (authenticationFailure) return authenticationFailure;
 			if (actorUserId) await recordAuditLog({ actorUserId, action: 'logical_database.query_failed', resourceType: 'logical_database', resourceId: databaseId, metadata: { workspacePublicId }, ipAddress: metadata.ipAddress, userAgent: metadata.userAgent }).catch(() => undefined);
 			return resp.failure(error instanceof Error ? error.message : 'Database query failed.', resp.codes.GENERAL_BUSINESS_LOGIC_ERROR, undefined, null, undefined, 422);
+		}
+	}
+
+	/** Re-runs a read query and returns a bounded UTF-8 CSV attachment. */
+	public static async exportQuery(request: Request, workspacePublicId: number, databaseId: string, input: DatabaseQueryExport, metadata: RequestMetadata): Promise<Response> {
+		try {
+			const access = await explorerAccess(request, workspacePublicId, databaseId, metadata);
+			const result = await new DatabaseQueryService(access.connection).export(input);
+			await recordAuditLog({ actorUserId: access.actorUserId, action: 'logical_database.query_csv_exported', resourceType: 'logical_database', resourceId: databaseId, metadata: { workspacePublicId, fingerprint: result.fingerprint, durationMs: result.durationMs, rowCount: result.rows.length, truncated: result.truncated }, ipAddress: metadata.ipAddress, userAgent: metadata.userAgent });
+			return new Response(databaseQueryResultCsv(result), { headers: { 'cache-control': 'no-store', 'content-disposition': `attachment; filename="${access.databaseName}-query-${new Date().toISOString().slice(0, 10)}.csv"`, 'content-type': 'text/csv; charset=utf-8' } });
+		} catch (error) {
+			const authenticationFailure = authenticationFailureResponse(error);
+			if (authenticationFailure) return authenticationFailure;
+			return resp.failure(error instanceof Error ? error.message : 'Unable to export query results.', resp.codes.GENERAL_BUSINESS_LOGIC_ERROR, undefined, null, undefined, 422);
 		}
 	}
 	/** Applies one strictly modelled DDL operation to the selected logical database. */
@@ -176,6 +195,20 @@ export class DatabaseExplorerController {
 			const authenticationFailure = authenticationFailureResponse(error);
 			if (authenticationFailure) return authenticationFailure;
 			return resp.failure(error instanceof Error ? error.message : 'Unable to inspect database objects.', resp.codes.EXTERNAL_SERVICE_ERROR, undefined, null, undefined, 502);
+		}
+	}
+
+	public static async advancedObjectMutate(request: Request, workspacePublicId: number, databaseId: string, input: DatabaseAdvancedObjectMutation, metadata: RequestMetadata): Promise<Response> {
+		let actorUserId: string | undefined;
+		try {
+			const access = await explorerAccess(request, workspacePublicId, databaseId, metadata); actorUserId = access.actorUserId;
+			const result = await new DatabaseAdvancedObjectService(access.connection).mutate(input);
+			await recordAuditLog({ actorUserId: access.actorUserId, action: `logical_database.advanced_object_${input.operation}`, resourceType: 'logical_database', resourceId: databaseId, metadata: { workspacePublicId, kind: input.kind, operation: input.operation, target: result.target, statements: result.statements }, ipAddress: metadata.ipAddress, userAgent: metadata.userAgent });
+			return resp.success('Database object updated.', result, resp.codes.UPDATED);
+		} catch (error) {
+			const authenticationFailure = authenticationFailureResponse(error); if (authenticationFailure) return authenticationFailure;
+			if (actorUserId) await recordAuditLog({ actorUserId, action: 'logical_database.advanced_object_mutation_failed', resourceType: 'logical_database', resourceId: databaseId, metadata: { workspacePublicId, kind: input.kind, operation: input.operation }, ipAddress: metadata.ipAddress, userAgent: metadata.userAgent }).catch(() => undefined);
+			return resp.failure(error instanceof Error ? error.message : 'Unable to update database object.', resp.codes.GENERAL_BUSINESS_LOGIC_ERROR, undefined, null, undefined, 422);
 		}
 	}
 

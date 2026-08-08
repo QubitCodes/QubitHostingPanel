@@ -2,7 +2,7 @@
 
 ## Status
 
-- Product stage: MVA feature implementation complete; domain acceptance and production activation pending
+- Product stage: MVA and advanced database feature implementation complete; acceptance and production activation pending
 - Application: Hosting landing page and authenticated panel share one origin by default; optional separate panel origin remains configurable
 - Database: Supabase-managed PostgreSQL initially
 - Infrastructure provider: Coolify, introduced after the core commercial and authorization modules

@@ -198,13 +198,13 @@ The checked Phase 6 database items establish provisioning, credentials, row mana
 - [x] Controlled SQL workspace with read-only transactions by default, a 15-second timeout, bounded JSON-safe results, session-local history, query fingerprints, and exact confirmation for supported data mutations.
 - [x] Native PostgreSQL/MySQL import and export foundation with short-lived signed staging, checksum verification, size limits, merge/replace selection, direct export streaming, and audited execution.
 - [x] Safe cancellation for active database-owned queries with exact database confirmation, numeric session validation, and success/failure audit evidence.
-- [ ] CSV result export, persistent saved queries, and permission-separated customer roles once collaborative workspace roles are introduced.
-- [ ] CSV/JSON/table-scoped transfers, background progress, failure recovery, and automatic pre-import safety backups.
+- [x] CSV result export and encrypted persistent personal saved queries. Permission-separated customer roles remain coupled to future collaborative workspace roles.
+- [x] CSV/JSON/table-scoped transfers, durable background progress, cancellation/retry recovery, encrypted expiring exports, and automatic pre-import safety backups.
 - [x] Multiple database users with read-only/read-write/custom grants, disable/delete controls, automatic expiry, exact confirmation, audit history, and cross-database impact reporting.
 - [x] Automatic per-database backup schedules, package-bounded retention cleanup, encrypted S3-compatible off-site storage, same-workspace/same-engine clone restore, and checksum/authentication verification evidence.
 - [x] Connection, lock, query, storage, index-usage, and slow-query diagnostics with privacy-preserving fingerprints and safe cancellation controls.
-- [ ] Editable views, materialized views, routines, triggers, sequences, and MySQL events.
-- [ ] Database clone/rename/move workflows and package-gated external-access controls.
+- [x] Editable views, materialized views, routines, triggers, sequences, and MySQL events through engine-specific validated DDL operations.
+- [x] Safety-backed database clone/rename/move workflows and package-gated external-access controls with a revision-acknowledged host gateway agent.
 
 ## Phase 7 - Production readiness
 
