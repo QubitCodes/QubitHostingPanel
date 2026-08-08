@@ -223,6 +223,10 @@ export default [
 			'api/v1/workspaces/databases/explorer-advanced.ts',
 		),
 		route(
+			'workspaces/:workspaceId/databases/:databaseId/explorer/schema',
+			'api/v1/workspaces/databases/explorer-schema.ts',
+		),
+		route(
 			'workspaces/:workspaceId/databases/:databaseId/backups',
 			'api/v1/workspaces/databases/backups/index.ts',
 		),

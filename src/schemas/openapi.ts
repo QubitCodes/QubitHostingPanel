@@ -1472,6 +1472,41 @@ export const OPENAPI_DOCUMENT = {
 				},
 			},
 		},
+		'/workspaces/{workspaceId}/databases/{databaseId}/explorer/schema': {
+			post: {
+				summary: 'Apply a modelled database schema change',
+				operationId: 'mutateWorkspaceDatabaseSchema',
+				description: 'Creates, renames, or removes PostgreSQL schemas and manages PostgreSQL/MySQL tables, columns, indexes, primary keys, and foreign keys. Arbitrary SQL is not accepted. Destructive operations require an impact acknowledgement and exact target confirmation. Every attempt is audited without storing SQL or credentials.',
+				security: [{ bearerAuth: [] }],
+				parameters: [{ $ref: '#/components/parameters/WorkspaceId' }, { $ref: '#/components/parameters/DatabaseId' }],
+				requestBody: {
+					required: true,
+					content: {
+						'application/json': {
+							schema: {
+								type: 'object',
+								additionalProperties: false,
+								required: ['operation'],
+								properties: {
+									operation: { type: 'string', enum: ['create_schema', 'rename_schema', 'drop_schema', 'create_table', 'rename_table', 'drop_table', 'truncate_table', 'add_column', 'alter_column', 'drop_column', 'create_index', 'drop_index', 'add_primary_key', 'add_foreign_key', 'drop_constraint'] },
+									schema: { type: 'string', minLength: 1, maxLength: 128 }, table: { type: 'string', minLength: 1, maxLength: 128 }, newName: { type: 'string', minLength: 1, maxLength: 128 },
+									columnName: { type: 'string', minLength: 1, maxLength: 128 }, indexName: { type: 'string', minLength: 1, maxLength: 128 }, constraintName: { type: 'string', minLength: 1, maxLength: 128 },
+									columns: { type: 'array', minItems: 1, maxItems: 100 }, column: { type: 'object' }, referenceSchema: { type: 'string' }, referenceTable: { type: 'string' }, referenceColumns: { type: 'array' },
+									acceptedImpact: { type: 'boolean' }, confirmation: { type: 'string', maxLength: 300 }, unique: { type: 'boolean' }, onDelete: { type: 'string', enum: ['cascade', 'no_action', 'restrict', 'set_null'] }, onUpdate: { type: 'string', enum: ['cascade', 'no_action', 'restrict', 'set_null'] },
+								},
+							},
+						},
+					},
+				},
+				responses: {
+					'200': { description: 'Schema change completed and audited.' },
+					'400': { description: 'Strict JSON validation failed.' },
+					'401': { description: 'Authentication is missing or expired.' },
+					'404': { description: 'Database not found in the workspace.' },
+					'422': { description: 'The engine rejected the modelled operation or destructive confirmation.' },
+				},
+			},
+		},
 		'/workspaces/{workspaceId}/databases/{databaseId}/explorer/rows': {
 			get: {
 				summary: 'Read a bounded page of database rows',

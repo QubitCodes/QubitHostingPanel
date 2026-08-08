@@ -202,6 +202,7 @@ Initial publication policy: Launch, Growth, and Business may be public after the
 - `/api/v1/workspaces/:workspaceId/databases/:databaseId/backups` - list and create encrypted logical-database recovery points.
 - `/api/v1/workspaces/:workspaceId/databases/:databaseId/backups/:backupId/restore` - exact-name-confirmed destructive restore.
 - `/api/v1/workspaces/:workspaceId/databases/:databaseId/backups/:backupId/download` - authorized, audited decrypted dump download.
+- `/api/v1/workspaces/:workspaceId/databases/:databaseId/explorer/schema` - strictly modelled PostgreSQL/MySQL schema, table, column, index, primary-key, and foreign-key changes; arbitrary SQL is rejected.
 - `/api/v1/auth/refresh` - rotate a refresh token.
 - `/api/v1/auth/logout` - revoke the bearer session.
 - `/api/v1/auth/context` - switch between personal and authorized admin context.
@@ -213,7 +214,7 @@ Create one public GitHub App with repository `Contents: Read-only` and `Metadata
 
 Dockerfile deployments are intentionally disabled until package entitlements and workload isolation policies are enabled.
 
-Database details in the customer dashboard expose read-only table/object inventories and an **Open DB** action. The action opens `/database/:databaseId/...` in a separately authenticated tab, so multiple databases can be managed concurrently without sharing active-workspace UI state. Database users are workspace-owned and reusable within one engine cluster. New users receive generated passwords; existing-user selection never reveals or changes the password. Password rotation is audited and reports every database/application sharing the login.
+Database details in the customer dashboard expose table/object inventories, a responsive Schema Designer, and an **Open DB** action. The action opens `/database/:databaseId/...` in a separately authenticated tab, so multiple databases can be managed concurrently without sharing active-workspace UI state. The Schema Designer manages PostgreSQL schemas plus PostgreSQL/MySQL tables, columns, indexes, primary keys, and foreign keys through validated operations rather than arbitrary SQL. Destructive changes require exact confirmation and every attempt is audited. Database users are workspace-owned and reusable within one engine cluster. New users receive generated passwords; existing-user selection never reveals or changes the password. Password rotation is audited and reports every database/application sharing the login.
 
 GitHub App deployments expose a per-application auto-deploy switch. Packages independently control manual deployment availability, automatic deployment availability, history count, and retention duration. Private application visibility removes public provider routes without deleting the provider resource.
 

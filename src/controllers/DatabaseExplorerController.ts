@@ -4,11 +4,13 @@ import { resp } from '@qubitcodes/qcresp';
 import { db } from '@db/client';
 import { customers, databaseClusters, logicalDatabases, workspaceMemberships, workspaces, workspaceSubscriptions } from '@db/schema';
 import type { DatabaseExplorerDeleteRows, DatabaseExplorerInsertRow, DatabaseExplorerObjectQuery, DatabaseExplorerRowsQuery, DatabaseExplorerUpdateRow } from '@schemas/databaseExplorer';
+import type { DatabaseSchemaMutation } from '@schemas/databaseSchema';
 import { recordAuditLog } from '@services/auditLogService';
 import { authenticateSession } from '@services/auth/authenticatedSessionService';
 import { authenticationFailureResponse } from '@services/auth/authenticationFailureService';
 import { databaseClusterEndpoint } from '@services/databases/databaseClusterEndpointService';
 import { DatabaseExplorerService, type DatabaseExplorerConnection } from '@services/databases/databaseExplorerService';
+import { DatabaseSchemaService } from '@services/databases/databaseSchemaService';
 import { decryptCredential } from '@services/encryption/credentialEncryptionService';
 import type { RequestMetadata } from '@utils/request';
 
@@ -60,6 +62,43 @@ async function explorerAccess(request: Request, workspacePublicId: number, datab
 
 /** Workspace-authorized database schema and data inspection endpoints. */
 export class DatabaseExplorerController {
+	/** Applies one strictly modelled DDL operation to the selected logical database. */
+	public static async schemaMutate(request: Request, workspacePublicId: number, databaseId: string, input: DatabaseSchemaMutation, metadata: RequestMetadata): Promise<Response> {
+		let actorUserId: string | undefined;
+		try {
+			const access = await explorerAccess(request, workspacePublicId, databaseId, metadata);
+			actorUserId = access.actorUserId;
+			const result = await new DatabaseSchemaService(access.connection).mutate(input);
+			await recordAuditLog({
+				actorUserId: access.actorUserId,
+				action: `logical_database.schema_${input.operation}`,
+				resourceType: 'logical_database',
+				resourceId: databaseId,
+				metadata: {
+					workspacePublicId,
+					operation: input.operation,
+					target: result.target,
+				},
+				ipAddress: metadata.ipAddress,
+				userAgent: metadata.userAgent,
+			});
+			return resp.success('Database structure updated.', result, resp.codes.UPDATED);
+		} catch (error) {
+			const authenticationFailure = authenticationFailureResponse(error);
+			if (authenticationFailure) return authenticationFailure;
+			if (actorUserId) await recordAuditLog({
+				actorUserId,
+				action: 'logical_database.schema_mutation_failed',
+				resourceType: 'logical_database',
+				resourceId: databaseId,
+				metadata: { workspacePublicId, operation: input.operation },
+				ipAddress: metadata.ipAddress,
+				userAgent: metadata.userAgent,
+			}).catch(() => undefined);
+			return resp.failure(error instanceof Error ? error.message : 'Unable to change database structure.', resp.codes.GENERAL_BUSINESS_LOGIC_ERROR, undefined, null, undefined, 422);
+		}
+	}
+
 	public static async advancedObjects(request: Request, workspacePublicId: number, databaseId: string, metadata: RequestMetadata): Promise<Response> {
 		try {
 			const access = await explorerAccess(request, workspacePublicId, databaseId, metadata);
@@ -85,7 +124,7 @@ export class DatabaseExplorerController {
 		try {
 			const access = await explorerAccess(request, workspacePublicId, databaseId, metadata);
 			const explorer = new DatabaseExplorerService(access.connection);
-			const objects = await explorer.listObjects();
+			const [objects, schemas] = await Promise.all([explorer.listObjects(), explorer.listSchemas()]);
 			const structure = input.schema && input.table ? await explorer.describeObject(input.schema, input.table) : null;
 			await recordAuditLog({
 				actorUserId: access.actorUserId,
@@ -96,7 +135,7 @@ export class DatabaseExplorerController {
 				ipAddress: metadata.ipAddress,
 				userAgent: metadata.userAgent,
 			});
-			return resp.success('Database objects retrieved.', { databaseName: access.databaseName, objects, structure });
+			return resp.success('Database objects retrieved.', { databaseName: access.databaseName, objects, schemas, structure });
 		} catch (error) {
 			const authenticationFailure = authenticationFailureResponse(error);
 			if (authenticationFailure) return authenticationFailure;

@@ -38,8 +38,19 @@ export interface DatabaseIndex {
 	name: string;
 }
 
+export interface DatabaseConstraint {
+	columns: string[];
+	definition: string;
+	name: string;
+	referenceColumns: string[];
+	referenceSchema: string | null;
+	referenceTable: string | null;
+	type: 'check' | 'foreign_key' | 'primary_key' | 'unique';
+}
+
 export interface DatabaseObjectStructure {
 	columns: DatabaseColumn[];
+	constraints: DatabaseConstraint[];
 	indexes: DatabaseIndex[];
 	kind: DatabaseObjectSummary['kind'];
 	name: string;
@@ -94,6 +105,26 @@ function mysqlBindableValues(values: unknown[]): MysqlBindableValue[] {
 /** Provides read-only, tenant-scoped schema and row inspection for PostgreSQL and MySQL. */
 export class DatabaseExplorerService {
 	public constructor(private readonly connection: DatabaseExplorerConnection) {}
+
+	/** Lists tenant-visible schemas, including empty PostgreSQL schemas. */
+	public async listSchemas(): Promise<string[]> {
+		if (this.connection.engine === 'mysql') return [this.connection.databaseName];
+		const client = this.postgresClient();
+		await client.connect();
+		try {
+			await client.query('SET statement_timeout = 8000');
+			const result = await client.query<{ schema: string }>(`
+				SELECT namespace.nspname AS schema
+				FROM pg_catalog.pg_namespace namespace
+				WHERE namespace.nspname NOT IN ('pg_catalog', 'information_schema')
+					AND namespace.nspname NOT LIKE 'pg_toast%'
+				ORDER BY namespace.nspname
+			`);
+			return result.rows.map(({ schema }) => schema);
+		} finally {
+			await client.end();
+		}
+	}
 
 	public async listObjects(): Promise<DatabaseObjectSummary[]> {
 		return this.connection.engine === 'postgresql' ? this.listPostgresObjects() : this.listMysqlObjects();
@@ -356,6 +387,31 @@ export class DatabaseExplorerService {
 				SELECT indexname AS name, indexdef AS definition
 				FROM pg_catalog.pg_indexes WHERE schemaname = $1 AND tablename = $2 ORDER BY indexname
 			`, [schema, table]);
+			const constraints = await client.query<{
+				columns: string[] | null;
+				definition: string;
+				name: string;
+				reference_columns: string[] | null;
+				reference_schema: string | null;
+				reference_table: string | null;
+				type: DatabaseConstraint['type'];
+			}>(`
+				SELECT constraint_info.conname AS name,
+					CASE constraint_info.contype WHEN 'p' THEN 'primary_key' WHEN 'f' THEN 'foreign_key' WHEN 'u' THEN 'unique' ELSE 'check' END AS type,
+					pg_catalog.pg_get_constraintdef(constraint_info.oid, true) AS definition,
+					ARRAY(SELECT attribute.attname FROM unnest(constraint_info.conkey) WITH ORDINALITY key(attnum, position)
+						JOIN pg_catalog.pg_attribute attribute ON attribute.attrelid = constraint_info.conrelid AND attribute.attnum = key.attnum ORDER BY key.position) AS columns,
+					reference_namespace.nspname AS reference_schema, reference_class.relname AS reference_table,
+					ARRAY(SELECT attribute.attname FROM unnest(constraint_info.confkey) WITH ORDINALITY key(attnum, position)
+						JOIN pg_catalog.pg_attribute attribute ON attribute.attrelid = constraint_info.confrelid AND attribute.attnum = key.attnum ORDER BY key.position) AS reference_columns
+				FROM pg_catalog.pg_constraint constraint_info
+				JOIN pg_catalog.pg_class class ON class.oid = constraint_info.conrelid
+				JOIN pg_catalog.pg_namespace namespace ON namespace.oid = class.relnamespace
+				LEFT JOIN pg_catalog.pg_class reference_class ON reference_class.oid = constraint_info.confrelid
+				LEFT JOIN pg_catalog.pg_namespace reference_namespace ON reference_namespace.oid = reference_class.relnamespace
+				WHERE namespace.nspname = $1 AND class.relname = $2 AND constraint_info.contype IN ('p', 'f', 'u', 'c')
+				ORDER BY constraint_info.conname
+			`, [schema, table]);
 			return {
 				columns: columns.rows.map((column) => ({
 					name: column.column_name,
@@ -366,6 +422,15 @@ export class DatabaseExplorerService {
 					isPrimaryKey: column.is_primary,
 					isIdentity: column.is_identity === 'YES',
 					isGenerated: column.is_generated !== 'NEVER',
+				})),
+				constraints: constraints.rows.map((constraint) => ({
+					columns: constraint.columns ?? [],
+					definition: constraint.definition,
+					name: constraint.name,
+					referenceColumns: constraint.reference_columns ?? [],
+					referenceSchema: constraint.reference_schema,
+					referenceTable: constraint.reference_table,
+					type: constraint.type,
 				})),
 				indexes: indexes.rows.map((index) => ({ name: index.name, definition: index.definition, isPrimary: index.definition.includes('PRIMARY KEY'), isUnique: index.definition.includes(' UNIQUE ') })),
 			};
@@ -383,6 +448,19 @@ export class DatabaseExplorerService {
 				FROM information_schema.columns WHERE table_schema = ? AND table_name = ? ORDER BY ordinal_position
 			`, [schema, table]);
 			const [indexRows] = await client.query<RowDataPacket[]>('SHOW INDEX FROM ' + mysqlIdentifier(table) + ' FROM ' + mysqlIdentifier(schema));
+			const [constraintRows] = await client.query<RowDataPacket[]>(`
+				SELECT constraints.constraint_name, constraints.constraint_type,
+					GROUP_CONCAT(keys.column_name ORDER BY keys.ordinal_position) AS object_columns,
+					MAX(keys.referenced_table_schema) AS reference_schema,
+					MAX(keys.referenced_table_name) AS reference_table,
+					GROUP_CONCAT(keys.referenced_column_name ORDER BY keys.ordinal_position) AS reference_columns
+				FROM information_schema.table_constraints constraints
+				LEFT JOIN information_schema.key_column_usage keys
+					ON keys.constraint_schema = constraints.constraint_schema AND keys.table_name = constraints.table_name AND keys.constraint_name = constraints.constraint_name
+				WHERE constraints.constraint_schema = ? AND constraints.table_name = ?
+				GROUP BY constraints.constraint_name, constraints.constraint_type
+				ORDER BY constraints.constraint_name
+			`, [schema, table]);
 			const indexes = new Map<string, { columns: string[]; isPrimary: boolean; isUnique: boolean }>();
 			for (const row of indexRows) {
 				const name = String(row.Key_name);
@@ -394,6 +472,22 @@ export class DatabaseExplorerService {
 				columns: columnRows.map((column) => ({
 					name: String(column.column_name), dataType: String(column.column_type), isNullable: String(column.is_nullable) === 'YES', defaultValue: column.column_default === null ? null : String(column.column_default), ordinal: Number(column.ordinal_position), isPrimaryKey: String(column.column_key) === 'PRI', isIdentity: String(column.extra).includes('auto_increment'), isGenerated: Boolean(column.generation_expression),
 				})),
+				constraints: constraintRows.map((row) => {
+					const type = String(row.constraint_type);
+					const columns = row.object_columns ? String(row.object_columns).split(',') : [];
+					const referenceColumns = row.reference_columns ? String(row.reference_columns).split(',') : [];
+					const referenceSchema = row.reference_schema ? String(row.reference_schema) : null;
+					const referenceTable = row.reference_table ? String(row.reference_table) : null;
+					return {
+						columns,
+						definition: referenceTable ? `FOREIGN KEY (${columns.join(', ')}) REFERENCES ${referenceSchema}.${referenceTable} (${referenceColumns.join(', ')})` : `${type} (${columns.join(', ')})`,
+						name: String(row.constraint_name),
+						referenceColumns,
+						referenceSchema,
+						referenceTable,
+						type: type === 'PRIMARY KEY' ? 'primary_key' as const : type === 'FOREIGN KEY' ? 'foreign_key' as const : type === 'UNIQUE' ? 'unique' as const : 'check' as const,
+					};
+				}),
 				indexes: [...indexes.entries()].map(([name, index]) => ({ name, definition: `(${index.columns.join(', ')})`, isPrimary: index.isPrimary, isUnique: index.isUnique })),
 			};
 		} finally {

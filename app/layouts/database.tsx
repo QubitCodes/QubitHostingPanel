@@ -1,4 +1,4 @@
-import { ArrowLeft, Braces, LayoutDashboard, Moon, Settings2, Sun, Table2 } from 'lucide-react';
+import { ArrowLeft, Braces, DatabaseZap, LayoutDashboard, Moon, Settings2, Sun, Table2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link, NavLink, Outlet, useNavigate, useParams } from 'react-router';
 
@@ -35,7 +35,7 @@ export default function DatabaseLayout() {
 	}, [databaseId, navigate]);
 	useEffect(() => { const timeout = window.setTimeout(() => { const enabled = localStorage.getItem('theme') === 'dark'; setDark(enabled); document.documentElement.classList.toggle('dark', enabled); }, 0); return () => window.clearTimeout(timeout); }, []);
 	const basePath = `/database/${databaseId}`;
-	const navigation = [{ icon: LayoutDashboard, label: 'Overview', to: basePath, end: true }, { icon: Table2, label: 'Tables', to: `${basePath}/tables` }, { icon: Braces, label: 'Objects', to: `${basePath}/objects` }, { icon: Settings2, label: 'Settings', to: `${basePath}/settings` }];
+	const navigation = [{ icon: LayoutDashboard, label: 'Overview', to: basePath, end: true }, { icon: Table2, label: 'Tables', to: `${basePath}/tables` }, { icon: DatabaseZap, label: 'Schema Designer', to: `${basePath}/schema` }, { icon: Braces, label: 'Objects', to: `${basePath}/objects` }, { icon: Settings2, label: 'Settings', to: `${basePath}/settings` }];
 	if (error) return <main className="grid min-h-screen place-items-center bg-app-canvas p-5 text-app-text"><section className="max-w-md rounded-3xl border border-red-500/20 bg-app-surface p-8 text-center"><h1 className="text-2xl font-black">Unable to Open Database</h1><p className="mt-3 text-sm text-red-500">{error}</p><Link className="mt-6 inline-flex rounded-xl bg-brand-action px-5 py-3 font-bold text-brand-ink" to="/dashboard/databases">Return to Databases</Link></section></main>;
 	if (!database) return <main className="grid min-h-screen place-items-center bg-app-canvas text-app-text"><div className="size-8 animate-spin rounded-full border-4 border-brand-primary/20 border-t-brand-action" /></main>;
 	return <main className="min-h-screen bg-app-canvas text-app-text lg:grid lg:grid-cols-[17rem_1fr]">
