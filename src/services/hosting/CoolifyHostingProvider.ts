@@ -583,7 +583,7 @@ export class CoolifyHostingProvider implements HostingProvider {
 			);
 		await this.upsertApplicationEnvironment(
 			body.uuid,
-			'GHOST_DEPLOY_AUTO_CHARSET_FIX',
+			'NIXPACKS_GHOST_DEPLOY_AUTO_CHARSET_FIX',
 			input.autoCharsetFix === false ? 'false' : 'true',
 			'build',
 		);

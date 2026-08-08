@@ -48,6 +48,59 @@ CP1252_DEFINED_CONTROLS = {
 	0x8C, 0x8E, 0x91, 0x92, 0x93, 0x94, 0x95, 0x96, 0x97, 0x98, 0x99,
 	0x9A, 0x9B, 0x9C, 0x9E, 0x9F,
 }
+BUILD_CONTEXT_EXCLUSIONS = (
+	b'.ghostdeploy/',
+	b'node_modules/',
+	b'**/node_modules/',
+	b'vendor/',
+	b'**/vendor/',
+)
+LARAVEL_NGINX_TEMPLATE = r'''worker_processes 5;
+daemon off;
+
+worker_rlimit_nofile 8192;
+
+events {
+	worker_connections 4096;
+}
+
+http {
+	include $!{nginx}/conf/mime.types;
+	default_type application/octet-stream;
+	access_log /dev/stdout;
+	error_log /dev/stdout;
+	sendfile on;
+	tcp_nopush on;
+
+	server {
+		listen ${PORT};
+		listen [::]:${PORT};
+		server_name localhost;
+		root /app/public;
+		index index.php;
+		charset utf-8;
+
+		location / {
+			try_files $uri $uri/ /index.php?$query_string;
+		}
+
+		location = /favicon.ico { access_log off; log_not_found off; }
+		location = /robots.txt { access_log off; log_not_found off; }
+		error_page 404 /index.php;
+
+		location ~ \.php$ {
+			fastcgi_pass 127.0.0.1:9000;
+			fastcgi_param SCRIPT_FILENAME $realpath_root$fastcgi_script_name;
+			include $!{nginx}/conf/fastcgi_params;
+			include $!{nginx}/conf/fastcgi.conf;
+		}
+
+		location ~ /\.(?!well-known).* {
+			deny all;
+		}
+	}
+}
+'''
 
 
 def digest(value: bytes) -> str:
@@ -101,6 +154,27 @@ def candidate_files(root: Path):
 			yield path
 
 
+def protect_installed_dependencies(root: Path) -> None:
+	"""Keep repository-copied dependencies from replacing Linux build installs."""
+	dockerignore = root / '.dockerignore'
+	existing = dockerignore.read_bytes() if dockerignore.exists() else b''
+	lines = {line.strip() for line in existing.splitlines()}
+	missing = [entry for entry in BUILD_CONTEXT_EXCLUSIONS if entry not in lines]
+	if not missing:
+		return
+	prefix = b'' if not existing or existing.endswith((b'\n', b'\r')) else b'\n'
+	dockerignore.write_bytes(existing + prefix + b'\n'.join(missing) + b'\n')
+
+
+def provide_laravel_web_server(root: Path) -> None:
+	"""Supply a disposable Laravel web-root template unless the repository owns one."""
+	if not (root / 'artisan').is_file() or not (root / 'public' / 'index.php').is_file():
+		return
+	if (root / 'nginx.conf').exists() or (root / 'nginx.template.conf').exists():
+		return
+	(root / 'nginx.template.conf').write_text(LARAVEL_NGINX_TEMPLATE, encoding='utf-8')
+
+
 def normalize(root: Path) -> list[dict[str, object]]:
 	"""Convert safe files in place and preserve originals outside the build context."""
 	backup_root = root.parent / f'{root.name}-charset-backup'
@@ -132,13 +206,21 @@ def normalize(root: Path) -> list[dict[str, object]]:
 			'convertedSha256': digest(converted),
 		}
 		manifest.append(entry)
-		print(f'GHOSTDEPLOY_CHARSET_FIX {json.dumps(entry, separators=(",", ":"))}', flush=True)
+		print(
+			f'GHOSTDEPLOY_CHARSET_FIX {json.dumps(entry, separators=(",", ":"))}',
+			file=sys.stderr,
+			flush=True,
+		)
 	if manifest:
 		manifest_path = root / '.ghostdeploy' / 'charset-manifest.json'
 		manifest_path.parent.mkdir(parents=True, exist_ok=True)
 		manifest_path.write_text(json.dumps({'version': 1, 'files': manifest}, indent=2), encoding='utf-8')
 		(backup_root / 'manifest.json').write_text(json.dumps({'version': 1, 'files': manifest}, indent=2), encoding='utf-8')
-		print(f'GHOSTDEPLOY_CHARSET_SUMMARY converted={len(manifest)} repository_modified=false', flush=True)
+		print(
+			f'GHOSTDEPLOY_CHARSET_SUMMARY converted={len(manifest)} repository_modified=false',
+			file=sys.stderr,
+			flush=True,
+		)
 	return manifest
 
 
@@ -153,6 +235,8 @@ def main() -> int:
 		return 2
 	try:
 		normalize(root)
+		protect_installed_dependencies(root)
+		provide_laravel_web_server(root)
 	except RuntimeError as error:
 		print(f'GHOSTDEPLOY_CHARSET_ERROR {error}', file=sys.stderr)
 		return 2

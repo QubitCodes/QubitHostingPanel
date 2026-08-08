@@ -3,7 +3,7 @@ import {
 	type RuntimeLanguage,
 } from '@config/frameworkCatalog';
 
-export const DEPLOYMENT_RECIPE_VERSION = '2026.08.1';
+export const DEPLOYMENT_RECIPE_VERSION = '2026.08.2';
 
 export type DeploymentServiceType = 'cms' | 'static' | 'web';
 export type DeploymentCheckStatus = 'error' | 'pass' | 'warning';
@@ -56,9 +56,11 @@ const FRAMEWORK_ENVIRONMENT_DEFAULTS: Readonly<
 	Record<string, readonly FrameworkEnvironmentDefault[]>
 > = {
 	laravel: [
+		{ key: 'APP_MAINTENANCE_DRIVER', value: 'file', scope: 'runtime' },
 		{ key: 'SESSION_DRIVER', value: 'file', scope: 'runtime' },
 		{ key: 'CACHE_STORE', value: 'file', scope: 'runtime' },
 		{ key: 'QUEUE_CONNECTION', value: 'sync', scope: 'runtime' },
+		{ key: 'LOG_CHANNEL', value: 'stderr', scope: 'runtime' },
 	],
 };
 
@@ -149,7 +151,7 @@ export function resolveDeploymentContract(
 		buildCommand: input.buildCommand,
 		checks,
 		framework: input.framework ?? null,
-		healthCheckPath: '/',
+		healthCheckPath: input.framework === 'laravel' ? '/up' : '/',
 		installCommand,
 		port: input.port,
 		projectDirectory: input.projectDirectory,

@@ -59,10 +59,22 @@ describe('deployment recipes', () => {
 
 	it('gives Laravel safe first-boot runtime defaults', () => {
 		expect(frameworkEnvironmentDefaults('laravel')).toEqual([
+			{ key: 'APP_MAINTENANCE_DRIVER', value: 'file', scope: 'runtime' },
 			{ key: 'SESSION_DRIVER', value: 'file', scope: 'runtime' },
 			{ key: 'CACHE_STORE', value: 'file', scope: 'runtime' },
 			{ key: 'QUEUE_CONNECTION', value: 'sync', scope: 'runtime' },
+			{ key: 'LOG_CHANNEL', value: 'stderr', scope: 'runtime' },
 		]);
 		expect(frameworkEnvironmentDefaults('express')).toEqual([]);
+	});
+
+	it('uses Laravel framework health instead of an application data route', () => {
+		const contract = resolveDeploymentContract({
+			framework: 'laravel',
+			port: 80,
+			projectDirectory: '/',
+			stack: 'php',
+		});
+		expect(contract.healthCheckPath).toBe('/up');
 	});
 });
