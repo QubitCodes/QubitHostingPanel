@@ -35,6 +35,7 @@ export default function PlatformSettingsPage() {
       defaultApplicationSubdomainEnabled: true,
       dnsProvider: "cloudflare",
       domainOwnershipVerificationEnabled: true,
+	  managedTrafficPoliciesEnabled: false,
 	  reservedDomainLabels: ['admin', 'api', 'dashboard', 'panel', 'www'],
 	  blockedDomainKeywords: [],
       ingressIpv4: null,
@@ -61,6 +62,8 @@ export default function PlatformSettingsPage() {
           dnsProvider: body.data.dnsProvider,
           domainOwnershipVerificationEnabled:
             body.data.domainOwnershipVerificationEnabled,
+		  managedTrafficPoliciesEnabled:
+			body.data.managedTrafficPoliciesEnabled,
 		  reservedDomainLabels: body.data.reservedDomainLabels,
 		  blockedDomainKeywords: body.data.blockedDomainKeywords,
           ingressIpv4: body.data.ingressIpv4,
@@ -293,6 +296,22 @@ export default function PlatformSettingsPage() {
             </span>
           </span>
         </label>
+		<label className="flex items-start gap-3 rounded-2xl border border-amber-500/25 bg-amber-500/5 p-4">
+		  <input
+			className="mt-1"
+			type="checkbox"
+			{...register("managedTrafficPoliciesEnabled")}
+		  />
+		  <span>
+			<span className="flex items-center gap-2 font-bold">
+			  Managed application traffic decisions
+			  <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] uppercase tracking-wider text-amber-700 dark:text-amber-300">Beta</span>
+			</span>
+			<span className="mt-1 block text-sm text-app-muted">
+			  Allow a separately configured managed proxy to enforce suspension, maintenance, coming-soon, and request-size policies before traffic reaches customer containers. This switch exposes decisions but does not rewrite Coolify-generated routes.
+			</span>
+		  </span>
+		</label>
         <label className="flex items-start gap-3 rounded-2xl border border-brand-primary/10 p-4">
           <input
             className="mt-1"

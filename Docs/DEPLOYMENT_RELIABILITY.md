@@ -15,6 +15,8 @@ Repository analysis creates a versioned, provider-independent contract containin
 
 Users can override inferred commands. Ghost Deploy blocks a selected server framework when it cannot prove a start command, instead of submitting a deployment that is already known to be incomplete.
 
+Framework-aware migration and optional seeder commands are synchronized to the provider before every customer start, restart, or redeploy. A dry-run bulk synchronizer covers applications created before release settings existed. The bulk operation writes an audit event per provider application and does not trigger a deployment by itself.
+
 ## Container networking
 
 Every application runs in its own container. Reusing port `3000`, `8000` or `80` across applications does not create a host conflict. Ghost Deploy owns the internal `PORT` value, sends the same value to Coolify exposure and health-check settings, and injects it at build and runtime. Public traffic continues through Coolify's shared proxy on ports 80 and 443.
@@ -42,6 +44,14 @@ The browser opens one authenticated server-sent event stream. Ghost Deploy combi
 Compound provider states are interpreted conservatively: `running:unhealthy`, `exited`, `failed`, `dead` and cancelled states are failures. Only a healthy/running terminal state is success.
 
 Coolify structured log payloads are normalised into readable output. Known failures are classified into actionable diagnostics, including stale lockfiles, TypeScript errors, missing build-time environment values, unsupported runtime versions, dependency failures, missing `.env` files, memory exhaustion, database connectivity and port/health failures. Raw output always remains available below the diagnosis.
+
+## Managed traffic policies (Beta)
+
+The panel exposes a fail-open provider decision endpoint at `/system/traffic-policy`. When the platform Beta switch is enabled and a verified proxy integration calls it, the endpoint resolves the requested hostname to one active application and applies administrator suspension before customer maintenance or coming-soon state. It also rejects a declared request body larger than the configured request limit and can enforce configured MIME allowlists for non-multipart writes.
+
+Standard pages are rendered by Ghost Deploy and contain no customer source or provider details. Multipart per-file MIME and extension validation cannot be proven by a header-only authorization request; applications must continue validating individual uploads. Downstream application error replacement also requires a managed response proxy and is not claimed by this decision endpoint.
+
+Do not directly patch Coolify-generated labels as a bulk rollout. Coolify documents that edited standard-application labels stop being generated automatically, which can make later domain changes unsafe. Keep the Beta switch disabled until a reviewed dynamic-proxy or dedicated gateway integration is deployed.
 
 ## Database names
 

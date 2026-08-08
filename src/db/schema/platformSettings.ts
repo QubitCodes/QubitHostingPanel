@@ -16,6 +16,7 @@ export const platformSettings = pgTable('platform_settings', {
 	applicationDomainStatus: domainVerificationStatusEnum('application_domain_status').notNull().default('pending'),
 	defaultApplicationSubdomainEnabled: boolean('default_application_subdomain_enabled').notNull().default(true),
 	domainOwnershipVerificationEnabled: boolean('domain_ownership_verification_enabled').notNull().default(true),
+	managedTrafficPoliciesEnabled: boolean('managed_traffic_policies_enabled').notNull().default(false),
 	dnsProvider: varchar('dns_provider', { length: 40 }).notNull().default('cloudflare'),
 	ingressIpv4: varchar('ingress_ipv4', { length: 45 }),
 	ingressIpv6: varchar('ingress_ipv6', { length: 45 }),

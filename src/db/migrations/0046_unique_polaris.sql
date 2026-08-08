@@ -1,0 +1,1 @@
+ALTER TABLE "platform_settings" ADD COLUMN "managed_traffic_policies_enabled" boolean DEFAULT false NOT NULL;

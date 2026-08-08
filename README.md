@@ -91,6 +91,19 @@ npm.cmd run db:verify
 npm.cmd run jobs:process
 ```
 
+Production containers may receive configuration entirely through injected environment variables. Database and operator scripts therefore use `--env-file-if-exists=.env`: local development still loads `.env`, while a Coolify container does not require a credential file on disk.
+
+Feature-rollout and provider synchronization commands are dry-run by default:
+
+```powershell
+npm.cmd run db:backfill:entitlements
+npm.cmd run db:backfill:entitlements -- --apply
+npm.cmd run applications:sync:policies
+npm.cmd run applications:sync:policies -- --apply
+```
+
+The entitlement backfill appends only explicitly allow-listed, missing feature grants and writes an audit event without replacing purchased values. The application synchronizer updates framework-aware provider release hooks and audits every changed target.
+
 Create the first Super Admin explicitly, without persisting identity details in environment configuration:
 
 ```powershell
@@ -173,6 +186,7 @@ Initial publication policy: Launch, Growth, and Business may be public after the
 - `/api/v1/auth/handoff` - short-lived, single-use session transfer to an optional separate panel origin.
 - `/api/v1/public/platform` - effective public, panel, and application-domain URL configuration.
 - `/api/v1/operations/platform-settings` - permission-protected platform-domain configuration.
+- `/system/traffic-policy` - provider-facing, fail-open beta decision endpoint for suspension, maintenance, coming-soon, request-size, and configured non-multipart MIME policies.
 - `/api/v1/operations/platform-settings/dns-providers` - masked, permission-protected Cloudflare, GoDaddy, and Hostinger connection management. Tokens are encrypted at rest; database connections take precedence over Cloudflare environment fallback.
 - `/api/v1/workspaces/:workspaceId/database-users` - list reusable workspace-owned PostgreSQL/MySQL logins without exposing passwords.
 - `/api/v1/workspaces/:workspaceId/databases` - list databases or create one with a generated new login or an existing workspace login.
@@ -197,7 +211,7 @@ GitHub App deployments expose a per-application auto-deploy switch. Packages ind
 
 Application release settings provide framework-aware post-deployment migrations for Laravel, CakePHP, Symfony, Django, and Rails. Migrations are enabled by default only when Ghost Deploy has a proven framework command; production seeders remain explicitly opt-in. Both commands are time-bounded, run in the new release container, and fail the deployment instead of silently promoting an incomplete release. Customer-visible logs redact credentials and translate provider internals before storage or display.
 
-Each application also stores error-response, upload-limit, maintenance, coming-soon, and automatic-expiry preferences. The later managed-page serving layer will use standard Ghost Deploy pages first. Application-specific page design is intentionally deferred and protected by the `applications.custom_system_pages` package entitlement.
+Each application also stores error-response, upload-limit, maintenance, coming-soon, and automatic-expiry preferences. Standard responsive Ghost Deploy system pages and an expiry-aware traffic-policy decision endpoint are included. Managed traffic policies remain a disabled-by-default Beta platform setting until the deployment proxy integration is enabled and verified. Application-specific page design is intentionally deferred and protected by the `applications.custom_system_pages` package entitlement.
 
 ### Live deployment updates
 

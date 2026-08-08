@@ -2497,26 +2497,26 @@ export const OPENAPI_DOCUMENT = {
 			},
 		'/operations/platform-settings': {
 			get: {
-				summary: 'Retrieve platform domain settings',
+				summary: 'Retrieve platform domain and managed-traffic settings',
 				operationId: 'showPlatformSettings',
 				security: [{ bearerAuth: [] }],
 				responses: {
 					'200': {
 						description:
-							'Configured and effective platform URLs plus ownership-verification policy.',
+							'Configured platform URLs, ownership-verification policy, and the managed-traffic Beta switch.',
 					},
 					'403': { description: 'Permission denied.' },
 				},
 			},
 			post: {
 				summary:
-					'Update platform domain settings and ownership-verification policy',
+					'Update platform domain, ownership-verification, and managed-traffic settings',
 				operationId: 'updatePlatformSettings',
 				security: [{ bearerAuth: [] }],
 				responses: {
 					'200': {
 						description:
-							'Platform URL and domain ownership configuration updated.',
+							'Platform URL, domain ownership, and managed-traffic configuration updated.',
 					},
 					'422': { description: 'Invalid or unsafe configuration.' },
 				},

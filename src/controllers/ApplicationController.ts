@@ -37,6 +37,7 @@ import { getEffectivePlatformUrls } from '@services/platformUrlService';
 import { analyzeApplicationSource } from '@services/applications/sourceDetectionService';
 import { resolveDeploymentContract } from '@services/applications/deploymentRecipeService';
 import { defaultApplicationReleasePolicy } from '@services/applications/applicationReleaseSettingsService';
+import { synchronizeApplicationReleaseHook } from '@services/applications/applicationPolicySyncService';
 import { diagnoseDeploymentLogs } from '@services/applications/deploymentDiagnosticService';
 import { parseDeploymentLogs } from '@services/applications/deploymentLogParserService';
 import { currentApplicationProviderStatuses } from '@services/applications/applicationProviderStatusService';
@@ -998,6 +999,7 @@ export class ApplicationController {
 			const workspace = await access(request, workspacePublicId, metadata);
 			const [application] = await db
 				.select({
+					framework: applicationBuilds.framework,
 					id: applicationBuilds.id,
 					name: applicationBuilds.metadata,
 					operationalStatus: applicationBuilds.operationalStatus,
@@ -1057,9 +1059,17 @@ export class ApplicationController {
 					: input.action === 'reactivate'
 						? 'start'
 						: input.action;
-			const result = await (
-				await hostingProvider()
-			).controlApplication(application.providerId, providerAction);
+			const provider = await hostingProvider();
+			if (['redeploy', 'restart', 'start'].includes(providerAction))
+				await synchronizeApplicationReleaseHook(provider, {
+					applicationId: application.id,
+					framework: application.framework,
+					providerApplicationId: application.providerId,
+				});
+			const result = await provider.controlApplication(
+				application.providerId,
+				providerAction,
+			);
 			if (providerAction !== 'stop') {
 				publishApplicationEvent({
 					applicationId: application.id,

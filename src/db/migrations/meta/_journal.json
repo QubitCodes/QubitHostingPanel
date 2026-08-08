@@ -323,6 +323,13 @@
       "when": 1786170396889,
       "tag": "0045_cooing_lizard",
       "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1786175576850,
+      "tag": "0046_unique_polaris",
+      "breakpoints": true
     }
   ]
 }

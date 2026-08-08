@@ -9,6 +9,7 @@ export const updatePlatformSettingsSchema = z.object({
 	applicationBaseDomain: hostname,
 	defaultApplicationSubdomainEnabled: z.boolean(),
 	domainOwnershipVerificationEnabled: z.boolean(),
+	managedTrafficPoliciesEnabled: z.boolean(),
 	dnsProvider: z.enum(['cloudflare', 'powerdns']),
 	ingressIpv4: optionalIpv4,
 	ingressIpv6: optionalIpv6,

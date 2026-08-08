@@ -6,7 +6,8 @@ import { db } from '@db/client';
 import { applicationBuilds, applicationSettings, workspaceResources } from '@db/schema';
 import type { UpdateApplicationSettingsRequest } from '@schemas/applicationSettings';
 import { recordAuditLog } from '@services/auditLogService';
-import { applicationPostDeploymentCommand, defaultApplicationReleasePolicy } from '@services/applications/applicationReleaseSettingsService';
+import { applicationPostDeploymentCommand } from '@services/applications/applicationReleaseSettingsService';
+import { defaultApplicationSitePolicy, effectiveApplicationSiteState, type ApplicationSitePolicy } from '@services/applications/applicationSitePolicyService';
 import { hostingProvider } from '@services/hosting/hostingProviderFactory';
 import { effectiveEntitlement } from '@services/usage/quotaEngine';
 import type { RequestMetadata } from '@utils/request';
@@ -25,54 +26,7 @@ async function ownedApplication(request: Request, workspacePublicId: number, app
 	return { ...application, actorUserId: workspace.actorUserId, workspaceId: workspace.id };
 }
 
-function defaults(framework?: string | null) {
-	return {
-		...defaultApplicationReleasePolicy(framework),
-		comingSoonEnabled: false,
-		comingSoonExpiresAt: null,
-		maintenanceDuringDeployment: false,
-		maintenanceEnabled: false,
-		maintenanceExpiresAt: null,
-		publicErrorMode: 'message' as const,
-		returnErrors: true,
-		uploadAllowedExtensions: [] as string[],
-		uploadAllowedMimeTypes: [] as string[],
-		uploadMaxFileSizeMb: 50,
-		uploadMaxRequestSizeMb: 100,
-		uploadTimeoutSeconds: 300,
-	};
-}
-
-function effectiveSiteState<T extends { comingSoonEnabled: boolean; comingSoonExpiresAt: Date | null; maintenanceEnabled: boolean; maintenanceExpiresAt: Date | null }>(settings: T) {
-	const now = Date.now();
-	return {
-		comingSoonActive: settings.comingSoonEnabled && (!settings.comingSoonExpiresAt || settings.comingSoonExpiresAt.getTime() > now),
-		maintenanceActive: settings.maintenanceEnabled && (!settings.maintenanceExpiresAt || settings.maintenanceExpiresAt.getTime() > now),
-	};
-}
-
-interface EditableSettingsSource {
-	comingSoonEnabled: boolean;
-	comingSoonExpiresAt: Date | null;
-	maintenanceDuringDeployment: boolean;
-	maintenanceEnabled: boolean;
-	maintenanceExpiresAt: Date | null;
-	migrateOnDeploy: boolean;
-	migrationCommand: string | null;
-	migrationTimeoutSeconds: number;
-	publicErrorMode: 'detailed' | 'generic' | 'message';
-	returnErrors: boolean;
-	runSeederOnDeploy: boolean;
-	seederCommand: string | null;
-	seederTimeoutSeconds: number;
-	uploadAllowedExtensions: string[];
-	uploadAllowedMimeTypes: string[];
-	uploadMaxFileSizeMb: number;
-	uploadMaxRequestSizeMb: number;
-	uploadTimeoutSeconds: number;
-}
-
-function editableSettings(settings: EditableSettingsSource) {
+function editableSettings(settings: ApplicationSitePolicy) {
 	return {
 		comingSoonEnabled: settings.comingSoonEnabled,
 		comingSoonExpiresAt: settings.comingSoonExpiresAt,
@@ -101,12 +55,12 @@ export class ApplicationSettingsController {
 		try {
 			const application = await ownedApplication(request, workspacePublicId, applicationId, metadata);
 			const [stored] = await db.select().from(applicationSettings).where(and(eq(applicationSettings.applicationBuildId, application.id), isNull(applicationSettings.deletedAt))).limit(1);
-			const settings = stored ?? defaults(application.framework);
+			const settings = stored ?? defaultApplicationSitePolicy(application.framework);
 			const customPages = await effectiveEntitlement(application.workspaceId, 'applications.custom_system_pages');
 			await recordAuditLog({ action: 'application.settings_viewed', actorUserId: application.actorUserId, ipAddress: metadata.ipAddress, resourceId: application.id, resourceType: 'application', userAgent: metadata.userAgent });
 			return resp.success('Application settings retrieved.', {
 				customPagesAllowed: customPages.booleanValue === true,
-				effectiveSiteState: effectiveSiteState(settings),
+				effectiveSiteState: effectiveApplicationSiteState(settings),
 				framework: application.framework,
 				settings: editableSettings(settings),
 			});
@@ -144,7 +98,7 @@ export class ApplicationSettingsController {
 				resourceType: 'application',
 				userAgent: metadata.userAgent,
 			});
-			return resp.success('Application settings saved.', { effectiveSiteState: effectiveSiteState(settings), settings: editableSettings(settings) }, resp.codes.UPDATED);
+			return resp.success('Application settings saved.', { effectiveSiteState: effectiveApplicationSiteState(settings), settings: editableSettings(settings) }, resp.codes.UPDATED);
 		} catch (error) {
 			return resp.failure(error instanceof Error ? error.message : 'Application settings could not be saved.', resp.codes.GENERAL_BUSINESS_LOGIC_ERROR, undefined, null, undefined, 422);
 		}

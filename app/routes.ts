@@ -143,6 +143,7 @@ export default [
 		route('search/:query', 'pages/search.tsx'),
 	]),
 	route('api/docs', 'pages/api/docs.tsx'),
+	route('system/traffic-policy', 'pages/system/traffic-policy.ts'),
 	...prefix('api/v1', [
 		route('databases/:databaseId/context', 'api/v1/databases/context.ts'),
 		route('health', 'api/v1/health.ts'),
