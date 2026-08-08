@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { frameworkDatabaseEnvironment } from '@services/applications/frameworkDatabaseEnvironmentService';
+import { databaseConnectionUrl, frameworkDatabaseEnvironment, isDatabaseConnectionEnvironmentKey, resolveManagedDatabaseEnvironmentVariables } from '@services/applications/frameworkDatabaseEnvironmentService';
 
 const connection = {
 	databaseName: 'fixture_db',
@@ -42,6 +42,29 @@ describe('framework database environment', () => {
 				value:
 					'postgres://fixture_user:p%40ss%2Fword@database.internal:5432/fixture_db',
 			},
+		]);
+	});
+
+	it('generates encoded PostgreSQL and MySQL connection strings', () => {
+		expect(databaseConnectionUrl(connection)).toBe('postgresql://fixture_user:p%40ss%2Fword@database.internal:5432/fixture_db');
+		expect(databaseConnectionUrl({ ...connection, engine: 'mysql', port: 3306 })).toBe('mysql://fixture_user:p%40ss%2Fword@database.internal:3306/fixture_db');
+	});
+
+	it('recognizes conventional single database connection keys', () => {
+		for (const key of ['DATABASE_URL', 'DATABASE_URI', 'DB_URL', 'DB_DSN', 'CONNECTION_STRING', 'POSTGRES_URL', 'POSTGRESQL_URL', 'MYSQL_URL'])
+			expect(isDatabaseConnectionEnvironmentKey(key)).toBe(true);
+		expect(isDatabaseConnectionEnvironmentKey('EXTERNAL_API_URL')).toBe(false);
+	});
+
+	it('fills empty connection keys and preserves explicit customer values', () => {
+		expect(resolveManagedDatabaseEnvironmentVariables([
+			{ key: 'DATABASE_URL', value: '' },
+			{ key: 'POSTGRES_URL', value: 'postgresql://customer-managed' },
+			{ key: 'EXTERNAL_API_URL', value: '' },
+		], connection)).toEqual([
+			{ key: 'DATABASE_URL', value: 'postgresql://fixture_user:p%40ss%2Fword@database.internal:5432/fixture_db' },
+			{ key: 'POSTGRES_URL', value: 'postgresql://customer-managed' },
+			{ key: 'EXTERNAL_API_URL', value: '' },
 		]);
 	});
 });

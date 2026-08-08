@@ -12,6 +12,33 @@ export interface FrameworkDatabaseVariable {
 	value: string;
 }
 
+const DATABASE_CONNECTION_ENVIRONMENT_KEY = /^(?:DATABASE_URL|DATABASE_URI|DB_URL|DB_URI|DB_DSN|DATABASE_DSN|CONNECTION_STRING|POSTGRES_URL|POSTGRESQL_URL|MYSQL_URL)$/i;
+
+/** Identifies conventional single-value database connection environment keys. */
+export function isDatabaseConnectionEnvironmentKey(key: string): boolean {
+	return DATABASE_CONNECTION_ENVIRONMENT_KEY.test(key.trim());
+}
+
+/** Produces one safely encoded connection URI from managed database credentials. */
+export function databaseConnectionUrl(connection: FrameworkDatabaseConnection): string {
+	const protocol = connection.engine === 'postgresql' ? 'postgresql' : 'mysql';
+	return `${protocol}://${encodeURIComponent(connection.username)}:${encodeURIComponent(connection.password)}@${connection.host}:${connection.port}/${encodeURIComponent(connection.databaseName)}`;
+}
+
+/** Fills empty conventional connection keys while preserving explicit customer values. */
+export function resolveManagedDatabaseEnvironmentVariables<T extends { key: string; value: string }>(
+	variables: T[],
+	connection?: FrameworkDatabaseConnection,
+): T[] {
+	if (!connection) return variables;
+	const connectionUrl = databaseConnectionUrl(connection);
+	return variables.map((variable) =>
+		!variable.value.trim() && isDatabaseConnectionEnvironmentKey(variable.key)
+			? { ...variable, value: connectionUrl }
+			: variable,
+	);
+}
+
 /**
  * Adapts one managed database connection to framework-native environment
  * names. Generic DATABASE_* variables are added separately by provisioning.

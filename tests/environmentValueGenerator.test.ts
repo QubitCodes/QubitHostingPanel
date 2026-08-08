@@ -27,6 +27,7 @@ describe('environment value generator', () => {
 		];
 		expect(bestEnvironmentConfigurationLabel('APP_URL', values)).toBe('Application URL');
 		expect(bestEnvironmentConfigurationLabel('DB_PASSWORD', values)).toBe('Database password');
+		expect(bestEnvironmentConfigurationLabel('POSTGRES_URL', [{ label: 'Database URL', value: 'postgresql://managed' }])).toBe('Database URL');
 		expect(bestEnvironmentConfigurationLabel('TZ', values)).toBe('Timezone');
 		expect(bestEnvironmentConfigurationLabel('UNRELATED_KEY', values)).toBe('');
 	});

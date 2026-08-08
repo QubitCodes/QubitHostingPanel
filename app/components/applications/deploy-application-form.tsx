@@ -2243,6 +2243,13 @@ export function DeployApplicationForm({
 												<span className="flex select-none items-center border-r border-brand-primary/10 bg-app-canvas px-3 font-mono text-xs font-bold text-app-muted">{databaseIdentifierPrefix}</span>
 												<input className="min-w-0 flex-1 bg-transparent px-4 py-3 text-gray-900 outline-none dark:text-gray-100" maxLength={DATABASE_IDENTIFIER_SUFFIX_MAX_LENGTH} onChange={(event) => { setDatabaseUsernameEdited(true); setDatabaseUsername(databaseIdentifier(event.target.value).slice(0, DATABASE_IDENTIFIER_SUFFIX_MAX_LENGTH)); }} pattern="[a-z0-9]+(?:_[a-z0-9]+)*" required value={effectiveDatabaseUsernameSuffix} />
 											</div>
+											{effectiveDatabaseUsername && (
+												<div className="flex min-w-0 items-center gap-2 text-xs">
+													<span className="text-app-muted">Combined username:</span>
+													<code className="select-all truncate font-semibold" title={effectiveDatabaseUsername}>{effectiveDatabaseUsername}</code>
+													<button aria-label="Copy combined database username" className="rounded-md p-1 text-app-muted transition hover:bg-brand-primary/5 hover:text-app-text" onClick={() => void copyConfigurationValue(effectiveDatabaseUsername, 'Database username')} title="Copy database username" type="button"><Copy className="size-3.5" /></button>
+												</div>
+											)}
 											<Hint>This restricted user owns the new database.</Hint>
 										</label>
 										<label className="grid gap-2 font-semibold">

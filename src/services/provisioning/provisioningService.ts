@@ -19,7 +19,7 @@ import {
   buildSafeInstallCommand,
   frameworkEnvironmentDefaults,
 } from "@services/applications/deploymentRecipeService";
-import { frameworkDatabaseEnvironment } from "@services/applications/frameworkDatabaseEnvironmentService";
+import { databaseConnectionUrl, frameworkDatabaseEnvironment, resolveManagedDatabaseEnvironmentVariables, type FrameworkDatabaseConnection } from "@services/applications/frameworkDatabaseEnvironmentService";
 import { databaseClusterEndpoint } from "@services/databases/databaseClusterEndpointService";
 import { decryptCredential } from "@services/encryption/credentialEncryptionService";
 import { hostingProvider } from "@services/hosting/hostingProviderFactory";
@@ -181,6 +181,7 @@ export async function processProvisioningJobs(
           scope?: "build" | "both" | "runtime";
           value: string;
         }> = [];
+        let singleDatabaseConnection: FrameworkDatabaseConnection | undefined;
         let domains: string[] = [];
         if (configuredApplication) {
           domains = (
@@ -227,32 +228,41 @@ export async function processProvisioningJobs(
                 isNull(logicalDatabases.deletedAt),
               ),
             );
-          databaseEnvironment = bindings.flatMap(
+          const resolvedDatabaseConnections = bindings.map(
             ({ prefix, database, cluster }) => {
               const credential = JSON.parse(
                 decryptCredential(database.credentialCiphertext),
               ) as { databaseName: string; password: string; username: string };
               const endpoint = databaseClusterEndpoint(cluster);
+              const connection = {
+                databaseName: credential.databaseName,
+                engine: cluster.engine,
+                host: endpoint.host,
+                password: credential.password,
+                port: endpoint.port,
+                username: credential.username,
+              } satisfies FrameworkDatabaseConnection;
+              return { connection, prefix };
+            },
+          );
+          if (resolvedDatabaseConnections.length === 1)
+            singleDatabaseConnection = resolvedDatabaseConnections[0]?.connection;
+          databaseEnvironment = resolvedDatabaseConnections.flatMap(
+            ({ prefix, connection }) => {
               const common = [
-                { key: `${prefix}_ENGINE`, value: cluster.engine },
-                { key: `${prefix}_HOST`, value: endpoint.host },
-                { key: `${prefix}_PORT`, value: String(endpoint.port) },
-                { key: `${prefix}_DATABASE`, value: credential.databaseName },
-                { key: `${prefix}_USERNAME`, value: credential.username },
-                { key: `${prefix}_PASSWORD`, value: credential.password },
+                { key: `${prefix}_ENGINE`, value: connection.engine },
+                { key: `${prefix}_HOST`, value: connection.host },
+                { key: `${prefix}_PORT`, value: String(connection.port) },
+                { key: `${prefix}_DATABASE`, value: connection.databaseName },
+                { key: `${prefix}_USERNAME`, value: connection.username },
+                { key: `${prefix}_PASSWORD`, value: connection.password },
+                { key: `${prefix}_URL`, value: databaseConnectionUrl(connection) },
               ];
               return [
                 ...common,
                 ...frameworkDatabaseEnvironment(
                   configuredApplication.build.framework,
-                  {
-                    databaseName: credential.databaseName,
-                    engine: cluster.engine,
-                    host: endpoint.host,
-                    password: credential.password,
-                    port: endpoint.port,
-                    username: credential.username,
-                  },
+                  connection,
                 ),
               ];
             },
@@ -301,7 +311,7 @@ export async function processProvisioningJobs(
               })
               .where(eq(applicationDeployments.id, input.deploymentId));
         }
-        const environmentVariables = configuredApplication?.build
+        const configuredEnvironmentVariables = configuredApplication?.build
           .environmentVariablesCiphertext
           ? (JSON.parse(
               decryptCredential(
@@ -313,6 +323,10 @@ export async function processProvisioningJobs(
               scope: "runtime" | "build" | "both";
             }>)
           : [];
+        const environmentVariables = resolveManagedDatabaseEnvironmentVariables(
+          configuredEnvironmentVariables,
+          singleDatabaseConnection,
+        );
         return {
           autoDeployEnabled: configuredApplication?.build.autoDeployEnabled,
           name: resourceName,
