@@ -474,7 +474,7 @@ export function DeployApplicationForm({
 	options,
 	workspaceId,
 }: {
-	onCreated: (id: string) => void;
+	onCreated: (id: string) => void | Promise<void>;
 	options: Options;
 	workspaceId: number;
 }) {
@@ -1316,7 +1316,7 @@ export function DeployApplicationForm({
 				},
 			);
 			toast.success('Application deployment queued.');
-			onCreated(result.id);
+				await onCreated(result.id);
 		} catch (error) {
 			toast.error(
 				error instanceof Error

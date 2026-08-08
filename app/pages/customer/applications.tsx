@@ -29,6 +29,7 @@ import { DeployApplicationForm } from '@root/app/components/applications/deploy-
 import { ApplicationCronJobs } from '@root/app/components/applications/application-cron-jobs';
 import { RepositoryDirectoryBrowser } from '@root/app/components/applications/repository-directory-browser';
 import { authenticatedFetch } from '@root/app/utils/authenticatedFetch';
+import { openCreatedApplication } from '@root/app/utils/applicationNavigation';
 
 interface ApplicationDomain {
 	hostname: string;
@@ -352,6 +353,7 @@ export default function CustomerApplicationsPage() {
 	});
 	const [optionsLoading, setOptionsLoading] = useState(false);
 	const [loading, setLoading] = useState(true);
+	const [loadError, setLoadError] = useState<string>();
 	const [submitting, setSubmitting] = useState(false);
 	const [logs, setLogs] = useState('');
 	const [logChannel, setLogChannel] = useState<ApplicationLogChannel>('build');
@@ -382,6 +384,7 @@ export default function CustomerApplicationsPage() {
 	const load = useCallback(async () => {
 		if (!active) return;
 		setLoading(true);
+		setLoadError(undefined);
 		try {
 			setRows(
 				await api<Application[]>(
@@ -389,6 +392,7 @@ export default function CustomerApplicationsPage() {
 				),
 			);
 		} catch (error) {
+			setLoadError(error instanceof Error ? error.message : 'Unable to load applications.');
 			toast.error(
 				error instanceof Error ? error.message : 'Unable to load applications.',
 			);
@@ -1117,9 +1121,7 @@ export default function CustomerApplicationsPage() {
 						</div>
 					) : (
 						<DeployApplicationForm
-							onCreated={(id) =>
-								navigate(`/dashboard/applications/${id}`, { replace: true })
-							}
+							onCreated={(id) => openCreatedApplication({ id, navigate, reload: load })}
 							options={options}
 							workspaceId={active.publicId}
 						/>
@@ -1606,8 +1608,14 @@ export default function CustomerApplicationsPage() {
 								</div>
 							)}
 						</div>
-					) : (
+					) : loading ? (
 						<LoaderCircle className="mt-8 size-6 animate-spin" />
+					) : (
+						<div className="mt-8 rounded-2xl border border-amber-500/25 bg-amber-500/5 p-6">
+							<h3 className="font-bold">Application details unavailable</h3>
+							<p className="mt-2 text-sm text-app-muted">{loadError ?? 'The application was not found in the current workspace data.'}</p>
+							<button className="mt-4 inline-flex items-center gap-2 rounded-xl border border-brand-primary/15 px-4 py-2.5 text-sm font-bold" onClick={() => void load()} type="button"><RefreshCw className="size-4" />Retry</button>
+						</div>
 					)}
 				</Offcanvas>
 			)}
