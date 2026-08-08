@@ -211,6 +211,18 @@ export default [
 			'api/v1/workspaces/databases/rotate.ts',
 		),
 		route(
+			'workspaces/:workspaceId/databases/:databaseId/access',
+			'api/v1/workspaces/databases/access/index.ts',
+		),
+		route(
+			'workspaces/:workspaceId/databases/:databaseId/access/:grantId',
+			'api/v1/workspaces/databases/access/grant.ts',
+		),
+		route(
+			'workspaces/:workspaceId/databases/:databaseId/users/:databaseUserId/action',
+			'api/v1/workspaces/databases/access/user.ts',
+		),
+		route(
 			'workspaces/:workspaceId/databases/:databaseId/explorer/objects',
 			'api/v1/workspaces/databases/explorer-objects.ts',
 		),

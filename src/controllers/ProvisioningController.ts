@@ -6,6 +6,7 @@ import { db } from '@db/client';
 import { customers, provisioningJobs, workspaceMemberships, workspaceResources, workspaces } from '@db/schema';
 import { authenticateSession } from '@services/auth/authenticatedSessionService';
 import { hostingProvider } from '@services/hosting/hostingProviderFactory';
+import { expireDatabaseGrants } from '@services/databases/databaseGrantExpiryService';
 import { processProvisioningJobs } from '@services/provisioning/provisioningService';
 import type { RequestMetadata } from '@utils/request';
 
@@ -22,7 +23,11 @@ export class ProvisioningController {
 	public static async process(request: Request): Promise<Response> {
 		const environment = getEnvironment(); const supplied = request.headers.get('x-internal-job-secret');
 		if (!environment.INTERNAL_JOB_SECRET || supplied !== environment.INTERNAL_JOB_SECRET) return resp.failure('Resource not found.', resp.codes.RESOURCE_NOT_FOUND, undefined, null, undefined, 404);
-		return resp.success('Provisioning jobs processed.', await processProvisioningJobs(10));
+		const [provisioning, databaseGrantExpiry] = await Promise.all([
+			processProvisioningJobs(10),
+			expireDatabaseGrants(),
+		]);
+		return resp.success('Background jobs processed.', { databaseGrantExpiry, provisioning });
 	}
 
 	public static async health(request: Request): Promise<Response> {

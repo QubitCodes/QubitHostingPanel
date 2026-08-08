@@ -1563,6 +1563,55 @@ export const OPENAPI_DOCUMENT = {
 				responses: { '200': { description: 'Matching rows deleted in one transaction and audited.' }, '422': { description: 'Confirmation, primary keys, or table is invalid.' } },
 			},
 		},
+		'/workspaces/{workspaceId}/databases/{databaseId}/access': {
+			get: {
+				summary: 'List database users and grants',
+				operationId: 'listWorkspaceDatabaseAccess',
+				description: 'Returns owner, active, revoked, and expiring grants plus reusable cluster users. Credentials are never included.',
+				security: [{ bearerAuth: [] }],
+				parameters: [{ $ref: '#/components/parameters/WorkspaceId' }, { $ref: '#/components/parameters/DatabaseId' }],
+				responses: { '200': { description: 'Access records and cross-database impact counts.' }, '404': { description: 'Database not found.' } },
+			},
+			post: {
+				summary: 'Grant a database user access',
+				operationId: 'createWorkspaceDatabaseAccess',
+				description: 'Creates a restricted cluster login or reuses an existing one, then applies read-only, read-write, or custom schema/table privileges. New credentials are returned once.',
+				security: [{ bearerAuth: [] }],
+				parameters: [{ $ref: '#/components/parameters/WorkspaceId' }, { $ref: '#/components/parameters/DatabaseId' }],
+				requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', additionalProperties: false, required: ['userMode', 'accessLevel', 'privileges', 'scopes'], properties: { userMode: { type: 'string', enum: ['new', 'existing'] }, databaseUserId: { type: 'string', format: 'uuid' }, username: { type: 'string' }, password: { type: 'string' }, accessLevel: { type: 'string', enum: ['read_only', 'read_write', 'custom'] }, privileges: { type: 'array', items: { type: 'string', enum: ['select', 'insert', 'update', 'delete'] } }, scopes: { type: 'array', items: { type: 'object', required: ['schema'], properties: { schema: { type: 'string' }, table: { type: 'string' } } } }, expiresAt: { type: 'string', format: 'date-time' } } } } } },
+				responses: { '201': { description: 'Provider privileges and grant persisted.' }, '400': { description: 'Strict JSON validation failed.' }, '409': { description: 'Username or active grant already exists.' }, '422': { description: 'The database engine rejected the access change.' } },
+			},
+		},
+		'/workspaces/{workspaceId}/databases/{databaseId}/access/{grantId}': {
+			patch: {
+				summary: 'Update a database grant',
+				operationId: 'updateWorkspaceDatabaseAccess',
+				description: 'Replaces a non-owner grant at the database engine before persisting the new privilege and expiry settings.',
+				security: [{ bearerAuth: [] }],
+				parameters: [{ $ref: '#/components/parameters/WorkspaceId' }, { $ref: '#/components/parameters/DatabaseId' }, { in: 'path', name: 'grantId', required: true, schema: { type: 'string', format: 'uuid' } }],
+				responses: { '200': { description: 'Grant updated and audited.' }, '404': { description: 'Grant not found.' }, '422': { description: 'Owner grants cannot be edited.' } },
+			},
+			delete: {
+				summary: 'Revoke a database grant',
+				operationId: 'revokeWorkspaceDatabaseAccess',
+				description: 'Revokes a non-owner grant after exact username confirmation and records the reason.',
+				security: [{ bearerAuth: [] }],
+				parameters: [{ $ref: '#/components/parameters/WorkspaceId' }, { $ref: '#/components/parameters/DatabaseId' }, { in: 'path', name: 'grantId', required: true, schema: { type: 'string', format: 'uuid' } }],
+				requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', additionalProperties: false, required: ['confirmation', 'reason'], properties: { confirmation: { type: 'string' }, reason: { type: 'string', minLength: 3, maxLength: 500 } } } } } },
+				responses: { '200': { description: 'Grant revoked and audited.' }, '400': { description: 'Username confirmation failed.' }, '422': { description: 'Owner grants cannot be revoked.' } },
+			},
+		},
+		'/workspaces/{workspaceId}/databases/{databaseId}/users/{databaseUserId}/action': {
+			post: {
+				summary: 'Manage a reusable database user',
+				operationId: 'manageWorkspaceDatabaseUser',
+				description: 'Reveals or rotates credentials, suspends/restores login, or deletes an unreferenced user after exact username and impact confirmation. Cluster-wide actions report every affected database.',
+				security: [{ bearerAuth: [] }],
+				parameters: [{ $ref: '#/components/parameters/WorkspaceId' }, { $ref: '#/components/parameters/DatabaseId' }, { in: 'path', name: 'databaseUserId', required: true, schema: { type: 'string', format: 'uuid' } }],
+				requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', additionalProperties: false, required: ['action', 'acceptedImpact', 'confirmation'], properties: { action: { type: 'string', enum: ['reveal', 'rotate', 'suspend', 'restore', 'delete'] }, acceptedImpact: { type: 'boolean', enum: [true] }, confirmation: { type: 'string' }, password: { type: 'string' }, reason: { type: 'string', minLength: 3, maxLength: 500 } } } } } },
+				responses: { '200': { description: 'User action completed and audited.' }, '400': { description: 'Username confirmation failed.' }, '422': { description: 'Deletion is blocked while ownership or active grants remain.' } },
+			},
+		},
 		'/workspaces/{workspaceId}/databases/{databaseId}/backups': {
 			get: {
 				summary: 'List encrypted logical database backups',

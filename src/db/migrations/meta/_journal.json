@@ -330,6 +330,13 @@
       "when": 1786175576850,
       "tag": "0046_unique_polaris",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1786196823225,
+      "tag": "0047_dizzy_clint_barton",
+      "breakpoints": true
     }
   ]
 }

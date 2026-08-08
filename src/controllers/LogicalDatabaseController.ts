@@ -1,6 +1,6 @@
 
 import { randomBytes, randomUUID } from "node:crypto";
-import { and, asc, count, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, asc, count, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 import { resp } from "@qubitcodes/qcresp";
 
 import { db } from "@db/client";
@@ -9,6 +9,7 @@ import {
   applicationDatabaseBindings,
   customers,
   databaseClusters,
+  databaseUserGrants,
   databaseUsers,
   logicalDatabases,
   workspaceMemberships,
@@ -173,14 +174,18 @@ export class LogicalDatabaseController {
 
 			const admin = JSON.parse(decryptCredential(record.cluster.adminCredentialCiphertext)) as ClusterCredential;
 			const endpoint = databaseClusterEndpoint(record.cluster);
-			const [{ value: linkedDatabaseCount }] = record.database.databaseUserId
-				? await db.select({ value: count() }).from(logicalDatabases).where(and(eq(logicalDatabases.databaseUserId, record.database.databaseUserId), isNull(logicalDatabases.deletedAt)))
-				: [{ value: 1 }];
-			const dropUser = Number(linkedDatabaseCount) <= 1;
+			const [[{ value: linkedDatabaseCount }], [{ value: otherGrantCount }]] = record.database.databaseUserId
+				? await Promise.all([
+					db.select({ value: count() }).from(logicalDatabases).where(and(eq(logicalDatabases.databaseUserId, record.database.databaseUserId), isNull(logicalDatabases.deletedAt))),
+					db.select({ value: count() }).from(databaseUserGrants).where(and(eq(databaseUserGrants.databaseUserId, record.database.databaseUserId), ne(databaseUserGrants.logicalDatabaseId, record.database.id), eq(databaseUserGrants.status, 'active'), isNull(databaseUserGrants.deletedAt))),
+				])
+				: [[{ value: 1 }], [{ value: 0 }]];
+			const dropUser = Number(linkedDatabaseCount) <= 1 && Number(otherGrantCount) === 0;
 			await sharedDatabaseProvisioner(record.cluster.engine).deleteLogicalDatabase({ adminDatabase: admin.database, adminPassword: admin.password, adminUsername: admin.username, databaseName: record.database.databaseName, dropUser, host: endpoint.host, port: endpoint.port, tlsMode: endpoint.tlsMode, username: record.database.username });
 			const deletedAt = new Date();
 			await db.transaction(async (transaction) => {
 				if (bindings.length) await transaction.update(applicationDatabaseBindings).set({ deletedAt, deleteReason: 'Database deleted by workspace user.', updatedAt: deletedAt }).where(inArray(applicationDatabaseBindings.id, bindings.map(({ bindingId }) => bindingId)));
+				await transaction.update(databaseUserGrants).set({ status: 'revoked', revokedAt: deletedAt, revokedByUserId: actorUserId, revokeReason: 'Logical database deleted.', deletedAt, deleteReason: 'Logical database deleted.', updatedAt: deletedAt }).where(and(eq(databaseUserGrants.logicalDatabaseId, record.database.id), isNull(databaseUserGrants.deletedAt)));
 				await transaction.update(logicalDatabases).set({ status: 'suspended', deletedAt, deleteReason: 'Deleted by workspace user.', updatedAt: deletedAt }).where(eq(logicalDatabases.id, record.database.id));
 				if (dropUser && record.database.databaseUserId) await transaction.update(databaseUsers).set({ status: 'suspended', deletedAt, deleteReason: 'Last connected database deleted by workspace user.', updatedAt: deletedAt }).where(eq(databaseUsers.id, record.database.databaseUserId));
 				if (record.database.resourceId) await transaction.update(workspaceResources).set({ status: 'stopped', deletedAt, deleteReason: 'Logical database deleted by workspace user.', updatedAt: deletedAt }).where(eq(workspaceResources.id, record.database.resourceId));
@@ -505,6 +510,14 @@ export class LogicalDatabaseController {
           })
           .returning(logicalDatabasePublicFields);
         if (!database) throw new Error("Unable to persist logical database.");
+        await transaction.insert(databaseUserGrants).values({
+          workspaceId: workspace.id,
+          logicalDatabaseId: database.id,
+          databaseUserId,
+          accessLevel: 'owner',
+          privileges: ['select', 'insert', 'update', 'delete'],
+          grantedByUserId: actorUserId,
+        });
         return composeLogicalDatabaseResponse(database, cluster.cluster);
       });
       await commitUsageReservation(reservationId, "logical_database", record.id);
