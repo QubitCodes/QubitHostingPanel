@@ -39,6 +39,16 @@ Use S3-compatible object storage for durable files, backups, and customer object
 - Test restores regularly.
 - Record backup and restore evidence.
 
+### Implemented logical-database recovery
+
+- Manual and automatic encrypted PostgreSQL/MySQL exports share one audited lifecycle.
+- Complete `DATABASE_BACKUP_S3_*` configuration selects S3-compatible off-site storage; otherwise the configured local root is used.
+- Artifacts are AES-256-GCM encrypted and SHA-256 checksummed.
+- Package retention caps schedules; the worker creates due backups and removes expired artifacts in bounded batches.
+- Integrity checks fetch and decrypt an artifact without changing a database.
+- Clone restore requires another active, same-workspace, same-engine database and exact target-name confirmation.
+- Artifact verification does not replace periodic disposable-database restore drills.
+
 ## 6. Future migration to self-hosted PostgreSQL
 
 1. Inventory PostgreSQL version, extensions, roles, schemas, row counts, and dependencies.

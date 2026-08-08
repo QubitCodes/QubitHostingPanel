@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { resetEnvironmentForTests } from '@config/env';
-import { databaseBackupPublicIdSchema, restoreDatabaseBackupSchema } from '@schemas/databaseBackup';
+import { cloneDatabaseBackupSchema, databaseBackupPublicIdSchema, databaseBackupScheduleSchema, restoreDatabaseBackupSchema } from '@schemas/databaseBackup';
 import { databaseDumpCommand, resolveDatabaseBackupPath } from '@services/databases/databaseBackupService';
 
 afterEach(() => resetEnvironmentForTests());
@@ -15,6 +15,12 @@ describe('database backup safety', () => {
 	it('keeps generated storage keys under the configured root', () => {
 		expect(resolveDatabaseBackupPath('storage/database-backups', 'workspace/database/backup.qdb')).toMatch(/storage[\\/]database-backups[\\/]workspace/);
 		expect(() => resolveDatabaseBackupPath('storage/database-backups', '../credential.qdb')).toThrow('invalid');
+	});
+
+	it('validates bounded schedules and exact clone targets', () => {
+		expect(databaseBackupScheduleSchema.parse({ frequencyHours: 24, isEnabled: true, retentionDays: 14 })).toEqual({ frequencyHours: 24, isEnabled: true, retentionDays: 14 });
+		expect(databaseBackupScheduleSchema.safeParse({ frequencyHours: 0, isEnabled: true, retentionDays: 14 }).success).toBe(false);
+		expect(cloneDatabaseBackupSchema.safeParse({ targetDatabaseId: 'not-a-uuid', confirmation: 'target' }).success).toBe(false);
 	});
 
 	it('keeps PostgreSQL passwords out of native command arguments', () => {

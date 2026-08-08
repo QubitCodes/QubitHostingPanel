@@ -200,7 +200,7 @@ The checked Phase 6 database items establish provisioning, credentials, row mana
 - [ ] SQL cancellation, CSV result export, persistent saved queries, and permission-separated customer roles once collaborative workspace roles are introduced.
 - [ ] CSV/JSON/table-scoped transfers, background progress, failure recovery, and automatic pre-import safety backups.
 - [x] Multiple database users with read-only/read-write/custom grants, disable/delete controls, automatic expiry, exact confirmation, audit history, and cross-database impact reporting.
-- [ ] Automatic per-database backup schedules, retention cleanup, off-site object storage, clone restore, and restore verification.
+- [x] Automatic per-database backup schedules, package-bounded retention cleanup, encrypted S3-compatible off-site storage, same-workspace/same-engine clone restore, and checksum/authentication verification evidence.
 - [ ] Connection, lock, query, storage, index-usage, and slow-query diagnostics with safe cancellation controls.
 - [ ] Editable views, materialized views, routines, triggers, sequences, and MySQL events.
 - [ ] Database clone/rename/move workflows and package-gated external-access controls.

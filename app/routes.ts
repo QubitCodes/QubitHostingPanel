@@ -261,6 +261,9 @@ export default [
 			'workspaces/:workspaceId/databases/:databaseId/backups/:backupId/download',
 			'api/v1/workspaces/databases/backups/download.ts',
 		),
+		route('workspaces/:workspaceId/databases/:databaseId/backups/schedule', 'api/v1/workspaces/databases/backups/schedule.ts'),
+		route('workspaces/:workspaceId/databases/:databaseId/backups/:backupId/verify', 'api/v1/workspaces/databases/backups/verify.ts'),
+		route('workspaces/:workspaceId/databases/:databaseId/backups/:backupId/clone', 'api/v1/workspaces/databases/backups/clone.ts'),
 		route(
 			'workspaces/:workspaceId/database-users',
 			'api/v1/workspaces/databases/users.ts',

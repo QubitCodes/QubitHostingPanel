@@ -1,7 +1,7 @@
 import { getTableConfig } from 'drizzle-orm/pg-core';
 import { describe, expect, it } from 'vitest';
 
-import { applicationBuilds, applicationDatabaseBindings, applicationDeployments, databaseBackups, databaseClusters, databaseUsers, logicalDatabases, runtimeImages } from '@db/schema';
+import { applicationBuilds, applicationDatabaseBindings, applicationDeployments, databaseBackups, databaseBackupSchedules, databaseClusters, databaseUsers, logicalDatabases, runtimeImages } from '@db/schema';
 
 describe('shared platform schema', () => {
 	it('defines shared runtimes, builds, clusters, and logical databases', () => {
@@ -24,5 +24,9 @@ describe('shared platform schema', () => {
 		const backupConfig = getTableConfig(databaseBackups);
 		expect(backupConfig.foreignKeys).toHaveLength(2);
 		expect(backupConfig.checks.some((constraint) => constraint.name === 'database_backups_completion_check')).toBe(true);
+		const scheduleConfig = getTableConfig(databaseBackupSchedules);
+		expect(scheduleConfig.foreignKeys).toHaveLength(2);
+		expect(scheduleConfig.indexes.some((index) => index.config.name === 'database_backup_schedules_database_active_unique')).toBe(true);
+		expect(scheduleConfig.checks.some((constraint) => constraint.name === 'database_backup_schedules_retention_check')).toBe(true);
 	});
 });

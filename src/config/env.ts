@@ -30,6 +30,12 @@ const environmentSchema = z
 			.min(30)
 			.max(86400)
 			.default(3600),
+		DATABASE_BACKUP_S3_ENDPOINT: optionalEnvironmentSecret,
+		DATABASE_BACKUP_S3_REGION: z.string().trim().min(1).default('us-east-1'),
+		DATABASE_BACKUP_S3_BUCKET: optionalEnvironmentSecret,
+		DATABASE_BACKUP_S3_ACCESS_KEY_ID: optionalEnvironmentSecret,
+		DATABASE_BACKUP_S3_SECRET_ACCESS_KEY: optionalEnvironmentSecret,
+		DATABASE_BACKUP_S3_FORCE_PATH_STYLE: z.enum(['true', 'false']).default('false'),
 		DATABASE_IMPORT_STORAGE_PATH: z.string().trim().min(1).default('storage/database-imports'),
 		DATABASE_IMPORT_MAX_MB: z.coerce.number().int().min(1).max(2048).default(100),
 		DATABASE_IMPORT_TOKEN_TTL_MINUTES: z.coerce.number().int().min(5).max(120).default(30),
@@ -113,6 +119,8 @@ const environmentSchema = z
 		OTP_MAX_ATTEMPTS: z.coerce.number().int().positive().max(10).default(5),
 	})
 	.superRefine((environment, context) => {
+		const s3Values = [environment.DATABASE_BACKUP_S3_BUCKET, environment.DATABASE_BACKUP_S3_ACCESS_KEY_ID, environment.DATABASE_BACKUP_S3_SECRET_ACCESS_KEY];
+		if (s3Values.some(Boolean) && s3Values.some((value) => !value)) context.addIssue({ code: 'custom', message: 'S3 backup bucket, access key, and secret key must be configured together.', path: ['DATABASE_BACKUP_S3_BUCKET'] });
 		if (environment.PAYU_ENABLED === 'true' && !environment.PAYU_MERCHANT_KEY) {
 			context.addIssue({
 				code: 'custom',

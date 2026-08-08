@@ -337,6 +337,13 @@
       "when": 1786196823225,
       "tag": "0047_dizzy_clint_barton",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1786200394879,
+      "tag": "0048_safe_captain_cross",
+      "breakpoints": true
     }
   ]
 }

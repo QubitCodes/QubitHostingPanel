@@ -46,6 +46,7 @@
 		"platform:sync:schedules": "node --env-file-if-exists=.env --import tsx scripts/syncPlatformScheduledTasks.ts"
 	},
 	"dependencies": {
+		"@aws-sdk/client-s3": "^3.1106.0",
 		"@hookform/resolvers": "^5.2.2",
 		"@qubitcodes/msg91": "^0.2.0",
 		"@qubitcodes/qcresp": "1.0.1",
