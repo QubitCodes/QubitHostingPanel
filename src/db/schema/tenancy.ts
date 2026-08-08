@@ -1,6 +1,7 @@
 import { relations, sql } from 'drizzle-orm';
 import {
 	check,
+	boolean,
 	index,
 	integer,
 	pgEnum,
@@ -78,6 +79,7 @@ export const workspaces = pgTable('workspaces', {
 	slug: varchar('slug', { length: 160 }).notNull(),
 	type: workspaceTypeEnum('type').notNull().default('personal'),
 	status: workspaceStatusEnum('status').notNull().default('active'),
+	autoCharsetFix: boolean('auto_charset_fix').notNull().default(true),
 	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 	updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 	deletedAt: timestamp('deleted_at', { withTimezone: true }),

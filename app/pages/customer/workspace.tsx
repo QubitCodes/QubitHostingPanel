@@ -6,6 +6,7 @@ import {
   ReceiptText,
   Settings,
   Unplug,
+  WandSparkles,
 } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 import { useOutletContext, useSearchParams } from "react-router";
@@ -49,8 +50,12 @@ export default function WorkspaceSettingsPage() {
   const [githubConnections, setGithubConnections] = useState<GithubConnection[]>([]);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const [compatibilityChoices, setCompatibilityChoices] = useState<Record<number, boolean>>({});
   const [searchParams, setSearchParams] = useSearchParams();
   const workspaceId = active?.publicId;
+  const autoCharsetFix = workspaceId !== undefined && workspaceId in compatibilityChoices
+    ? compatibilityChoices[workspaceId] ?? true
+    : active?.autoCharsetFix ?? true;
   async function api(path: string, init?: RequestInit) {
     const response = await authenticatedFetch(path, init);
     const body = (await response.json()) as {
@@ -184,6 +189,22 @@ export default function WorkspaceSettingsPage() {
       setBusy(false);
     }
   }
+  async function updateCompatibility(enabled: boolean) {
+    if (!workspaceId) return;
+    setBusy(true);
+    try {
+      await api(`/api/v1/workspaces/${workspaceId}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ autoCharsetFix: enabled }),
+      });
+      setCompatibilityChoices((current) => ({ ...current, [workspaceId]: enabled }));
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Unable to update compatibility settings.');
+    } finally {
+      setBusy(false);
+    }
+  }
   if (!active)
     return (
       <div className="grid min-h-56 place-items-center">
@@ -204,6 +225,32 @@ export default function WorkspaceSettingsPage() {
         </p>
       )}
       <div className="mt-8 grid gap-6 lg:grid-cols-2">
+        <section className="rounded-3xl border border-brand-primary/10 bg-app-surface p-6 lg:col-span-2">
+          <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3">
+              <WandSparkles className="mt-1 size-6 shrink-0 text-brand-primary dark:text-brand-action" />
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="text-xl font-black">Automatic character-set compatibility fixes</h3>
+                  <span className="rounded-full bg-violet-500/10 px-2.5 py-1 text-xs font-black uppercase tracking-wide text-violet-700 dark:text-violet-300">Beta</span>
+                </div>
+                <p className="mt-2 max-w-3xl text-sm text-app-muted">
+                  Convert high-confidence legacy text encodings to UTF-8 only inside the disposable build copy. Git repositories are never changed. Ambiguous and binary files remain untouched.
+                </p>
+              </div>
+            </div>
+            <button
+              aria-pressed={autoCharsetFix}
+              className={`relative h-8 w-14 shrink-0 rounded-full transition ${autoCharsetFix ? 'bg-brand-action' : 'bg-brand-primary/20'}`}
+              disabled={busy}
+              onClick={() => void updateCompatibility(!autoCharsetFix)}
+              type="button"
+            >
+              <span className={`absolute top-1 size-6 rounded-full bg-white shadow transition ${autoCharsetFix ? 'left-7' : 'left-1'}`} />
+              <span className="sr-only">{autoCharsetFix ? 'Disable' : 'Enable'} automatic character-set fixes</span>
+            </button>
+          </div>
+        </section>
         {active.type === "personal" && (
           <form
             className="rounded-3xl border border-brand-primary/10 bg-app-surface p-6"

@@ -4,6 +4,10 @@ export const customerPublicIdSchema = z.number().int().min(100000).max(999999);
 export const workspacePublicIdSchema = z.number().int().min(100000).max(999999);
 export const workspaceSlugSchema = z.string().trim().min(2).max(160).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/);
 
+export const updateWorkspaceCompatibilitySchema = z.object({
+	autoCharsetFix: z.boolean(),
+}).strict();
+
 export const createWorkspaceSchema = z.object({
 	name: z.string().trim().min(2).max(160),
 	slug: workspaceSlugSchema,
@@ -36,3 +40,4 @@ export const convertWorkspaceToOrganisationSchema = z.object({
 
 export type CreateWorkspaceInput = z.infer<typeof createWorkspaceSchema>;
 export type ConvertWorkspaceToOrganisationInput = z.infer<typeof convertWorkspaceToOrganisationSchema>;
+export type UpdateWorkspaceCompatibilityInput = z.infer<typeof updateWorkspaceCompatibilitySchema>;

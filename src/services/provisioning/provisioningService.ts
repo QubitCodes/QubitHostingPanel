@@ -13,6 +13,7 @@ import {
   logicalDatabases,
   provisioningJobs,
   runtimeImages,
+  workspaces,
   workspaceResources,
 } from "@db/schema";
 import {
@@ -327,7 +328,18 @@ export async function processProvisioningJobs(
           configuredEnvironmentVariables,
           singleDatabaseConnection,
         );
+        const [workspaceCompatibility] = await db
+          .select({ autoCharsetFix: workspaces.autoCharsetFix })
+          .from(workspaces)
+          .where(
+            and(
+              eq(workspaces.id, claimed.workspaceId),
+              isNull(workspaces.deletedAt),
+            ),
+          )
+          .limit(1);
         return {
+          autoCharsetFix: workspaceCompatibility?.autoCharsetFix ?? true,
           autoDeployEnabled: configuredApplication?.build.autoDeployEnabled,
           name: resourceName,
           persistentStorages: frameworkDefinition(

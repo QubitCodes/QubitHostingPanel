@@ -23,6 +23,16 @@ interface DiagnosticRule {
 
 const DIAGNOSTIC_RULES: DiagnosticRule[] = [
 	{
+		code: 'invalid-source-encoding',
+		developerActionRequired: false,
+		explanation: 'A source file uses a character encoding that the automatic builder cannot read as UTF-8.',
+		owner: 'platform',
+		pattern: /Error reading\s+[^\r\n]+[\s\S]{0,500}stream did not contain valid UTF-8/i,
+		phase: 'build',
+		suggestion: 'Enable the beta character-set compatibility fix for this workspace and redeploy. Ghost Deploy changes only the disposable build copy.',
+		title: 'Source encoding compatibility issue',
+	},
+	{
 		code: 'npm-lock-out-of-sync',
 		developerActionRequired: false,
 		owner: 'project',
@@ -147,6 +157,7 @@ export function diagnoseDeploymentLogs(
 	const location = logs.match(
 		/(?:^|\n)(?:#\d+\s+[\d.]+\s+)?\.\/?([^\r\n:]+\.(?:[cm]?[jt]sx?|php|py|rb|go)):(\d+):(\d+)/i,
 	);
+	const encodingLocation = logs.match(/Error reading\s+([^\r\n]+)/i);
 	const detail = logs.match(
 		/(?:Type error:|error TS\d+:|npm ERR!|ERR_PNPM|yarn error)\s*([^\r\n]+)/i,
 	);
@@ -157,6 +168,8 @@ export function diagnoseDeploymentLogs(
 		explanation: rule.explanation,
 		...(location
 			? { location: `${location[1]}:${location[2]}:${location[3]}` }
+			: encodingLocation?.[1]
+				? { location: encodingLocation[1].trim() }
 			: {}),
 		owner: rule.owner,
 		phase: rule.phase,

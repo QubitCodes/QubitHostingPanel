@@ -1,4 +1,5 @@
 import { getEnvironment } from '@config/env';
+import { parseCharsetCompatibilityFixes } from '@services/applications/charsetCompatibilityService';
 import { diagnoseDeploymentLogs } from '@services/applications/deploymentDiagnosticService';
 import { parseDeploymentLogs } from '@services/applications/deploymentLogParserService';
 import type {
@@ -239,6 +240,7 @@ export class CoolifyHostingProvider implements HostingProvider {
 					const item = row as Record<string, unknown>;
 					const logs = normalizeCoolifyDeploymentLogs(item.logs);
 					return {
+						compatibilityFixes: parseCharsetCompatibilityFixes(logs),
 						id: String(item.deployment_uuid ?? item.uuid ?? item.id ?? ''),
 						status: String(item.status ?? 'unknown'),
 						commitSha:
@@ -286,6 +288,7 @@ export class CoolifyHostingProvider implements HostingProvider {
 		);
 		const logs = normalizeCoolifyDeploymentLogs(item.logs);
 		return {
+			compatibilityFixes: parseCharsetCompatibilityFixes(logs),
 			id: String(item.deployment_uuid ?? item.uuid ?? item.id ?? deploymentId),
 			status: String(item.status ?? 'unknown'),
 			commitSha:
@@ -578,6 +581,12 @@ export class CoolifyHostingProvider implements HostingProvider {
 				variable.value,
 				variable.scope,
 			);
+		await this.upsertApplicationEnvironment(
+			body.uuid,
+			'GHOST_DEPLOY_AUTO_CHARSET_FIX',
+			input.autoCharsetFix === false ? 'false' : 'true',
+			'build',
+		);
 		// PORT is platform-owned. It is container-local, so applications in
 		// different containers can safely use the same value without collisions.
 		await this.upsertApplicationEnvironment(

@@ -27,6 +27,14 @@ Compiler and framework packages frequently live in `devDependencies`, so product
 
 Runtime-only secrets are not exposed to the image build. Variables used by frontend bundlers or explicit build validation must have build scope. `PORT` is platform-owned and cannot create a cross-customer collision because it is container-local.
 
+## Character-set compatibility (Beta)
+
+Workspace owners and administrators can disable or enable automatic character-set compatibility fixes; the default is enabled. Ghost Deploy passes the policy to Coolify as a build-only flag. A platform-controlled helper wraps only `nixpacks plan`, validates source-like files, and converts high-confidence legacy text to UTF-8 inside Coolify's disposable checkout before Nixpacks scans it. The upstream repository, branch and commit are never modified.
+
+Eligible files are bounded by extension and size. Dependencies, generated artifacts, binaries, ambiguous detections and low-confidence encodings are not converted. Original bytes are retained outside the Docker build context for the lifetime of the helper container, while the immutable Git commit and previous successful image provide durable recovery. Build logs receive structured markers containing only file paths, encodings, confidence and checksums. Deployment history renders those markers as a visible Beta notice.
+
+Coolify must use the helper image documented in `infrastructure/coolify-helper/README.md`. Its tag must match Coolify's configured helper version. Upgrade Coolify's helper only after building and smoke-testing the matching GhostDeploy extension tag.
+
 ## Live status and logs
 
 The browser opens one authenticated server-sent event stream. Ghost Deploy combines Coolify notifications with one short-lived provider tracker while a deployment is active. This provides live status, log availability and history refreshes without every browser polling Coolify independently.

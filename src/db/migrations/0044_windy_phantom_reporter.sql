@@ -1,0 +1,1 @@
+ALTER TABLE "workspaces" ADD COLUMN "auto_charset_fix" boolean DEFAULT true NOT NULL;

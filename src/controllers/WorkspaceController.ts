@@ -3,6 +3,8 @@ import { resp } from '@qubitcodes/qcresp';
 
 import { db } from '@db/client';
 import { customers, organisations, packages, paymentAttempts, workspaceMemberships, workspaces, workspaceSubscriptions } from '@db/schema';
+import type { UpdateWorkspaceCompatibilityInput } from '@schemas/workspace';
+import { recordAuditLog } from '@services/auditLogService';
 import { authenticateSession } from '@services/auth/authenticatedSessionService';
 import type { RequestMetadata } from '@utils/request';
 
@@ -13,6 +15,7 @@ const workspaceProjection = {
 	slug: workspaces.slug,
 	type: workspaces.type,
 	status: workspaces.status,
+	autoCharsetFix: workspaces.autoCharsetFix,
 	role: workspaceMemberships.role,
 	organisationDisplayName: organisations.displayName,
 	subscriptionStatus: workspaceSubscriptions.status,
@@ -92,6 +95,69 @@ export class WorkspaceController {
 				verifiedAt: paymentAttempts.verifiedAt,
 			}).from(paymentAttempts).where(and(eq(paymentAttempts.checkoutId, workspace.checkoutId), isNull(paymentAttempts.deletedAt))).orderBy(desc(paymentAttempts.createdAt)) : [];
 			return resp.success('Workspace retrieved.', { ...workspace, payments, subscriptions });
+		} catch {
+			return resp.failure('Authentication required.', resp.codes.AUTHENTICATION_ERROR, undefined, null, undefined, 401);
+		}
+	}
+
+	/** Updates owner-controlled deployment compatibility defaults for one workspace. */
+	public static async updateCompatibility(
+		request: Request,
+		publicId: number,
+		input: UpdateWorkspaceCompatibilityInput,
+		metadata: RequestMetadata,
+	): Promise<Response> {
+		try {
+			const authenticated = await authenticateSession(request, metadata);
+			const [workspace] = await db
+				.select({ id: workspaces.id, role: workspaceMemberships.role })
+				.from(customers)
+				.innerJoin(
+					workspaceMemberships,
+					and(
+						eq(workspaceMemberships.customerId, customers.id),
+						eq(workspaceMemberships.status, 'active'),
+						isNull(workspaceMemberships.deletedAt),
+					),
+				)
+				.innerJoin(
+					workspaces,
+					and(
+						eq(workspaces.id, workspaceMemberships.workspaceId),
+						eq(workspaces.publicId, publicId),
+						isNull(workspaces.deletedAt),
+					),
+				)
+				.where(
+					and(
+						eq(customers.userId, authenticated.userId),
+						isNull(customers.deletedAt),
+					),
+				)
+				.limit(1);
+			if (!workspace || !['owner', 'administrator'].includes(workspace.role))
+				return resp.failure(
+					'Workspace settings permission is required.',
+					resp.codes.PERMISSION_DENIED,
+					undefined,
+					null,
+					undefined,
+					403,
+				);
+			await db
+				.update(workspaces)
+				.set({ autoCharsetFix: input.autoCharsetFix, updatedAt: new Date() })
+				.where(eq(workspaces.id, workspace.id));
+			await recordAuditLog({
+				actorUserId: authenticated.userId,
+				action: 'workspace.compatibility_settings_updated',
+				resourceType: 'workspace',
+				resourceId: workspace.id,
+				metadata: { autoCharsetFix: input.autoCharsetFix, publicId },
+				ipAddress: metadata.ipAddress,
+				userAgent: metadata.userAgent,
+			});
+			return resp.success('Deployment compatibility settings updated.', input, resp.codes.UPDATED);
 		} catch {
 			return resp.failure('Authentication required.', resp.codes.AUTHENTICATION_ERROR, undefined, null, undefined, 401);
 		}

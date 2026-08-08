@@ -25,6 +25,7 @@ import {
 import { clearDashboardData, dashboardData } from '@root/app/utils/dashboardData';
 
 export interface WorkspaceSummary {
+	autoCharsetFix?: boolean;
 	cancelAtPeriodEnd?: boolean | null;
 	name: string;
 	packageName?: string | null;

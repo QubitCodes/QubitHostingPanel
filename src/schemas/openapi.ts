@@ -914,6 +914,29 @@ export const OPENAPI_DOCUMENT = {
 					'404': { description: 'Workspace not found or inaccessible.' },
 				},
 			},
+			patch: {
+				summary: 'Update workspace deployment compatibility defaults',
+				operationId: 'updateWorkspaceCompatibility',
+				security: [{ bearerAuth: [] }],
+				parameters: [{ $ref: '#/components/parameters/WorkspaceId' }],
+				requestBody: {
+					required: true,
+					content: {
+						'application/json': {
+							schema: {
+								type: 'object',
+								required: ['autoCharsetFix'],
+								additionalProperties: false,
+								properties: { autoCharsetFix: { type: 'boolean', default: true } },
+							},
+						},
+					},
+				},
+				responses: {
+					'200': { description: 'Compatibility setting updated and audit logged.' },
+					'403': { description: 'Workspace owner or administrator permission required.' },
+				},
+			},
 		},
 		'/public/catalogue': {
 			get: {

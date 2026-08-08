@@ -25,6 +25,7 @@ export interface ProviderJob {
 export type ProviderJobStatus = 'pending' | 'running' | 'succeeded' | 'failed';
 
 export interface ProvisionApplicationInput {
+	autoCharsetFix?: boolean;
 	autoDeployEnabled?: boolean;
 	baseDirectory?: string;
 	buildCommand?: string;
@@ -78,6 +79,7 @@ export interface ProviderScheduledTaskExecution {
 	uuid: string;
 }
 export interface ProviderDeployment {
+	compatibilityFixes?: readonly import('@services/applications/charsetCompatibilityService').CharsetCompatibilityFix[];
 	diagnostic?:
 		| import('@services/applications/deploymentDiagnosticService').DeploymentDiagnostic
 		| null;

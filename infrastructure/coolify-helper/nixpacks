@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ "${1:-}" == "plan" ]] && printf '%s\n' "$@" | grep -Fq "GHOST_DEPLOY_AUTO_CHARSET_FIX=true"; then
+	source_directory="${!#}"
+	python3 /usr/local/lib/ghostdeploy/normalize-source.py "$source_directory"
+fi
+
+exec /usr/local/bin/nixpacks-original "$@"

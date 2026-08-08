@@ -79,6 +79,12 @@ interface Application {
 }
 interface DeploymentHistory {
 	items: Array<{
+		compatibilityFixes?: Array<{
+			confidence: number;
+			from: string;
+			path: string;
+			to: 'utf-8';
+		}>;
 		commitMessage?: string | null;
 		commitSha?: string | null;
 		createdAt?: string | null;
@@ -1474,6 +1480,19 @@ export default function CustomerApplicationsPage() {
 														<p className="mt-2 text-sm font-medium">
 															Next: {deployment.diagnostic.suggestion}
 														</p>
+													</div>
+												)}
+												{Boolean(deployment.compatibilityFixes?.length) && (
+													<div className="mt-4 rounded-xl border border-violet-500/30 bg-violet-500/10 p-4 text-violet-800 dark:text-violet-200">
+														<p className="text-xs font-bold uppercase tracking-wide">Compatibility fix applied · Beta</p>
+														<p className="mt-1 text-sm">Ghost Deploy converted {deployment.compatibilityFixes?.length} source file(s) only inside this build copy. The Git repository was not modified.</p>
+														<ul className="mt-3 grid gap-2 text-xs">
+															{deployment.compatibilityFixes?.map((fix) => (
+																<li className="rounded-lg bg-black/10 px-3 py-2" key={`${fix.path}-${fix.from}`}>
+																	<code className="font-bold">{fix.path}</code> · {fix.from} → UTF-8 · confidence {(fix.confidence * 10).toFixed(1)}/10
+																</li>
+															))}
+														</ul>
 													</div>
 												)}
 												<p className="mt-3 text-xs text-app-muted">
