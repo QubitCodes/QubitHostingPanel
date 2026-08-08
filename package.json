@@ -41,7 +41,9 @@
 		"db:seed:dummy": "node --env-file-if-exists=.env --import tsx src/db/seeders/dummy_data_seeder.ts",
 		"db:backfill:customers": "node --env-file-if-exists=.env --import tsx src/db/seeders/customer_workspace_backfill.ts",
 		"db:backfill:entitlements": "node --env-file-if-exists=.env --import tsx scripts/backfillSubscriptionEntitlements.ts",
-		"applications:sync:policies": "node --env-file-if-exists=.env --import tsx scripts/syncApplicationPolicies.ts"
+		"applications:sync:policies": "node --env-file-if-exists=.env --import tsx scripts/syncApplicationPolicies.ts",
+		"applications:audit:provider-references": "node --env-file-if-exists=.env --import tsx scripts/auditApplicationProviderReferences.ts",
+		"platform:sync:schedules": "node --env-file-if-exists=.env --import tsx scripts/syncPlatformScheduledTasks.ts"
 	},
 	"dependencies": {
 		"@hookform/resolvers": "^5.2.2",

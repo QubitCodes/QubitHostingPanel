@@ -100,9 +100,17 @@ npm.cmd run db:backfill:entitlements
 npm.cmd run db:backfill:entitlements -- --apply
 npm.cmd run applications:sync:policies
 npm.cmd run applications:sync:policies -- --apply
+npm.cmd run applications:audit:provider-references
+npm.cmd run platform:sync:schedules
+npm.cmd run platform:sync:schedules -- --apply
+npm.cmd run platform:sync:schedules -- --application-uuid=<coolify-application-uuid>
 ```
 
-The entitlement backfill appends only explicitly allow-listed, missing feature grants and writes an audit event without replacing purchased values. The application synchronizer updates framework-aware provider release hooks and audits every changed target.
+The entitlement backfill appends only explicitly allow-listed, missing feature grants and writes an audit event without replacing purchased values. The application synchronizer updates framework-aware provider release hooks and audits every changed target. The provider-reference audit is read-only: it distinguishes present resources, confirmed missing references, and a provider outage without deleting customer data.
+
+Managed traffic policies use a root-owned host synchronizer under `ops/traffic-policy`. It writes only `/data/coolify/proxy/dynamic/ghostdeploy-policies.json`, keeps one rollback copy, and never takes ownership of Coolify-generated application labels. Install it only after the panel code and matching `INTERNAL_JOB_SECRET` are deployed; operational steps are in `Docs/PRODUCTION_OPERATIONS_RUNBOOK.md`.
+
+The platform scheduler synchronizer is also dry-run by default. It finds the panel by exact `APP_URL` hostname unless `COOLIFY_PANEL_APPLICATION_UUID` is set, then idempotently reconciles provisioning, provider inventory, usage observation, and readiness tasks without printing existing custom task commands.
 
 Create the first Super Admin explicitly, without persisting identity details in environment configuration:
 

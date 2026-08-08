@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { and, eq, isNull, notInArray } from 'drizzle-orm';
 
 import { db } from '@db/client';
-import { providerConnections, providerImportedResources, providerReconciliationRuns, workspaceResources } from '@db/schema';
+import { auditLogs, providerConnections, providerImportedResources, providerReconciliationRuns, workspaceResources } from '@db/schema';
 import type { CoolifyImportKind } from '@services/hosting/CoolifyHostingProvider';
 import { managedCoolifyProvider } from '@services/hosting/providerConnectionService';
 
@@ -17,6 +17,47 @@ export function sanitizeProviderSnapshot(value: unknown): unknown {
 }
 
 function identity(item: Record<string, unknown>): string | undefined { return [item.uuid, item.id, item.deployment_uuid].find((value) => typeof value === 'string' || typeof value === 'number')?.toString(); }
+
+/** Converts provider compound states into the persisted customer-resource lifecycle. */
+export function providerWorkspaceResourceStatus(
+	status: string,
+): 'failed' | 'provisioning' | 'running' | 'stopped' | 'unknown' {
+	const normalized = status.trim().toLowerCase();
+	if (/unhealthy|failed|failure|dead|error|cancel/.test(normalized)) return 'failed';
+	if (/starting|restarting|building|queued|pending|deploying/.test(normalized)) return 'provisioning';
+	if (/running|healthy|finished|success/.test(normalized)) return 'running';
+	if (/stopped|exited|paused|inactive/.test(normalized)) return 'stopped';
+	return 'unknown';
+}
+
+/** Updates one matched resource and records only meaningful status transitions. */
+async function reconcileMatchedResourceStatus(input: {
+	connectionId: string;
+	providerResourceId: string;
+	resourceId: string;
+	status: 'failed' | 'provisioning' | 'running' | 'stopped' | 'unknown';
+	previousStatus: 'failed' | 'provisioning' | 'running' | 'stopped' | 'unknown';
+}): Promise<void> {
+	const now = new Date();
+	await db.update(workspaceResources).set({
+		lastReconciledAt: now,
+		status: input.status,
+		updatedAt: now,
+	}).where(eq(workspaceResources.id, input.resourceId));
+	if (input.status === input.previousStatus) return;
+	await db.insert(auditLogs).values({
+		action: 'provider.resource_status_reconciled',
+		metadata: {
+			connectionId: input.connectionId,
+			newStatus: input.status,
+			previousStatus: input.previousStatus,
+			providerResourceId: input.providerResourceId,
+			source: 'provider_reconciliation',
+		},
+		resourceId: input.resourceId,
+		resourceType: 'workspace_resource',
+	});
+}
 
 /** Reconciles provider inventory without creating workspaces, subscriptions, or ownership. */
 export async function reconcileProviderConnection(connectionId: string): Promise<{ failures: Array<{ kind: string; message: string }>; importedCounts: Record<string, number>; runId: string }> {
@@ -36,10 +77,16 @@ export async function reconcileProviderConnection(connectionId: string): Promise
 				observedIds.push(providerResourceId);
 				const snapshot = sanitizeProviderSnapshot(item) as Record<string, unknown>;
 				const payloadHash = createHash('sha256').update(JSON.stringify(snapshot)).digest('hex');
-				const [matched] = await db.select({ id: workspaceResources.id }).from(workspaceResources).where(and(eq(workspaceResources.providerResourceId, providerResourceId), isNull(workspaceResources.deletedAt))).limit(1);
+				const [matched] = await db.select({ id: workspaceResources.id, status: workspaceResources.status }).from(workspaceResources).where(and(eq(workspaceResources.providerResourceId, providerResourceId), isNull(workspaceResources.deletedAt))).limit(1);
 				await db.insert(providerImportedResources).values({ connectionId, kind, matchedWorkspaceResourceId: matched?.id, name: String(item.name ?? item.fqdn ?? providerResourceId), payloadHash, providerResourceId, snapshot, status: typeof item.status === 'string' ? item.status : null }).onConflictDoUpdate({ target: [providerImportedResources.connectionId, providerImportedResources.kind, providerImportedResources.providerResourceId], targetWhere: isNull(providerImportedResources.deletedAt), set: { lastObservedAt: new Date(), matchedWorkspaceResourceId: matched?.id ?? null, missingSince: null, name: String(item.name ?? item.fqdn ?? providerResourceId), payloadHash, snapshot, status: typeof item.status === 'string' ? item.status : null, updatedAt: new Date() } });
+				if (kind === 'application' && matched && typeof item.status === 'string' && item.status.trim()) await reconcileMatchedResourceStatus({ connectionId, previousStatus: matched.status, providerResourceId, resourceId: matched.id, status: providerWorkspaceResourceStatus(item.status) });
 			}
 			const baseMissing = [eq(providerImportedResources.connectionId, connectionId), eq(providerImportedResources.kind, kind), isNull(providerImportedResources.deletedAt), isNull(providerImportedResources.missingSince)];
+			if (kind === 'application') {
+				const missingCondition = observedIds.length ? and(...baseMissing, notInArray(providerImportedResources.providerResourceId, observedIds)) : and(...baseMissing);
+				const missing = await db.select({ providerResourceId: providerImportedResources.providerResourceId, resourceId: workspaceResources.id, status: workspaceResources.status }).from(providerImportedResources).innerJoin(workspaceResources, and(eq(workspaceResources.id, providerImportedResources.matchedWorkspaceResourceId), isNull(workspaceResources.deletedAt))).where(missingCondition);
+				for (const resource of missing) await reconcileMatchedResourceStatus({ connectionId, previousStatus: resource.status, providerResourceId: resource.providerResourceId, resourceId: resource.resourceId, status: 'unknown' });
+			}
 			await db.update(providerImportedResources).set({ missingSince: new Date(), updatedAt: new Date() }).where(observedIds.length ? and(...baseMissing, notInArray(providerImportedResources.providerResourceId, observedIds)) : and(...baseMissing));
 			importedCounts[kind] = observedIds.length;
 		} catch (error) { failures.push({ kind, message: error instanceof Error ? error.message : 'Import failed.' }); }

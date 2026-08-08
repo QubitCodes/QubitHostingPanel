@@ -1,0 +1,20 @@
+[Unit]
+Description=Synchronize Ghost Deploy managed traffic policies
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+ExecStart=/usr/local/lib/ghostdeploy/ghostdeploy-traffic-policy-sync.py
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/data/coolify/proxy/dynamic /run/lock
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+UMask=0027
+
+[Install]
+WantedBy=multi-user.target

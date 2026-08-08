@@ -1,4 +1,5 @@
 export type ManagedSystemPageKind =
+	| 'application_error'
 	| 'coming_soon'
 	| 'maintenance'
 	| 'request_rejected'
@@ -14,6 +15,11 @@ const PAGE_COPY: Record<
 	ManagedSystemPageKind,
 	{ eyebrow: string; message: string; title: string }
 > = {
+	application_error: {
+		eyebrow: 'Application error',
+		message: 'The application could not complete this request. Please try again shortly.',
+		title: 'Something went wrong',
+	},
 	coming_soon: {
 		eyebrow: 'Launching soon',
 		message: 'This application is being prepared. Please check back shortly.',

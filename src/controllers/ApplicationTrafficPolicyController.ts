@@ -51,6 +51,29 @@ function mimeAllowed(contentType: string, allowed: string[]): boolean {
 
 /** Traefik ForwardAuth decision endpoint for managed customer application traffic. */
 export class ApplicationTrafficPolicyController {
+	/** Renders a safe standard error response without exposing application output. */
+	public static errorPage(request: Request): Response {
+		const url = new URL(request.url);
+		const requestedStatus = Number(url.searchParams.get('status'));
+		const status = Number.isInteger(requestedStatus) && requestedStatus >= 500 && requestedStatus <= 599
+			? requestedStatus
+			: 500;
+		const suppliedHost = request.headers.get('x-ghostdeploy-application-host') ?? requestHostname(request) ?? 'application';
+		const hostname = /^(?=.{1,253}$)[a-z0-9.-]+$/i.test(suppliedHost)
+			? suppliedHost.toLowerCase()
+			: 'application';
+		return htmlResponse('application_error', hostname, status);
+	}
+
+	/** Guarantees a suspended response when a suspended application's container is offline. */
+	public static suspendedFallback(request: Request): Response {
+		const suppliedHost = request.headers.get('x-ghostdeploy-application-host') ?? requestHostname(request) ?? 'application';
+		const hostname = /^(?=.{1,253}$)[a-z0-9.-]+$/i.test(suppliedHost)
+			? suppliedHost.toLowerCase()
+			: 'application';
+		return htmlResponse('suspended', hostname, 503);
+	}
+
 	public static async evaluate(request: Request): Promise<Response> {
 		try {
 			return await ApplicationTrafficPolicyController.decide(request);

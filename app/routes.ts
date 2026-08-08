@@ -144,6 +144,8 @@ export default [
 	]),
 	route('api/docs', 'pages/api/docs.tsx'),
 	route('system/traffic-policy', 'pages/system/traffic-policy.ts'),
+	route('system/application-error', 'pages/system/application-error.ts'),
+	route('system/suspended-fallback', 'pages/system/suspended-fallback.ts'),
 	...prefix('api/v1', [
 		route('databases/:databaseId/context', 'api/v1/databases/context.ts'),
 		route('health', 'api/v1/health.ts'),
@@ -360,6 +362,10 @@ export default [
 		route('webhooks/payments/:provider', 'api/v1/payments/provider-webhook.ts'),
 		route('internal/jobs/process', 'api/v1/internal/jobs.ts'),
 		route('internal/provider/health', 'api/v1/internal/provider-health.ts'),
+		route(
+			'internal/traffic-policy/config',
+			'api/v1/internal/traffic-policy-config.ts',
+		),
 		route('operations/payments', 'api/v1/operations/payments.ts'),
 		route('operations/provisioning', 'api/v1/operations/jobs.ts'),
 		route(

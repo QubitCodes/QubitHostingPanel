@@ -781,6 +781,30 @@ export const OPENAPI_DOCUMENT = {
 				},
 			},
 		},
+		'/internal/traffic-policy/config': {
+			get: {
+				description:
+					'Returns the least-privilege customer-domain routing contract used by the root-owned Traefik policy synchronizer. Invalid worker secrets receive an indistinguishable JSON 404.',
+				summary: 'Retrieve managed traffic policy configuration',
+				operationId: 'getManagedTrafficPolicyConfig',
+				parameters: [
+					{
+						name: 'x-internal-job-secret',
+						in: 'header',
+						required: true,
+						schema: { type: 'string' },
+					},
+				],
+				responses: {
+					'200': {
+						description:
+							'Policy revision, safe endpoint URLs, and provider/domain routing metadata.',
+					},
+					'404': { description: 'Resource not found.' },
+					'503': { description: 'Policy configuration unavailable.' },
+				},
+			},
+		},
 		'/operations/provider/connections': {
 			get: {
 				summary: 'List sanitized Coolify connections and imported inventory',

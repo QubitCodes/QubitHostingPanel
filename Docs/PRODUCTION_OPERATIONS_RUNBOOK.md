@@ -10,13 +10,34 @@ For the isolated staging control plane, run `npm run staging:deploy:panel` from 
 
 - Every 5 minutes: `npm run jobs:process` and alert on exhausted/failed jobs.
 - Every 15 minutes: `npm run provider:reconcile` and `npm run usage:observe`.
-- Every 15 minutes: `npm run operations:readiness`; exit code `2` means an actionable anomaly.
+- Every 15 minutes: `npm run operations:readiness`; exit code `0` is clean, `2` means an actionable anomaly, and `1` means the report itself could not query its dependencies. The report pins its sequential queries to one database transaction so constrained PostgreSQL poolers do not receive a connection burst.
 - Daily: database backups, encrypted artifact verification, expired-backup cleanup, payment pending-age review, and provider reconciliation review.
 - Daily: back up the `ghostdeploy-pdns-data` volume and `/opt/ghostdeploy-dns/pdns.env`; verify an authoritative SOA response from an external resolver.
 - Weekly: restore a disposable PostgreSQL and MySQL logical database, validate public HTTPS, and review audit logs/admin overrides.
 - Quarterly: create a new Coolify token, rotate it in the panel, verify reconciliation, then revoke the retired token at Coolify.
 
+Reconcile the four platform-owned schedules with `npm run platform:sync:schedules` and apply reviewed changes with `npm run platform:sync:schedules -- --apply`. When an operator checkout uses a local `APP_URL`, pass `--application-uuid=<coolify-application-uuid>` or set `COOLIFY_PANEL_APPLICATION_UUID`. The command is idempotent, matches only exact platform task names, and does not modify unrelated customer or operator tasks.
+
 Alert when any provider is unhealthy/stale for one hour, reconciliation is partial/failed, a payment remains pending for one hour, a provisioning job exhausts retries, usage observations are older than one day, backup creation fails, or public health/TLS fails.
+
+## Managed traffic-policy host agent
+
+The Beta traffic-policy integration is a root-owned host operation, not an application label customization. It owns only `/data/coolify/proxy/dynamic/ghostdeploy-policies.json`; Coolify continues owning its Docker routers, services, domains, and certificates.
+
+1. Deploy the matching panel release while the platform switch remains disabled.
+2. Copy `ops/traffic-policy` to a root-readable temporary directory on the Coolify server.
+3. Run `sudo bash ./install.sh` from that directory.
+4. Put the same deployed `INTERNAL_JOB_SECRET` in `/etc/ghostdeploy/traffic-policy.env`. Keep this file owned by root with mode `0600`; never place the secret in a command argument or log.
+5. Run `sudo /usr/local/lib/ghostdeploy/ghostdeploy-traffic-policy-sync.py --dry-run`. Review only its counts and revision.
+6. Enable the timer with `sudo systemctl enable --now ghostdeploy-traffic-policy.timer`.
+7. Inspect `sudo systemctl status ghostdeploy-traffic-policy.timer` and `sudo journalctl -u ghostdeploy-traffic-policy.service`. The output contains counts and revisions, not the secret or customer credentials.
+8. Only then enable **Managed traffic policies (Beta)** in Platform Settings. The next successful one-minute reconciliation activates overlay routers.
+
+The agent fetches `/api/v1/internal/traffic-policy/config` using `x-internal-job-secret`, discovers current service names from live Docker labels, validates hostnames and HTTPS endpoints, writes deterministic JSON through an atomic rename, and retains one `.bak` file. A fetch, Docker, or rendering failure leaves the last valid configuration untouched. Disabling the platform switch and completing a successful sync removes all owned overlay routers.
+
+Rollback: disable the platform switch first. If the panel is unavailable, stop the timer and move `ghostdeploy-policies.json` out of the dynamic directory; Coolify's original routers remain unchanged. Never reset or edit application labels as part of this rollback.
+
+Run `npm run applications:audit:provider-references` before remediating stale resources. `confirmed_missing` means a successful provider inventory omitted the referenced UUID. `provider_unavailable` is never evidence for deletion. The audit command is read-only; permanent cleanup still requires the existing permission-controlled, reasoned, audit-logged administrator workflow.
 
 ## Application domain operations
 

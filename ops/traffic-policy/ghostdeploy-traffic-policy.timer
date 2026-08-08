@@ -1,0 +1,12 @@
+[Unit]
+Description=Reconcile Ghost Deploy managed traffic policies every minute
+
+[Timer]
+OnBootSec=30s
+OnUnitActiveSec=60s
+AccuracySec=5s
+Persistent=true
+Unit=ghostdeploy-traffic-policy.service
+
+[Install]
+WantedBy=timers.target
