@@ -96,6 +96,7 @@ Planned capabilities:
 - Additional hosting-provider adapters beyond Coolify.
 - Provider-independent resource reconciliation.
 - Cost and margin comparison across placements.
+- Evaluate Podman only if Ghost Deploy later owns the orchestration layer instead of relying on Coolify's Docker runtime.
 
 Placement must remain deterministic, auditable, entitlement-aware, and safe under concurrent provisioning.
 

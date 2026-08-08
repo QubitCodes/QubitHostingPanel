@@ -4,12 +4,14 @@ import { resp } from '@qubitcodes/qcresp';
 import { db } from '@db/client';
 import { customers, databaseClusters, logicalDatabases, workspaceMemberships, workspaces, workspaceSubscriptions } from '@db/schema';
 import type { DatabaseExplorerDeleteRows, DatabaseExplorerInsertRow, DatabaseExplorerObjectQuery, DatabaseExplorerRowsQuery, DatabaseExplorerUpdateRow } from '@schemas/databaseExplorer';
+import type { CancelDatabaseSessionRequest, DatabaseDiagnosticsQuery } from '@schemas/databaseDiagnostics';
 import type { DatabaseQueryRequest } from '@schemas/databaseQuery';
 import type { DatabaseSchemaMutation } from '@schemas/databaseSchema';
 import { recordAuditLog } from '@services/auditLogService';
 import { authenticateSession } from '@services/auth/authenticatedSessionService';
 import { authenticationFailureResponse } from '@services/auth/authenticationFailureService';
 import { databaseClusterEndpoint } from '@services/databases/databaseClusterEndpointService';
+import { DatabaseDiagnosticsService } from '@services/databases/databaseDiagnosticsService';
 import { DatabaseExplorerService, type DatabaseExplorerConnection } from '@services/databases/databaseExplorerService';
 import { DatabaseQueryService } from '@services/databases/databaseQueryService';
 import { DatabaseSchemaService } from '@services/databases/databaseSchemaService';
@@ -64,6 +66,45 @@ export async function explorerAccess(request: Request, workspacePublicId: number
 
 /** Workspace-authorized database schema and data inspection endpoints. */
 export class DatabaseExplorerController {
+	/** Returns live tenant-scoped health signals without exposing SQL text or values. */
+	public static async diagnostics(request: Request, workspacePublicId: number, databaseId: string, input: DatabaseDiagnosticsQuery, metadata: RequestMetadata): Promise<Response> {
+		try {
+			const access = await explorerAccess(request, workspacePublicId, databaseId, metadata);
+			const diagnostics = await new DatabaseDiagnosticsService(access.connection).collect(input.slowThresholdSeconds);
+			await recordAuditLog({
+				actorUserId: access.actorUserId,
+				action: 'logical_database.diagnostics_viewed',
+				resourceType: 'logical_database',
+				resourceId: databaseId,
+				metadata: { workspacePublicId, slowThresholdSeconds: input.slowThresholdSeconds, sessionCount: diagnostics.sessions.length, lockCount: diagnostics.locks.length },
+				ipAddress: metadata.ipAddress,
+				userAgent: metadata.userAgent,
+			});
+			return resp.success('Database diagnostics retrieved.', diagnostics);
+		} catch (error) {
+			const authenticationFailure = authenticationFailureResponse(error);
+			if (authenticationFailure) return authenticationFailure;
+			return resp.failure(error instanceof Error ? error.message : 'Unable to inspect database diagnostics.', resp.codes.EXTERNAL_SERVICE_ERROR, undefined, null, undefined, 502);
+		}
+	}
+
+	/** Cancels one active query after exact database confirmation and records every attempt. */
+	public static async cancelSession(request: Request, workspacePublicId: number, databaseId: string, input: CancelDatabaseSessionRequest, metadata: RequestMetadata): Promise<Response> {
+		let actorUserId: string | undefined;
+		try {
+			const access = await explorerAccess(request, workspacePublicId, databaseId, metadata);
+			actorUserId = access.actorUserId;
+			const result = await new DatabaseDiagnosticsService(access.connection).cancel(input);
+			await recordAuditLog({ actorUserId: access.actorUserId, action: 'logical_database.query_cancelled', resourceType: 'logical_database', resourceId: databaseId, metadata: { workspacePublicId, sessionId: input.sessionId, cancelled: result.cancelled }, ipAddress: metadata.ipAddress, userAgent: metadata.userAgent });
+			return resp.success(result.cancelled ? 'Database query cancelled.' : 'The database did not cancel the query.', result, resp.codes.UPDATED);
+		} catch (error) {
+			const authenticationFailure = authenticationFailureResponse(error);
+			if (authenticationFailure) return authenticationFailure;
+			if (actorUserId) await recordAuditLog({ actorUserId, action: 'logical_database.query_cancel_failed', resourceType: 'logical_database', resourceId: databaseId, metadata: { workspacePublicId, sessionId: input.sessionId }, ipAddress: metadata.ipAddress, userAgent: metadata.userAgent }).catch(() => undefined);
+			return resp.failure(error instanceof Error ? error.message : 'Unable to cancel database query.', resp.codes.GENERAL_BUSINESS_LOGIC_ERROR, undefined, null, undefined, 422);
+		}
+	}
+
 	/** Executes one bounded SQL workspace statement without logging its text or result values. */
 	public static async query(request: Request, workspacePublicId: number, databaseId: string, input: DatabaseQueryRequest, metadata: RequestMetadata): Promise<Response> {
 		let actorUserId: string | undefined;

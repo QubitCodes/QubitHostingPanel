@@ -242,6 +242,8 @@ Reference: [Coolify backup and restore](https://coolify.io/docs/knowledge-base/h
 | Temporary migration source | `65.2.66.21` |
 | Server retired after acceptance | `65.2.66.21` |
 
+Docker remains the supported container runtime while Ghost Deploy depends on Coolify. If Ghost Deploy later replaces Coolify with its own orchestration layer, Podman may be evaluated as a future runtime; this is not a current migration commitment.
+
 ## 11. Immediate next action
 
 Perform a read-only inventory of both servers. Do not install Coolify through aaPanel, uninstall aaPanel components, switch DNS, or delete existing services before the inventory confirms:
