@@ -70,6 +70,7 @@ const environmentSchema = z
 			.min(1)
 			.default('production'),
 		COOLIFY_WILDCARD_DOMAIN: optionalEnvironmentSecret,
+		COOLIFY_PLATFORM_APPLICATION_UUID: optionalEnvironmentSecret,
 		COOLIFY_STARTER_IMAGE: z.string().trim().min(1).default('nginx'),
 		COOLIFY_STARTER_IMAGE_TAG: z.string().trim().min(1).default('alpine'),
 		COOLIFY_STARTER_PORT: z

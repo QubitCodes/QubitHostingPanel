@@ -344,6 +344,13 @@
       "when": 1786200394879,
       "tag": "0048_safe_captain_cross",
       "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1786206662761,
+      "tag": "0049_stale_steel_serpent",
+      "breakpoints": true
     }
   ]
 }

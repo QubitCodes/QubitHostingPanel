@@ -153,6 +153,7 @@ Local endpoints:
 - `/admin/operations/payments` - payment attempts and verification state.
 - `/admin/operations/provisioning` - provisioning jobs, failures, and manual retries.
 - `/admin/operations/providers` - configured hosting-provider health.
+- `/admin/operations/platform-deployments` - Super Admin-only release control with restart-safe live deployment logs.
 - `/api/v1/public/catalogue` - published packages with current public prices and visible entitlements.
 - `/api/v1/public/checkout-quotes` - server-calculated, signed, short-lived checkout quote.
 

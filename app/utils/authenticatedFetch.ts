@@ -91,5 +91,6 @@ export function clearAuthentication(): void {
 	sessionStorage.removeItem('refreshToken');
 	sessionStorage.removeItem('authUser');
 	sessionStorage.removeItem('canViewApiDocs');
+	sessionStorage.removeItem('isSuperAdmin');
 	authenticationChannel()?.postMessage({ type: 'clear' });
 }

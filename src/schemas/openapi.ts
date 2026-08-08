@@ -831,6 +831,73 @@ export const OPENAPI_DOCUMENT = {
 				},
 			},
 		},
+		'/operations/platform-deployments': {
+			get: {
+				description:
+					'Returns the latest control-plane deployments without exposing the fixed Coolify application UUID, provider deployment identifiers, or credentials. Access is restricted to the database-backed Super Admin role and is audit logged.',
+				operationId: 'listPlatformDeployments',
+				responses: {
+					'200': { description: 'Recent sanitized platform deployments.' },
+					'403': { description: 'Super Admin access required.' },
+				},
+				security: [{ bearerAuth: [] }],
+				summary: 'List platform deployments',
+			},
+			post: {
+				description:
+					'Deploys the latest pushed revision of the single server-configured Ghost Deploy application. Concurrent deployment attempts are rejected and every request is audit logged.',
+				operationId: 'createPlatformDeployment',
+				requestBody: {
+					content: {
+						'application/json': {
+							schema: {
+								additionalProperties: false,
+								properties: {
+									confirmation: {
+										const: 'DEPLOY',
+										type: 'string',
+									},
+								},
+								required: ['confirmation'],
+								type: 'object',
+							},
+						},
+					},
+					required: true,
+				},
+				responses: {
+					'202': { description: 'Platform deployment accepted.' },
+					'400': { description: 'Exact confirmation missing.' },
+					'403': { description: 'Super Admin access required.' },
+					'409': { description: 'Another platform deployment is active.' },
+					'502': { description: 'Hosting provider rejected the deployment.' },
+				},
+				security: [{ bearerAuth: [] }],
+				summary: 'Deploy the latest Ghost Deploy revision',
+			},
+		},
+		'/operations/platform-deployments/{deploymentId}': {
+			get: {
+				description:
+					'Refreshes one deployment from Coolify, persists a bounded sanitized log snapshot, and tolerates the temporary connection interruption caused by replacing the Ghost Deploy container.',
+				operationId: 'showPlatformDeployment',
+				parameters: [
+					{
+						in: 'path',
+						name: 'deploymentId',
+						required: true,
+						schema: { format: 'uuid', type: 'string' },
+					},
+				],
+				responses: {
+					'200': { description: 'Current deployment status and sanitized logs.' },
+					'403': { description: 'Super Admin access required.' },
+					'404': { description: 'Deployment not found.' },
+				},
+				security: [{ bearerAuth: [] }],
+				summary: 'Refresh platform deployment logs',
+			},
+		},
 		'/operations/provider/connections/{connectionId}/validate': {
 			post: {
 				summary: 'Validate a database-managed Coolify connection',

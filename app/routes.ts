@@ -97,6 +97,10 @@ export default [
 			'pages/admin/operations-provisioning.tsx',
 		),
 		route('admin/operations/providers', 'pages/admin/operations-providers.tsx'),
+		route(
+			'admin/operations/platform-deployments',
+			'pages/admin/platform-deployments.tsx',
+		),
 		route('admin/operations/runtime-images', 'pages/admin/runtime-images.tsx'),
 		route(
 			'admin/operations/database-clusters',
@@ -403,6 +407,14 @@ export default [
 			'api/v1/operations/job-retry.ts',
 		),
 		route('operations/provider/health', 'api/v1/operations/provider-health.ts'),
+		route(
+			'operations/platform-deployments',
+			'api/v1/operations/platform-deployments.ts',
+		),
+		route(
+			'operations/platform-deployments/:deploymentId',
+			'api/v1/operations/platform-deployment.ts',
+		),
 		route(
 			'operations/provider/connections',
 			'api/v1/operations/provider-connections.ts',

@@ -8,6 +8,14 @@ For per-database off-site backups, configure `DATABASE_BACKUP_S3_BUCKET`, `DATAB
 
 For the isolated staging control plane, run `npm run staging:deploy:panel` from the local operator checkout. The command only creates or reuses `ghost-deploy-staging`, installs its environment without logging secret values, disables development authentication bypass, retains test payment mode from `.env`, and queues the pushed `main` branch for `https://staging.ghostdeploy.com`. No separate panel-domain alias is configured while the platform uses same-domain mode. The command refuses to run from the deployed production-mode process.
 
+### Super Admin platform deployment
+
+Set `COOLIFY_PLATFORM_APPLICATION_UUID` to the Coolify application UUID that serves Ghost Deploy itself. This is a server-only fixed target; never expose it as a browser-editable deployment parameter. A database-backed Super Admin can then open `/admin/operations/platform-deployments`, type `DEPLOY`, and release the latest revision from the application's configured Git branch.
+
+The platform stores deployment state and a bounded sanitized log snapshot in PostgreSQL. The browser refreshes status every two seconds and reconnects automatically while the running Ghost Deploy container is replaced. Only one active deployment is allowed for the target. Requests, final outcomes, failures, and page access are written to the required administrator audit log.
+
+Before relying on the page, verify that the default database-managed Coolify connection is healthy and that its token can deploy the configured application. Keep the local operator deployment command as the recovery path when the panel itself cannot start. Never repoint the environment value to a customer application.
+
 ## Scheduled operations
 
 - Every 5 minutes: `npm run jobs:process` and alert on exhausted/failed jobs.

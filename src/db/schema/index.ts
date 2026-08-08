@@ -6,6 +6,7 @@ export * from './offers';
 export * from './packages';
 export * from './payments';
 export * from './platformSettings';
+export * from './platformDeployments';
 export * from './domainOwnership';
 export * from './dns';
 export * from './github';

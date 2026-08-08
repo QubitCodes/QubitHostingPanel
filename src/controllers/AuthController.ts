@@ -376,19 +376,21 @@ export class AuthController {
 			await db.update(userSessions).set({ activeContextType: context, updatedAt: new Date(), lastActiveAt: new Date() }).where(eq(userSessions.id, session.id));
 			const accessToken = await issueAccessToken({ context, sessionId: session.id, tokenVersion: session.tokenVersion, userId: claims.userId });
 			let canViewApiDocs = false;
+			let isSuperAdmin = false;
 			if (context === 'admin') {
 				const headers = new Headers(request.headers);
 				headers.set('authorization', `Bearer ${accessToken}`);
 				try {
-					await authorizeAdmin(new Request(request.url, { headers }), API_DOCS_PERMISSION, {
+					const admin = await authorizeAdmin(new Request(request.url, { headers }), API_DOCS_PERMISSION, {
 						sessionClient: { clientHints: {} },
 					});
 					canViewApiDocs = true;
+					isSuperAdmin = admin.isSuperAdmin;
 				} catch {
 					canViewApiDocs = false;
 				}
 			}
-			const response = resp.success('Context switched.', { canViewApiDocs, context }, resp.codes.OK, { accessToken });
+			const response = resp.success('Context switched.', { canViewApiDocs, context, isSuperAdmin }, resp.codes.OK, { accessToken });
 			response.headers.append(
 				'set-cookie',
 				apiDocsCookie(

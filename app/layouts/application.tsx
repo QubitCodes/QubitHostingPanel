@@ -13,6 +13,7 @@ import {
 	PackageOpen,
 	BadgePercent,
 	CloudCog,
+	CloudUpload,
 	Database,
 	Search,
 	Server,
@@ -48,6 +49,12 @@ const navigation = [
 	{ label: 'Platform settings', path: '/admin/platform-settings', icon: Globe2 },
 ];
 
+const superAdminNavigation = {
+	label: 'Platform deployments',
+	path: '/admin/operations/platform-deployments',
+	icon: CloudUpload,
+};
+
 const titles: Record<string, string> = {
 	'/admin/overview': 'Overview',
 	'/admin/platform-settings': 'Platform settings',
@@ -58,6 +65,7 @@ const titles: Record<string, string> = {
 	'/admin/operations/payments': 'Payment operations',
 	'/admin/operations/provisioning': 'Provisioning operations',
 	'/admin/operations/providers': 'Provider health',
+	'/admin/operations/platform-deployments': 'Platform deployments',
 	'/admin/operations/database-clusters': 'Database clusters',
 	'/admin/operations/runtime-images': 'Runtime images',
 	'/settings/profile': 'Profile settings',
@@ -99,6 +107,7 @@ export default function ApplicationLayout() {
 	const [fullScreenMenu, setFullScreenMenu] = useState<FullScreenMenuState>();
 	const [adminContextReady, setAdminContextReady] = useState(false);
 	const [canViewApiDocs, setCanViewApiDocs] = useState(false);
+	const [isSuperAdmin, setIsSuperAdmin] = useState(false);
 	const [hasCustomerDashboard, setHasCustomerDashboard] = useState(false);
 	const adminRoute = location.pathname.startsWith('/admin/');
 
@@ -143,7 +152,7 @@ export default function ApplicationLayout() {
 			})
 				.then(async (response) => {
 					const body = (await response.json()) as {
-						data?: { canViewApiDocs?: boolean };
+						data?: { canViewApiDocs?: boolean; isSuperAdmin?: boolean };
 						message: string;
 						misc?: { accessToken?: string };
 						status: boolean;
@@ -154,11 +163,13 @@ export default function ApplicationLayout() {
 					const docsAllowed = body.data?.canViewApiDocs === true;
 					sessionStorage.setItem('canViewApiDocs', String(docsAllowed));
 					setCanViewApiDocs(docsAllowed);
+					setIsSuperAdmin(body.data?.isSuperAdmin === true);
 					setAdminContextReady(true);
 				})
 				.catch((error) => {
 					setAdminContextReady(false);
 					setCanViewApiDocs(false);
+					setIsSuperAdmin(false);
 					sessionStorage.setItem('canViewApiDocs', 'false');
 					if (adminRoute) {
 						toast.error(
@@ -243,7 +254,10 @@ export default function ApplicationLayout() {
 				</button>
 			</div>
 			<nav className="flex-1 space-y-1 px-3">
-				{navigation.map(({ icon: Icon, ...item }) => (
+				{[
+					...navigation,
+					...(isSuperAdmin ? [superAdminNavigation] : []),
+				].map(({ icon: Icon, ...item }) => (
 					<NavLink
 						className={({ isActive }) =>
 							`flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium transition ${isActive ? 'bg-brand-muted text-brand-ink' : 'text-white/70 hover:bg-white/10 hover:text-white'}`
