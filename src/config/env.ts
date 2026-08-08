@@ -30,8 +30,12 @@ const environmentSchema = z
 			.min(30)
 			.max(86400)
 			.default(3600),
+		DATABASE_IMPORT_STORAGE_PATH: z.string().trim().min(1).default('storage/database-imports'),
+		DATABASE_IMPORT_MAX_MB: z.coerce.number().int().min(1).max(2048).default(100),
+		DATABASE_IMPORT_TOKEN_TTL_MINUTES: z.coerce.number().int().min(5).max(120).default(30),
 		PG_DUMP_PATH: z.string().trim().min(1).default('pg_dump'),
 		PG_RESTORE_PATH: z.string().trim().min(1).default('pg_restore'),
+		PG_CLIENT_PATH: z.string().trim().min(1).default('psql'),
 		MYSQL_DUMP_PATH: z.string().trim().min(1).default('mysqldump'),
 		MYSQL_CLIENT_PATH: z.string().trim().min(1).default('mysql'),
 		FIREBASE_PROJECT_ID: z.string().optional(),

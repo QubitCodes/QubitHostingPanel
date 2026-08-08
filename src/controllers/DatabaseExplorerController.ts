@@ -4,17 +4,19 @@ import { resp } from '@qubitcodes/qcresp';
 import { db } from '@db/client';
 import { customers, databaseClusters, logicalDatabases, workspaceMemberships, workspaces, workspaceSubscriptions } from '@db/schema';
 import type { DatabaseExplorerDeleteRows, DatabaseExplorerInsertRow, DatabaseExplorerObjectQuery, DatabaseExplorerRowsQuery, DatabaseExplorerUpdateRow } from '@schemas/databaseExplorer';
+import type { DatabaseQueryRequest } from '@schemas/databaseQuery';
 import type { DatabaseSchemaMutation } from '@schemas/databaseSchema';
 import { recordAuditLog } from '@services/auditLogService';
 import { authenticateSession } from '@services/auth/authenticatedSessionService';
 import { authenticationFailureResponse } from '@services/auth/authenticationFailureService';
 import { databaseClusterEndpoint } from '@services/databases/databaseClusterEndpointService';
 import { DatabaseExplorerService, type DatabaseExplorerConnection } from '@services/databases/databaseExplorerService';
+import { DatabaseQueryService } from '@services/databases/databaseQueryService';
 import { DatabaseSchemaService } from '@services/databases/databaseSchemaService';
 import { decryptCredential } from '@services/encryption/credentialEncryptionService';
 import type { RequestMetadata } from '@utils/request';
 
-interface ExplorerAccess {
+export interface ExplorerAccess {
 	actorUserId: string;
 	connection: DatabaseExplorerConnection;
 	databaseName: string;
@@ -22,7 +24,7 @@ interface ExplorerAccess {
 }
 
 /** Resolves one active workspace database without exposing its credential to the browser. */
-async function explorerAccess(request: Request, workspacePublicId: number, databaseId: string, metadata: RequestMetadata): Promise<ExplorerAccess> {
+export async function explorerAccess(request: Request, workspacePublicId: number, databaseId: string, metadata: RequestMetadata): Promise<ExplorerAccess> {
 	const actor = await authenticateSession(request, metadata);
 	const [record] = await db
 		.select({
@@ -62,6 +64,22 @@ async function explorerAccess(request: Request, workspacePublicId: number, datab
 
 /** Workspace-authorized database schema and data inspection endpoints. */
 export class DatabaseExplorerController {
+	/** Executes one bounded SQL workspace statement without logging its text or result values. */
+	public static async query(request: Request, workspacePublicId: number, databaseId: string, input: DatabaseQueryRequest, metadata: RequestMetadata): Promise<Response> {
+		let actorUserId: string | undefined;
+		try {
+			const access = await explorerAccess(request, workspacePublicId, databaseId, metadata);
+			actorUserId = access.actorUserId;
+			const result = await new DatabaseQueryService(access.connection).execute(input);
+			await recordAuditLog({ actorUserId: access.actorUserId, action: result.readOnly ? 'logical_database.query_read' : 'logical_database.query_changed_data', resourceType: 'logical_database', resourceId: databaseId, metadata: { workspacePublicId, statementType: result.statementType, fingerprint: result.fingerprint, durationMs: result.durationMs, affectedRows: result.affectedRows, truncated: result.truncated }, ipAddress: metadata.ipAddress, userAgent: metadata.userAgent });
+			return resp.success('Database query completed.', result);
+		} catch (error) {
+			const authenticationFailure = authenticationFailureResponse(error);
+			if (authenticationFailure) return authenticationFailure;
+			if (actorUserId) await recordAuditLog({ actorUserId, action: 'logical_database.query_failed', resourceType: 'logical_database', resourceId: databaseId, metadata: { workspacePublicId }, ipAddress: metadata.ipAddress, userAgent: metadata.userAgent }).catch(() => undefined);
+			return resp.failure(error instanceof Error ? error.message : 'Database query failed.', resp.codes.GENERAL_BUSINESS_LOGIC_ERROR, undefined, null, undefined, 422);
+		}
+	}
 	/** Applies one strictly modelled DDL operation to the selected logical database. */
 	public static async schemaMutate(request: Request, workspacePublicId: number, databaseId: string, input: DatabaseSchemaMutation, metadata: RequestMetadata): Promise<Response> {
 		let actorUserId: string | undefined;

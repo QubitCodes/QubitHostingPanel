@@ -227,6 +227,13 @@ export default [
 			'api/v1/workspaces/databases/explorer-schema.ts',
 		),
 		route(
+			'workspaces/:workspaceId/databases/:databaseId/explorer/query',
+			'api/v1/workspaces/databases/explorer-query.ts',
+		),
+		route('workspaces/:workspaceId/databases/:databaseId/import/upload', 'api/v1/workspaces/databases/import-upload.ts'),
+		route('workspaces/:workspaceId/databases/:databaseId/import', 'api/v1/workspaces/databases/import.ts'),
+		route('workspaces/:workspaceId/databases/:databaseId/export', 'api/v1/workspaces/databases/export.ts'),
+		route(
 			'workspaces/:workspaceId/databases/:databaseId/backups',
 			'api/v1/workspaces/databases/backups/index.ts',
 		),

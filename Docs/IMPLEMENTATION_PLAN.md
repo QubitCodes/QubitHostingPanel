@@ -195,8 +195,10 @@ The checked Phase 6 database items establish provisioning, credentials, row mana
 - [x] Bounded row browsing, search, pagination, insert, edit, and primary-key-guarded deletion.
 - [x] Read-only inspection of views, routines, triggers, sequences, events, columns, indexes, and constraints.
 - [x] Modelled schema/table/column/index/primary-key/foreign-key management without arbitrary SQL.
-- [ ] Permission-separated SQL workspace with timeout, cancellation, result export, history, saved queries, and mutation confirmation.
-- [ ] SQL/CSV/JSON import and table/schema/database export with background progress and failure recovery.
+- [x] Controlled SQL workspace with read-only transactions by default, a 15-second timeout, bounded JSON-safe results, session-local history, query fingerprints, and exact confirmation for supported data mutations.
+- [x] Native PostgreSQL/MySQL import and export foundation with short-lived signed staging, checksum verification, size limits, merge/replace selection, direct export streaming, and audited execution.
+- [ ] SQL cancellation, CSV result export, persistent saved queries, and permission-separated customer roles once collaborative workspace roles are introduced.
+- [ ] CSV/JSON/table-scoped transfers, background progress, failure recovery, and automatic pre-import safety backups.
 - [ ] Multiple database users with read-only/read-write/custom grants, disable/delete controls, expiry, and impact reporting.
 - [ ] Automatic per-database backup schedules, retention cleanup, off-site object storage, clone restore, and restore verification.
 - [ ] Connection, lock, query, storage, index-usage, and slow-query diagnostics with safe cancellation controls.
