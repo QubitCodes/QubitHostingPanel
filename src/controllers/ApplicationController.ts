@@ -9,6 +9,7 @@ import {
 	applicationDatabaseBindings,
 	applicationDeployments,
 	applicationDomains,
+	applicationSettings,
 	customers,
 	databaseClusters,
 	domainAccessRequests,
@@ -35,6 +36,7 @@ import { hostingProvider } from '@services/hosting/hostingProviderFactory';
 import { getEffectivePlatformUrls } from '@services/platformUrlService';
 import { analyzeApplicationSource } from '@services/applications/sourceDetectionService';
 import { resolveDeploymentContract } from '@services/applications/deploymentRecipeService';
+import { defaultApplicationReleasePolicy } from '@services/applications/applicationReleaseSettingsService';
 import { diagnoseDeploymentLogs } from '@services/applications/deploymentDiagnosticService';
 import { parseDeploymentLogs } from '@services/applications/deploymentLogParserService';
 import { currentApplicationProviderStatuses } from '@services/applications/applicationProviderStatusService';
@@ -1714,6 +1716,10 @@ export class ApplicationController {
 					})
 					.returning({ id: applicationBuilds.id });
 				if (!build) throw new Error('Unable to persist application.');
+				await transaction.insert(applicationSettings).values({
+					applicationBuildId: build.id,
+					...defaultApplicationReleasePolicy(input.framework),
+				});
 				const domainRows = await transaction
 					.insert(applicationDomains)
 					.values([

@@ -47,6 +47,7 @@ export interface ProvisionApplicationInput {
 	name: string;
 	persistentStorages?: Array<{ mountPath: string; name: string }>;
 	publishDirectory?: string;
+	postDeploymentCommand?: string;
 	runtimeImage?: {
 		port: number;
 		repository: string;
@@ -113,7 +114,7 @@ export interface HostingProvider {
 	getApplicationDeployment(deploymentId: string): Promise<ProviderDeployment>;
 	updateApplicationSettings(
 		applicationId: string,
-		input: { autoDeployEnabled?: boolean; visibility?: 'private' | 'public' },
+		input: { autoDeployEnabled?: boolean; postDeploymentCommand?: string; visibility?: 'private' | 'public' },
 	): Promise<void>;
 	validateConnection(): Promise<ProviderConnectionResult>;
 	listResources(): Promise<readonly ProviderResource[]>;

@@ -161,6 +161,7 @@ Initial publication policy: Launch, Growth, and Business may be public after the
 - `/api/v1/workspaces/:workspaceId/applications/:applicationId/action` - package-authorized start, pause, restart, redeploy, deactivate, and reactivate actions.
 - `/api/v1/workspaces/:workspaceId/applications/:applicationId/deployments` - package-limited deployment history and retained build logs.
 - `/api/v1/workspaces/:workspaceId/applications/options` - workspace-authorized runtime, database, entitlement, and reusable-domain choices loaded only when deployment starts.
+- `/api/v1/workspaces/:workspaceId/applications/:applicationId/settings` - framework-aware release automation, public-error, upload, maintenance, and coming-soon settings.
 - `/api/v1/workspaces/:workspaceId/domain-ownership` - list or register audited root-domain ownership claims.
 - `/api/v1/workspaces/:workspaceId/applications/:applicationId/logs` - workspace-authorized provider logs.
 - `/api/v1/workspaces/:workspaceId/applications/:applicationId/domains` - custom-domain registration and domain/TLS state.
@@ -193,6 +194,10 @@ Dockerfile deployments are intentionally disabled until package entitlements and
 Database details in the customer dashboard expose read-only table/object inventories and an **Open DB** action. The action opens `/database/:databaseId/...` in a separately authenticated tab, so multiple databases can be managed concurrently without sharing active-workspace UI state. Database users are workspace-owned and reusable within one engine cluster. New users receive generated passwords; existing-user selection never reveals or changes the password. Password rotation is audited and reports every database/application sharing the login.
 
 GitHub App deployments expose a per-application auto-deploy switch. Packages independently control manual deployment availability, automatic deployment availability, history count, and retention duration. Private application visibility removes public provider routes without deleting the provider resource.
+
+Application release settings provide framework-aware post-deployment migrations for Laravel, CakePHP, Symfony, Django, and Rails. Migrations are enabled by default only when Ghost Deploy has a proven framework command; production seeders remain explicitly opt-in. Both commands are time-bounded, run in the new release container, and fail the deployment instead of silently promoting an incomplete release. Customer-visible logs redact credentials and translate provider internals before storage or display.
+
+Each application also stores error-response, upload-limit, maintenance, coming-soon, and automatic-expiry preferences. The later managed-page serving layer will use standard Ghost Deploy pages first. Application-specific page design is intentionally deferred and protected by the `applications.custom_system_pages` package entitlement.
 
 ### Live deployment updates
 

@@ -10,6 +10,7 @@ export const applicationBuildStatusEnum = pgEnum('application_build_status', ['q
 export const applicationEnvironmentEnum = pgEnum('application_environment', ['development', 'testing', 'staging', 'production']);
 export const applicationDeploymentStatusEnum = pgEnum('application_deployment_status', ['queued', 'deploying', 'running', 'failed', 'stopped']);
 export const applicationOperationalStatusEnum = pgEnum('application_operational_status', ['active', 'paused', 'deactivated', 'suspended', 'deleting', 'cleanup_failed']);
+export const applicationPublicErrorModeEnum = pgEnum('application_public_error_mode', ['generic', 'message', 'detailed']);
 export const applicationVisibilityEnum = pgEnum('application_visibility', ['public', 'private']);
 export const applicationDomainTypeEnum = pgEnum('application_domain_type', ['platform', 'custom']);
 export const applicationDomainStatusEnum = pgEnum('application_domain_status', ['pending', 'verified', 'failed']);
@@ -156,6 +157,41 @@ export const applicationDeployments = pgTable('application_deployments', {
 	deleteReason: varchar('delete_reason', { length: 500 }),
 }, (table) => [index('application_deployments_workspace_status_idx').on(table.workspaceId, table.status, table.createdAt), index('application_deployments_build_created_idx').on(table.applicationBuildId, table.createdAt), index('application_deployments_expiry_idx').on(table.expiresAt).where(sql`${table.deletedAt} IS NULL`)]);
 
+/** Customer-controlled release automation and site-behaviour policy for one application. */
+export const applicationSettings = pgTable('application_settings', {
+	id: uuid('id').primaryKey().defaultRandom(),
+	applicationBuildId: uuid('application_build_id').notNull().references(() => applicationBuilds.id, { onDelete: 'cascade' }),
+	migrateOnDeploy: boolean('migrate_on_deploy').notNull().default(true),
+	migrationCommand: varchar('migration_command', { length: 500 }),
+	migrationTimeoutSeconds: integer('migration_timeout_seconds').notNull().default(900),
+	runSeederOnDeploy: boolean('run_seeder_on_deploy').notNull().default(false),
+	seederCommand: varchar('seeder_command', { length: 500 }),
+	seederTimeoutSeconds: integer('seeder_timeout_seconds').notNull().default(900),
+	maintenanceDuringDeployment: boolean('maintenance_during_deployment').notNull().default(false),
+	maintenanceEnabled: boolean('maintenance_enabled').notNull().default(false),
+	maintenanceExpiresAt: timestamp('maintenance_expires_at', { withTimezone: true }),
+	comingSoonEnabled: boolean('coming_soon_enabled').notNull().default(false),
+	comingSoonExpiresAt: timestamp('coming_soon_expires_at', { withTimezone: true }),
+	returnErrors: boolean('return_errors').notNull().default(true),
+	publicErrorMode: applicationPublicErrorModeEnum('public_error_mode').notNull().default('message'),
+	uploadMaxFileSizeMb: integer('upload_max_file_size_mb').notNull().default(50),
+	uploadMaxRequestSizeMb: integer('upload_max_request_size_mb').notNull().default(100),
+	uploadTimeoutSeconds: integer('upload_timeout_seconds').notNull().default(300),
+	uploadAllowedExtensions: jsonb('upload_allowed_extensions').$type<string[]>().notNull().default([]),
+	uploadAllowedMimeTypes: jsonb('upload_allowed_mime_types').$type<string[]>().notNull().default([]),
+	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+	updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+	deletedAt: timestamp('deleted_at', { withTimezone: true }),
+	deleteReason: varchar('delete_reason', { length: 500 }),
+}, (table) => [
+	uniqueIndex('application_settings_application_active_unique').on(table.applicationBuildId).where(sql`${table.deletedAt} IS NULL`),
+	check('application_settings_migration_timeout_check', sql`${table.migrationTimeoutSeconds} BETWEEN 30 AND 3600`),
+	check('application_settings_seeder_timeout_check', sql`${table.seederTimeoutSeconds} BETWEEN 30 AND 3600`),
+	check('application_settings_upload_file_size_check', sql`${table.uploadMaxFileSizeMb} BETWEEN 1 AND 10240`),
+	check('application_settings_upload_request_size_check', sql`${table.uploadMaxRequestSizeMb} BETWEEN ${table.uploadMaxFileSizeMb} AND 20480`),
+	check('application_settings_upload_timeout_check', sql`${table.uploadTimeoutSeconds} BETWEEN 30 AND 3600`),
+]);
+
 /** One shared database engine instance capable of hosting many isolated logical databases. */
 export const databaseClusters = pgTable('database_clusters', {
 	id: uuid('id').primaryKey().defaultRandom(),
@@ -272,10 +308,11 @@ export const databaseBackups = pgTable('database_backups', {
 ]);
 
 export const runtimeImageRelations = relations(runtimeImages, ({ many }) => ({ builds: many(applicationBuilds) }));
-export const applicationBuildRelations = relations(applicationBuilds, ({ one, many }) => ({ workspace: one(workspaces, { fields: [applicationBuilds.workspaceId], references: [workspaces.id] }), resource: one(workspaceResources, { fields: [applicationBuilds.resourceId], references: [workspaceResources.id] }), runtimeImage: one(runtimeImages, { fields: [applicationBuilds.runtimeImageId], references: [runtimeImages.id] }), databaseBindings: many(applicationDatabaseBindings), deployments: many(applicationDeployments), domains: many(applicationDomains) }));
+export const applicationBuildRelations = relations(applicationBuilds, ({ one, many }) => ({ workspace: one(workspaces, { fields: [applicationBuilds.workspaceId], references: [workspaces.id] }), resource: one(workspaceResources, { fields: [applicationBuilds.resourceId], references: [workspaceResources.id] }), runtimeImage: one(runtimeImages, { fields: [applicationBuilds.runtimeImageId], references: [runtimeImages.id] }), databaseBindings: many(applicationDatabaseBindings), deployments: many(applicationDeployments), domains: many(applicationDomains), settings: one(applicationSettings) }));
 export const applicationDomainRelations = relations(applicationDomains, ({ one }) => ({ application: one(applicationBuilds, { fields: [applicationDomains.applicationBuildId], references: [applicationBuilds.id] }) }));
 export const applicationDatabaseBindingRelations = relations(applicationDatabaseBindings, ({ one }) => ({ applicationBuild: one(applicationBuilds, { fields: [applicationDatabaseBindings.applicationBuildId], references: [applicationBuilds.id] }), logicalDatabase: one(logicalDatabases, { fields: [applicationDatabaseBindings.logicalDatabaseId], references: [logicalDatabases.id] }) }));
 export const applicationDeploymentRelations = relations(applicationDeployments, ({ one }) => ({ workspace: one(workspaces, { fields: [applicationDeployments.workspaceId], references: [workspaces.id] }), applicationBuild: one(applicationBuilds, { fields: [applicationDeployments.applicationBuildId], references: [applicationBuilds.id] }), resource: one(workspaceResources, { fields: [applicationDeployments.resourceId], references: [workspaceResources.id] }) }));
+export const applicationSettingsRelations = relations(applicationSettings, ({ one }) => ({ applicationBuild: one(applicationBuilds, { fields: [applicationSettings.applicationBuildId], references: [applicationBuilds.id] }) }));
 export const databaseClusterRelations = relations(databaseClusters, ({ many }) => ({ databases: many(logicalDatabases), users: many(databaseUsers) }));
 export const databaseUserRelations = relations(databaseUsers, ({ one, many }) => ({ workspace: one(workspaces, { fields: [databaseUsers.workspaceId], references: [workspaces.id] }), cluster: one(databaseClusters, { fields: [databaseUsers.clusterId], references: [databaseClusters.id] }), databases: many(logicalDatabases) }));
 export const logicalDatabaseRelations = relations(logicalDatabases, ({ one, many }) => ({ workspace: one(workspaces, { fields: [logicalDatabases.workspaceId], references: [workspaces.id] }), resource: one(workspaceResources, { fields: [logicalDatabases.resourceId], references: [workspaceResources.id] }), cluster: one(databaseClusters, { fields: [logicalDatabases.clusterId], references: [databaseClusters.id] }), databaseUser: one(databaseUsers, { fields: [logicalDatabases.databaseUserId], references: [databaseUsers.id] }), backups: many(databaseBackups) }));

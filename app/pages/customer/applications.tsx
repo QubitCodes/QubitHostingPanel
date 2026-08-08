@@ -27,6 +27,7 @@ import { toast } from 'sonner';
 import { Offcanvas } from '@components/ui/offcanvas';
 import { DeployApplicationForm } from '@root/app/components/applications/deploy-application-form';
 import { ApplicationCronJobs } from '@root/app/components/applications/application-cron-jobs';
+import { ApplicationSettingsForm } from '@root/app/components/applications/application-settings-form';
 import { RepositoryDirectoryBrowser } from '@root/app/components/applications/repository-directory-browser';
 import { authenticatedFetch } from '@root/app/utils/authenticatedFetch';
 import { openCreatedApplication } from '@root/app/utils/applicationNavigation';
@@ -1506,7 +1507,7 @@ export default function CustomerApplicationsPage() {
 												</p>
 												{deployment.logs ? (
 													<details className="mt-4 rounded-xl border border-brand-primary/10 p-3">
-														<summary className="cursor-pointer text-sm font-bold">View Full Raw Provider Log</summary>
+														<summary className="cursor-pointer text-sm font-bold">View complete deployment log</summary>
 														<pre className="mt-3 max-h-96 overflow-auto rounded-xl bg-gray-950 p-4 text-xs text-gray-100">
 															{deployment.logs}
 														</pre>
@@ -1529,6 +1530,7 @@ export default function CustomerApplicationsPage() {
 							)}
 							{activeTab === 'settings' && (
 								<div className="grid gap-6">
+									<ApplicationSettingsForm applicationId={record.id} key={record.id} operationalStatus={record.operationalStatus} workspaceId={active!.publicId} />
 									<div className="rounded-2xl border border-brand-primary/10 p-5">
 										<h3 className="font-bold">Scheduled tasks</h3>
 										<div className="mt-4">

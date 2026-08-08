@@ -23,6 +23,26 @@ interface DiagnosticRule {
 
 const DIAGNOSTIC_RULES: DiagnosticRule[] = [
 	{
+		code: 'database-migration-failed',
+		developerActionRequired: true,
+		explanation: 'The new release was built, but its database migration did not complete successfully.',
+		owner: 'project',
+		pattern: /(?:migrat(?:e|ion)|artisan migrate|manage\.py migrate|rails db:migrate|doctrine:migrations)[\s\S]{0,1800}(?:failed|error|exception|exit code [1-9])/i,
+		phase: 'deployment',
+		suggestion: 'Review the first migration error, correct the migration or database compatibility issue, and redeploy. Ghost Deploy did not continue to the seeder.',
+		title: 'Database migration failed',
+	},
+	{
+		code: 'database-seeder-failed',
+		developerActionRequired: true,
+		explanation: 'Database migrations completed, but the optional release seeder failed.',
+		owner: 'project',
+		pattern: /(?:db:seed|migrations seed|rails db:seed|database seed)[\s\S]{0,1800}(?:failed|error|exception|exit code [1-9])/i,
+		phase: 'deployment',
+		suggestion: 'Make the production seeder repeatable, or disable seeding on deploy before retrying.',
+		title: 'Database seeder failed',
+	},
+	{
 		code: 'invalid-source-encoding',
 		developerActionRequired: false,
 		explanation: 'A source file uses a character encoding that the automatic builder cannot read as UTF-8.',

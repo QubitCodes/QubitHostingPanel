@@ -4,7 +4,7 @@ export interface DeploymentLogSections {
 	raw: string;
 }
 
-const BUILD_START = /(?:Importing .+ to \/artifacts|Cloning into|Generating nixpacks configuration|Building docker image started|^#\d+\s)/i;
+const BUILD_START = /(?:Importing .+ to \/(?:artifacts|build\/workspace)|Cloning into|Generating nixpacks configuration|Preparing application build configuration|Building docker image started|^#\d+\s)/i;
 const DEPLOYMENT_RESUME = /(?:Deployment failed\. Removing|Rolling update|Starting (?:the )?new container|Removing (?:the )?old container|Waiting for health|Health ?check|Container .+ (?:started|healthy)|Deployment (?:completed|successful)|Gracefully shutting down build container)/i;
 
 /** Splits a provider deployment stream into customer-build and platform-deployment channels. */

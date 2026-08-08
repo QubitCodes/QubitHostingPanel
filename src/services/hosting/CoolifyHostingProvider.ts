@@ -2,6 +2,7 @@ import { getEnvironment } from '@config/env';
 import { parseCharsetCompatibilityFixes } from '@services/applications/charsetCompatibilityService';
 import { diagnoseDeploymentLogs } from '@services/applications/deploymentDiagnosticService';
 import { parseDeploymentLogs } from '@services/applications/deploymentLogParserService';
+import { sanitizeCustomerDeploymentLog } from '@services/applications/deploymentLogSanitizerService';
 import type {
 	HostingProvider,
 	ProviderConnectionResult,
@@ -38,9 +39,9 @@ export function normalizeCoolifyDeploymentLogs(value: unknown): string | null {
 				return typeof item.output === 'string' ? item.output : '';
 			})
 			.filter(Boolean);
-		return lines.length ? lines.join('\n') : null;
+		return lines.length ? sanitizeCustomerDeploymentLog(lines.join('\n')) : null;
 	} catch {
-		return value;
+		return sanitizeCustomerDeploymentLog(value);
 	}
 }
 
@@ -214,12 +215,13 @@ export class CoolifyHostingProvider implements HostingProvider {
 
 	public async updateApplicationSettings(
 		applicationId: string,
-		input: { autoDeployEnabled?: boolean; visibility?: 'private' | 'public' },
+		input: { autoDeployEnabled?: boolean; postDeploymentCommand?: string; visibility?: 'private' | 'public' },
 	): Promise<void> {
 		await this.request(`/applications/${encodeURIComponent(applicationId)}`, {
 			method: 'PATCH',
 			body: JSON.stringify({
 				is_auto_deploy_enabled: input.autoDeployEnabled,
+				...(input.postDeploymentCommand !== undefined ? { post_deployment_command: input.postDeploymentCommand } : {}),
 			}),
 		});
 	}
@@ -509,6 +511,7 @@ export class CoolifyHostingProvider implements HostingProvider {
 						input.startCommand,
 						runtimePort,
 					),
+					post_deployment_command: input.postDeploymentCommand ?? '',
 					base_directory:
 						normalizeCoolifyRepositoryDirectory(input.baseDirectory) ?? '/',
 					publish_directory: normalizeCoolifyRepositoryDirectory(
@@ -558,6 +561,7 @@ export class CoolifyHostingProvider implements HostingProvider {
 						normalizeCoolifyCommand(input.buildCommand, runtimePort) ?? '',
 					start_command:
 						normalizeCoolifyCommand(input.startCommand, runtimePort) ?? '',
+					post_deployment_command: input.postDeploymentCommand ?? '',
 					base_directory:
 						normalizeCoolifyRepositoryDirectory(input.baseDirectory) ?? '/',
 					publish_directory:

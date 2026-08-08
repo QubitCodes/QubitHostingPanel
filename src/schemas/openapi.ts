@@ -1906,6 +1906,40 @@ export const OPENAPI_DOCUMENT = {
 				},
 			},
 		},
+		'/workspaces/{workspaceId}/applications/{applicationId}/settings': {
+			get: {
+				summary: 'Retrieve application release, error, upload, and site-state settings',
+				operationId: 'getWorkspaceApplicationSettings',
+				security: [{ bearerAuth: [] }],
+				parameters: [{ $ref: '#/components/parameters/WorkspaceId' }, { $ref: '#/components/parameters/ApplicationId' }],
+				responses: {
+					'200': { description: 'Framework-aware settings, effective site state, and custom-page package availability.' },
+					'404': { description: 'Application not found.' },
+				},
+			},
+			post: {
+				summary: 'Update application release, error, upload, and site-state settings',
+				operationId: 'updateWorkspaceApplicationSettings',
+				security: [{ bearerAuth: [] }],
+				parameters: [{ $ref: '#/components/parameters/WorkspaceId' }, { $ref: '#/components/parameters/ApplicationId' }],
+				requestBody: {
+					required: true,
+					content: { 'application/json': { schema: {
+						type: 'object',
+						additionalProperties: false,
+						required: ['migrateOnDeploy', 'migrationCommand', 'migrationTimeoutSeconds', 'runSeederOnDeploy', 'seederCommand', 'seederTimeoutSeconds', 'maintenanceDuringDeployment', 'maintenanceEnabled', 'maintenanceExpiresAt', 'comingSoonEnabled', 'comingSoonExpiresAt', 'returnErrors', 'publicErrorMode', 'uploadMaxFileSizeMb', 'uploadMaxRequestSizeMb', 'uploadTimeoutSeconds', 'uploadAllowedExtensions', 'uploadAllowedMimeTypes'],
+						properties: {
+							migrateOnDeploy: { type: 'boolean' }, migrationCommand: { type: ['string', 'null'], maxLength: 500 }, migrationTimeoutSeconds: { type: 'integer', minimum: 30, maximum: 3600 },
+							runSeederOnDeploy: { type: 'boolean' }, seederCommand: { type: ['string', 'null'], maxLength: 500 }, seederTimeoutSeconds: { type: 'integer', minimum: 30, maximum: 3600 },
+							maintenanceDuringDeployment: { type: 'boolean' }, maintenanceEnabled: { type: 'boolean' }, maintenanceExpiresAt: { type: ['string', 'null'], format: 'date-time' }, comingSoonEnabled: { type: 'boolean' }, comingSoonExpiresAt: { type: ['string', 'null'], format: 'date-time' },
+							returnErrors: { type: 'boolean' }, publicErrorMode: { type: 'string', enum: ['generic', 'message', 'detailed'] },
+							uploadMaxFileSizeMb: { type: 'integer', minimum: 1, maximum: 10240 }, uploadMaxRequestSizeMb: { type: 'integer', minimum: 1, maximum: 20480 }, uploadTimeoutSeconds: { type: 'integer', minimum: 30, maximum: 3600 }, uploadAllowedExtensions: { type: 'array', items: { type: 'string' }, maxItems: 100 }, uploadAllowedMimeTypes: { type: 'array', items: { type: 'string' }, maxItems: 100 },
+						},
+					} } },
+				},
+				responses: { '200': { description: 'Settings saved, provider release hook synchronized, and audit event recorded.' }, '400': { description: 'Validation failed.' }, '422': { description: 'Settings or provider synchronization failed.' } },
+			},
+		},
 		'/workspaces/{workspaceId}/applications/{applicationId}/events': {
 			get: {
 				summary: 'Stream live application and deployment events',

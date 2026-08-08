@@ -17,6 +17,10 @@ export interface FrameworkDefinition {
 	language: RuntimeLanguage;
 	outputDirectory?: string;
 	persistentDirectories?: string[];
+	release?: {
+		migrationCommand: string;
+		seederCommand?: string;
+	};
 	schedulerPreset?:
 		| 'custom-command'
 		| 'django-command'
@@ -108,6 +112,10 @@ export const FRAMEWORK_CATALOG = [
 		description: 'Laravel web application.',
 		databaseEngines: ['postgresql', 'mysql'],
 		persistentDirectories: ['storage/app/public'],
+		release: {
+			migrationCommand: 'php artisan migrate --force --no-interaction',
+			seederCommand: 'php artisan db:seed --force --no-interaction',
+		},
 		schedulerPreset: 'laravel',
 		workerPreset: 'laravel-queue',
 	},
@@ -129,6 +137,10 @@ export const FRAMEWORK_CATALOG = [
 		description: 'CakePHP web application.',
 		databaseEngines: ['postgresql', 'mysql'],
 		persistentDirectories: ['logs', 'tmp'],
+		release: {
+			migrationCommand: 'bin/cake migrations migrate',
+			seederCommand: 'bin/cake migrations seed',
+		},
 		schedulerPreset: 'custom-command',
 	},
 	{
@@ -139,6 +151,9 @@ export const FRAMEWORK_CATALOG = [
 		description: 'Symfony web application.',
 		databaseEngines: ['postgresql', 'mysql'],
 		persistentDirectories: ['var'],
+		release: {
+			migrationCommand: 'php bin/console doctrine:migrations:migrate --no-interaction --allow-no-migration',
+		},
 		schedulerPreset: 'custom-command',
 		workerPreset: 'messenger',
 	},
@@ -179,6 +194,9 @@ export const FRAMEWORK_CATALOG = [
 		description: 'Django web application.',
 		databaseEngines: ['postgresql', 'mysql'],
 		persistentDirectories: ['media'],
+		release: {
+			migrationCommand: 'python manage.py migrate --noinput',
+		},
 		schedulerPreset: 'django-command',
 		workerPreset: 'celery',
 	},
@@ -219,6 +237,10 @@ export const FRAMEWORK_CATALOG = [
 		description: 'Ruby on Rails web application.',
 		databaseEngines: ['postgresql', 'mysql'],
 		persistentDirectories: ['storage'],
+		release: {
+			migrationCommand: 'bundle exec rails db:migrate',
+			seederCommand: 'bundle exec rails db:seed',
+		},
 		schedulerPreset: 'rails-command',
 		workerPreset: 'rails-queue',
 	},

@@ -8,6 +8,7 @@ import {
   applicationDatabaseBindings,
   applicationDeployments,
   applicationDomains,
+  applicationSettings,
   customerCheckouts,
   databaseClusters,
   logicalDatabases,
@@ -20,6 +21,7 @@ import {
   buildSafeInstallCommand,
   frameworkEnvironmentDefaults,
 } from "@services/applications/deploymentRecipeService";
+import { applicationPostDeploymentCommand, defaultApplicationReleasePolicy } from '@services/applications/applicationReleaseSettingsService';
 import { databaseConnectionUrl, frameworkDatabaseEnvironment, resolveManagedDatabaseEnvironmentVariables, type FrameworkDatabaseConnection } from "@services/applications/frameworkDatabaseEnvironmentService";
 import { databaseClusterEndpoint } from "@services/databases/databaseClusterEndpointService";
 import { decryptCredential } from "@services/encryption/credentialEncryptionService";
@@ -324,6 +326,26 @@ export async function processProvisioningJobs(
               scope: "runtime" | "build" | "both";
             }>)
           : [];
+        const [storedReleaseSettings] = configuredApplication
+          ? await db
+              .select({
+                migrateOnDeploy: applicationSettings.migrateOnDeploy,
+                migrationCommand: applicationSettings.migrationCommand,
+                migrationTimeoutSeconds: applicationSettings.migrationTimeoutSeconds,
+                runSeederOnDeploy: applicationSettings.runSeederOnDeploy,
+                seederCommand: applicationSettings.seederCommand,
+                seederTimeoutSeconds: applicationSettings.seederTimeoutSeconds,
+              })
+              .from(applicationSettings)
+              .where(
+                and(
+                  eq(applicationSettings.applicationBuildId, configuredApplication.build.id),
+                  isNull(applicationSettings.deletedAt),
+                ),
+              )
+              .limit(1)
+          : [];
+        const releaseSettings = storedReleaseSettings ?? defaultApplicationReleasePolicy(configuredApplication?.build.framework);
         const environmentVariables = resolveManagedDatabaseEnvironmentVariables(
           configuredEnvironmentVariables,
           singleDatabaseConnection,
@@ -370,6 +392,7 @@ export async function processProvisioningJobs(
           baseDirectory: configuredApplication?.build.baseDirectory,
           publishDirectory:
             configuredApplication?.build.publishDirectory ?? undefined,
+          postDeploymentCommand: applicationPostDeploymentCommand(releaseSettings),
           domains,
           healthCheckPath:
             typeof applicationMetadata?.deploymentContract === "object" &&

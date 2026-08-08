@@ -191,6 +191,7 @@ describe('Coolify environment variables', () => {
 				{ key: 'API_URL', value: 'https://example.com', scope: 'build' },
 			],
 			name: 'example',
+			postDeploymentCommand: "timeout 900s sh -c 'php artisan migrate --force'",
 			runtimeImage: { port: 3000, repository: 'example/node', tag: '22' },
 			source: { branch: 'main', repository: 'https://github.com/example/app' },
 			workspaceId: 'workspace',
@@ -219,6 +220,7 @@ describe('Coolify environment variables', () => {
 			.find((body) => body.git_repository);
 		expect(applicationBody?.environment_name).toBe('provider-production');
 		expect(applicationBody?.base_directory).toBe('/');
+		expect(applicationBody?.post_deployment_command).toBe("timeout 900s sh -c 'php artisan migrate --force'");
 	});
 });
 

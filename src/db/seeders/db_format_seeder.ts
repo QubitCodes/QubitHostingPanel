@@ -65,6 +65,7 @@ const CRON_ENTITLEMENTS = [
 	{ code: 'deployments.auto_enabled', name: 'Automatic deployments', description: 'Allows GitHub push based deployments.', valueType: 'boolean' as const, unit: null },
 	{ code: 'deployments.history_limit', name: 'Deployment history entries', description: 'Maximum deployment history entries shown per application.', valueType: 'number' as const, unit: 'deployments' },
 	{ code: 'deployments.retention_days', name: 'Deployment history retention', description: 'Days deployment history and captured logs are retained.', valueType: 'number' as const, unit: 'days' },
+	{ code: 'applications.custom_system_pages', name: 'Custom system pages', description: 'Allows application-specific maintenance, coming soon, suspended, and error page designs.', valueType: 'boolean' as const, unit: null },
 ] as const;
 
 const CRON_PACKAGE_LIMITS: Record<string, { enabled: boolean; jobs: number; interval: number; timeout: number }> = {
@@ -109,7 +110,7 @@ async function seedPackageCatalogue(): Promise<void> {
 			await db.insert(packageEntitlements).values({ packageId: packageRow.id, entitlementId, booleanValue: typeof value === 'boolean' ? value : null, numericValue: typeof value === 'number' ? value : null }).onConflictDoUpdate({ target: [packageEntitlements.packageId, packageEntitlements.entitlementId], targetWhere: sql`${packageEntitlements.deletedAt} IS NULL`, set: { booleanValue: typeof value === 'boolean' ? value : null, numericValue: typeof value === 'number' ? value : null, updatedAt: new Date() } });
 		}
 		const deploymentLimits = seed.slug === 'launch' ? { auto: false, history: 2, retention: 7 } : seed.slug === 'growth' ? { auto: true, history: 10, retention: 30 } : { auto: true, history: 50, retention: 90 };
-		for (const [code, value] of Object.entries({ 'deployments.manual_enabled': true, 'deployments.auto_enabled': deploymentLimits.auto, 'deployments.history_limit': deploymentLimits.history, 'deployments.retention_days': deploymentLimits.retention })) {
+		for (const [code, value] of Object.entries({ 'deployments.manual_enabled': true, 'deployments.auto_enabled': deploymentLimits.auto, 'deployments.history_limit': deploymentLimits.history, 'deployments.retention_days': deploymentLimits.retention, 'applications.custom_system_pages': seed.slug !== 'launch' })) {
 			const entitlementId = cronDefinitions.find((item) => item.code === code)?.id;
 			if (!entitlementId) throw new Error(`Entitlement ${code} was not seeded.`);
 			await db.insert(packageEntitlements).values({ packageId: packageRow.id, entitlementId, booleanValue: typeof value === 'boolean' ? value : null, numericValue: typeof value === 'number' ? value : null }).onConflictDoUpdate({ target: [packageEntitlements.packageId, packageEntitlements.entitlementId], targetWhere: sql`${packageEntitlements.deletedAt} IS NULL`, set: { booleanValue: typeof value === 'boolean' ? value : null, numericValue: typeof value === 'number' ? value : null, updatedAt: new Date() } });
@@ -203,6 +204,10 @@ const SPECIAL_PERMISSIONS = [
 	{ code: 'databases.rotate_credentials', description: 'Rotate customer database credentials.', name: 'Rotate database credentials' },
 	{ code: 'databases.restore', description: 'Restore customer databases from backups.', name: 'Restore customer databases' },
 	{ code: 'deployments.retry', description: 'Retry or redeploy customer applications.', name: 'Retry deployments' },
+	{ code: 'applications.manage_settings', description: 'Change customer application release and site settings.', name: 'Manage application settings' },
+	{ code: 'applications.run_migrations', description: 'Run or configure customer application migrations.', name: 'Run application migrations' },
+	{ code: 'applications.run_seeders', description: 'Run or configure customer application seeders.', name: 'Run application seeders' },
+	{ code: 'applications.manage_site_state', description: 'Change customer application maintenance and coming soon state.', name: 'Manage application site state' },
 	{ code: 'domains.verify', description: 'Run or override domain verification workflows.', name: 'Verify customer domains' },
 	{ code: 'database_clusters.rotate_credentials', description: 'Rotate encrypted shared database administrator credentials.', name: 'Rotate database cluster credentials' },
 	{ code: 'database_clusters.manage_backups', description: 'Configure and trigger shared database backups.', name: 'Manage database cluster backups' },
