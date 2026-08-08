@@ -1135,7 +1135,7 @@ export const OPENAPI_DOCUMENT = {
 										pattern: '^[a-z0-9]+(?:-[a-z0-9]+)*$',
 									},
 									engine: { type: 'string', enum: ['postgresql', 'mysql'] },
-									name: { type: 'string' },
+									name: { type: 'string', description: 'Customer-controlled identifier suffix. The server prepends the immutable workspace public-ID prefix.' },
 									maximumDatabases: { type: 'integer', minimum: 1 },
 									limitsMemory: { type: 'string', example: '1g' },
 									limitsCpus: { type: 'string', example: '1' },
@@ -1230,7 +1230,7 @@ export const OPENAPI_DOCUMENT = {
 									engine: { type: 'string', enum: ['postgresql', 'mysql'] },
 									name: { type: 'string' },
 									userMode: { type: 'string', enum: ['new', 'existing'], default: 'new' },
-									username: { type: 'string', description: 'Editable login name when creating a new database user. Defaults to the database name.' },
+									username: { type: 'string', description: 'Customer-controlled login suffix when creating a new database user. The server prepends the workspace prefix; defaults to the database suffix.' },
 									password: { type: 'string', format: 'password', minLength: 16, description: 'Optional strong password chosen for a new database user. Omit to generate it on the server. Never accepted for an existing user.' },
 									databaseUserId: { type: 'string', format: 'uuid', description: 'Required when userMode is existing.' },
 									connectionLimit: {

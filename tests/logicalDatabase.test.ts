@@ -11,12 +11,18 @@ import {
 	logicalDatabasePublicIdSchema,
 	rotateDatabaseCredentialSchema,
 } from '@schemas/logicalDatabase';
+import { DATABASE_IDENTIFIER_SUFFIX_MAX_LENGTH, workspaceDatabaseIdentifierPrefix } from '@utils/databaseIdentifier';
 
 describe('logical database validation', () => {
-	it('uses the confirmed snake-case name as the physical database name', () => {
-		expect(logicalDatabasePhysicalName('sleebas_pkwvw0')).toBe(
-			'sleebas_pkwvw0',
+	it('prefixes the confirmed suffix with the stable workspace identifier', () => {
+		expect(logicalDatabasePhysicalName(100001, 'sleebas')).toBe(
+			'w100001_sleebas',
 		);
+	});
+	it('keeps workspace prefixes immutable and reserves identifier length for them', () => {
+		expect(workspaceDatabaseIdentifierPrefix(100001)).toBe('w100001_');
+		expect(createLogicalDatabaseSchema.safeParse({ engine: 'postgresql', name: 'a'.repeat(DATABASE_IDENTIFIER_SUFFIX_MAX_LENGTH) }).success).toBe(true);
+		expect(createLogicalDatabaseSchema.safeParse({ engine: 'postgresql', name: 'a'.repeat(DATABASE_IDENTIFIER_SUFFIX_MAX_LENGTH + 1) }).success).toBe(false);
 	});
 	it('applies conservative connection and storage defaults', () => {
 		expect(

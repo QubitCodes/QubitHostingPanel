@@ -55,6 +55,7 @@ import {
 	frameworksForLanguage,
 	type RuntimeLanguage,
 } from '@config/frameworkCatalog';
+import { DATABASE_IDENTIFIER_SUFFIX_MAX_LENGTH, workspaceDatabaseIdentifier, workspaceDatabaseIdentifierPrefix } from '@utils/databaseIdentifier';
 
 interface RuntimeOption {
 	code: string;
@@ -575,10 +576,12 @@ export function DeployApplicationForm({
 			),
 		[availableBranches, branch],
 	);
+	const databaseIdentifierPrefix = workspaceDatabaseIdentifierPrefix(workspaceId);
 	const combinedDatabaseName = databaseNamePrefix
-		? `${databaseNamePrefix}_${databaseSuffix}`
+		? workspaceDatabaseIdentifier(workspaceId, databaseNamePrefix)
 		: '';
-	const effectiveDatabaseUsername = databaseUsernameEdited ? databaseUsername : combinedDatabaseName;
+	const effectiveDatabaseUsernameSuffix = databaseUsernameEdited ? databaseUsername : databaseNamePrefix;
+	const effectiveDatabaseUsername = effectiveDatabaseUsernameSuffix ? workspaceDatabaseIdentifier(workspaceId, effectiveDatabaseUsernameSuffix) : '';
 	const platformHostname = domainLabel && options.applicationBaseDomain
 		? `${domainLabel}-${databaseSuffix}.${options.applicationBaseDomain}`
 		: '';
@@ -671,12 +674,12 @@ export function DeployApplicationForm({
 	}, [clearEnvironmentBeforeImport, parsedEnvironmentImport, variables]);
 
 	useEffect(() => {
-		if (databaseMode !== 'new' || !combinedDatabaseName) return;
+		if (databaseMode !== 'new' || !databaseNamePrefix) return;
 		const controller = new AbortController();
 		const timer = window.setTimeout(() => {
 			setDatabaseNameAvailability('checking');
 			void request<{ available: boolean; name: string }>(
-				`/api/v1/workspaces/${workspaceId}/databases/name-availability?name=${encodeURIComponent(combinedDatabaseName)}`,
+				`/api/v1/workspaces/${workspaceId}/databases/name-availability?name=${encodeURIComponent(databaseNamePrefix)}`,
 				{ signal: controller.signal },
 			)
 				.then((result) => {
@@ -694,7 +697,7 @@ export function DeployApplicationForm({
 			window.clearTimeout(timer);
 			controller.abort();
 		};
-	}, [combinedDatabaseName, databaseMode, workspaceId]);
+	}, [databaseMode, databaseNamePrefix, workspaceId]);
 
 	const loadGithubConnections = useCallback(async (): Promise<
 		GithubConnection[]
@@ -1253,9 +1256,9 @@ export function DeployApplicationForm({
 						headers: { 'content-type': 'application/json' },
 						body: JSON.stringify({
 							engine: databaseEngine,
-							name: combinedDatabaseName,
+							name: databaseNamePrefix,
 							userMode: databaseUserMode,
-							username: databaseUserMode === 'new' ? effectiveDatabaseUsername : undefined,
+							username: databaseUserMode === 'new' ? effectiveDatabaseUsernameSuffix : undefined,
 							password: databaseUserMode === 'new' ? databasePassword : undefined,
 							databaseUserId: databaseUserMode === 'existing' ? existingDatabaseUserId : undefined,
 							connectionLimit: 10,
@@ -2160,9 +2163,12 @@ export function DeployApplicationForm({
 							<label className="grid gap-2 font-semibold">
 								Database name
 								<div className="flex items-stretch overflow-hidden rounded-xl border border-brand-primary/15 bg-white focus-within:border-brand-action dark:bg-gray-800">
+									<span className="flex select-none items-center border-r border-brand-primary/10 bg-app-canvas px-3 font-mono text-xs font-bold text-app-muted">
+										{databaseIdentifierPrefix}
+									</span>
 									<input
 										className="min-w-0 flex-1 bg-transparent px-4 py-3 text-gray-900 outline-none dark:text-gray-100"
-										maxLength={56}
+										maxLength={DATABASE_IDENTIFIER_SUFFIX_MAX_LENGTH}
 										name="newDatabaseNamePrefix"
 										onChange={(event) => {
 											setDatabaseNameEdited(true);
@@ -2175,9 +2181,6 @@ export function DeployApplicationForm({
 										required
 										value={databaseNamePrefix}
 									/>
-									<span className="flex select-none items-center border-l border-brand-primary/10 bg-app-canvas px-3 font-mono text-xs font-bold text-app-muted">
-										_{databaseSuffix}
-									</span>
 								</div>
 								{combinedDatabaseName && (
 									<div className="flex flex-wrap items-center justify-between gap-2 text-xs">
@@ -2236,7 +2239,10 @@ export function DeployApplicationForm({
 									<div className="grid gap-4">
 										<label className="grid gap-2 font-semibold">
 											Database username
-											<input className={inputClass} maxLength={63} onChange={(event) => { setDatabaseUsernameEdited(true); setDatabaseUsername(databaseIdentifier(event.target.value).slice(0, 63)); }} pattern="[a-z0-9]+(?:_[a-z0-9]+)*" required value={effectiveDatabaseUsername} />
+											<div className="flex items-stretch overflow-hidden rounded-xl border border-brand-primary/15 bg-white focus-within:border-brand-action dark:bg-gray-800">
+												<span className="flex select-none items-center border-r border-brand-primary/10 bg-app-canvas px-3 font-mono text-xs font-bold text-app-muted">{databaseIdentifierPrefix}</span>
+												<input className="min-w-0 flex-1 bg-transparent px-4 py-3 text-gray-900 outline-none dark:text-gray-100" maxLength={DATABASE_IDENTIFIER_SUFFIX_MAX_LENGTH} onChange={(event) => { setDatabaseUsernameEdited(true); setDatabaseUsername(databaseIdentifier(event.target.value).slice(0, DATABASE_IDENTIFIER_SUFFIX_MAX_LENGTH)); }} pattern="[a-z0-9]+(?:_[a-z0-9]+)*" required value={effectiveDatabaseUsernameSuffix} />
+											</div>
 											<Hint>This restricted user owns the new database.</Hint>
 										</label>
 										<label className="grid gap-2 font-semibold">

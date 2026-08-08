@@ -29,6 +29,7 @@ import {
 } from "@services/encryption/credentialEncryptionService";
 import { commitUsageReservation, releaseUsageReservation, reserveWorkspaceUsage } from "@services/usage/quotaEngine";
 import type { RequestMetadata } from "@utils/request";
+import { workspaceDatabaseIdentifier } from "@utils/databaseIdentifier";
 
 interface ClusterCredential {
   database: string;
@@ -128,9 +129,9 @@ export function composeLogicalDatabaseResponse<
   };
 }
 
-/** Keeps the customer-confirmed unique name as the real database identifier. */
-export function logicalDatabasePhysicalName(inputName: string): string {
-  return inputName;
+/** Prefixes a customer-controlled suffix with the immutable workspace identifier. */
+export function logicalDatabasePhysicalName(workspacePublicId: number, inputName: string): string {
+  return workspaceDatabaseIdentifier(workspacePublicId, inputName);
 }
 
 /** Customer-authorized shared logical database lifecycle. */
@@ -203,6 +204,7 @@ export class LogicalDatabaseController {
   ): Promise<Response> {
     try {
       const { workspace } = await workspaceAccess(request, workspacePublicId, metadata);
+      const databaseName = logicalDatabasePhysicalName(workspace.publicId, name);
       const [[existingResource], [existingDatabase]] = await Promise.all([
         db
           .select({ id: workspaceResources.id })
@@ -221,7 +223,7 @@ export class LogicalDatabaseController {
           .from(logicalDatabases)
           .where(
             and(
-              eq(logicalDatabases.databaseName, name),
+              eq(logicalDatabases.databaseName, databaseName),
               isNull(logicalDatabases.deletedAt),
             ),
           )
@@ -229,7 +231,8 @@ export class LogicalDatabaseController {
       ]);
       return resp.success("Database name availability checked.", {
         available: !existingResource && !existingDatabase,
-        name,
+        name: databaseName,
+        suffix: name,
       });
     } catch (error) {
       const authenticationFailure = authenticationFailureResponse(error);
@@ -373,12 +376,13 @@ export class LogicalDatabaseController {
           undefined,
           409,
         );
+      const databaseName = logicalDatabasePhysicalName(workspace.publicId, input.name);
       const [physicalDuplicate] = await db
         .select({ id: logicalDatabases.id })
         .from(logicalDatabases)
         .where(
           and(
-            eq(logicalDatabases.databaseName, input.name),
+            eq(logicalDatabases.databaseName, databaseName),
             isNull(logicalDatabases.deletedAt),
           ),
         )
@@ -435,8 +439,7 @@ export class LogicalDatabaseController {
 		  .where(and(eq(logicalDatabases.clusterId, cluster.cluster.id), isNull(logicalDatabases.deletedAt)));
 		if (Number(clusterDatabaseCount) >= cluster.cluster.maximumDatabases) return resp.failure('The selected database user belongs to a cluster that has reached capacity.', resp.codes.SYSTEM_MAINTENANCE, undefined, null, undefined, 503);
 	  }
-      const databaseName = logicalDatabasePhysicalName(input.name);
-      const username = selectedDatabaseUser?.user.username ?? input.username ?? databaseName;
+      const username = selectedDatabaseUser?.user.username ?? logicalDatabasePhysicalName(workspace.publicId, input.username ?? input.name);
       if (!selectedDatabaseUser) {
         const [duplicateUser] = await db.select({ id: databaseUsers.id }).from(databaseUsers).where(and(eq(databaseUsers.clusterId, cluster.cluster.id), eq(databaseUsers.username, username), isNull(databaseUsers.deletedAt))).limit(1);
         if (duplicateUser) return resp.failure('Database username is already in use.', resp.codes.RESOURCE_ALREADY_EXISTS, [{ field: 'username', message: 'Choose another database username or select the existing user.' }], null, undefined, 409);

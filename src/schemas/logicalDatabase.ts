@@ -1,11 +1,13 @@
 import { z } from 'zod';
 
+import { DATABASE_IDENTIFIER_SUFFIX_MAX_LENGTH } from '@utils/databaseIdentifier';
+
 export const logicalDatabasePublicIdSchema = z.uuid();
 export const databaseNameSchema = z
 	.string()
 	.trim()
 	.min(2)
-	.max(63, 'Database name cannot exceed 63 characters.')
+	.max(DATABASE_IDENTIFIER_SUFFIX_MAX_LENGTH, `Database name suffix cannot exceed ${DATABASE_IDENTIFIER_SUFFIX_MAX_LENGTH} characters.`)
 	.regex(
 		/^[a-z0-9]+(?:_[a-z0-9]+)*$/,
 		'Database name must use lowercase snake_case.',
